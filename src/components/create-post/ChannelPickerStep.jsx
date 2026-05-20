@@ -10,9 +10,10 @@ function profilePlaceholder(displayName, platformName) {
 function ChannelPickerCard({ option, isSelected, onToggle }) {
   const platformKey = option.platformKey || getPlatformKeyFromCreatePostChannelKey(option.key);
   const platformName = option.platformName || option.label;
+  const username = option.username || option.accountDisplayName || option.label || "";
   const accountTypeLabel = option.accountTypeLabel || "";
   const profileSrc =
-    option.profileImage || profilePlaceholder(option.accountDisplayName || option.label, platformName);
+    option.profileImage || profilePlaceholder(option.accountDisplayName || username, platformName);
 
   return (
     <button
@@ -36,9 +37,10 @@ function ChannelPickerCard({ option, isSelected, onToggle }) {
       </span>
 
       <span className="min-w-0 flex-1">
-        <p className="font-semibold text-slate-900 dark:text-white">{platformName}</p>
+        <p className="truncate font-semibold text-slate-900 dark:text-white">{username}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{platformName}</p>
         {accountTypeLabel ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{accountTypeLabel}</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">{accountTypeLabel}</p>
         ) : null}
       </span>
 

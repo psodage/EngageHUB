@@ -46,6 +46,15 @@ export function getCreatePostChannelLabel(channelKey, channelOptions = []) {
 
 /** @param {Record<string, unknown> | null | undefined} account */
 /** @param {Record<string, unknown> | null | undefined} [entity] */
+function resolveChannelUsername(account, entity = null) {
+  const handle = String(entity?.username || account?.username || "").trim().replace(/^@/, "");
+  if (handle) return `@${handle}`;
+  const name = String(entity?.accountName || account?.accountName || "").trim();
+  return name;
+}
+
+/** @param {Record<string, unknown> | null | undefined} account */
+/** @param {Record<string, unknown> | null | undefined} [entity] */
 function resolveAccountProfileImage(account, entity = null) {
   if (entity?.profileImage) return String(entity.profileImage);
   if (account?.profileImage) return String(account.profileImage);
@@ -90,6 +99,7 @@ export function mapAccountsToCreatePostChannelOptions(connectedAccounts) {
           key: buildFacebookCreatePostChannelKey(entity),
           platformKey: "facebook",
           platformName: config.label,
+          username: resolveChannelUsername(account, entity) || displayName,
           accountTypeLabel: isProfile ? "Facebook profile" : "Facebook page",
           label: displayName,
           profileImage: resolveAccountProfileImage(account, entity),
@@ -110,6 +120,7 @@ export function mapAccountsToCreatePostChannelOptions(connectedAccounts) {
       ...config,
       platformKey: config.key,
       platformName: config.label,
+      username: resolveChannelUsername(account) || displayName,
       accountTypeLabel: "",
       label: displayName,
       profileImage: resolveAccountProfileImage(account),
