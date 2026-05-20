@@ -10,7 +10,8 @@ import {
 } from "../../utils/sharedPostSync";
 import { getCreatePostChannelLabel } from "../../utils/createPostChannels";
 import { publishToAllChannelsWithProgress, CHANNEL_PUBLISH_STATUS } from "../../utils/multiChannelPublish";
-import { shouldWarnLinkedInMissingOriginalFile } from "../../utils/multiChannelMedia";
+import { getPlatformKeyFromCreatePostChannelKey } from "../../utils/createPostChannels";
+import { importRemoteMediaAsFile, isAppHostedMediaUrl } from "../../utils/importRemoteMediaFile";
 import CreatePostWorkspaceHeader from "./CreatePostWorkspaceHeader";
 import ChannelPreviewPanel from "./ChannelPreviewPanel";
 import ChannelPublishProgress from "./ChannelPublishProgress";
@@ -48,6 +49,8 @@ export default function CreatePostWorkspace({
   const [activePreviewChannelKey, setActivePreviewChannelKey] = useState(
     () => selectedChannelKeys[0] || ""
   );
+  const [importingLinkedInMedia, setImportingLinkedInMedia] = useState(false);
+  const linkedInMediaImportRef = useRef(0);
 
   const captionLimit = getSharedCaptionLimit(selectedChannelKeys);
   const channelKeysKey = selectedChannelKeys.join(",");
@@ -83,6 +86,11 @@ export default function CreatePostWorkspace({
   const sharedMediaUrl = useMemo(
     () => getSharedFromDrafts(selectedChannelKeys, drafts).mediaUrl,
     [selectedChannelKeys, drafts, channelKeysKey]
+  );
+
+  const hasLinkedInChannel = useMemo(
+    () => selectedChannelKeys.some((k) => getPlatformKeyFromCreatePostChannelKey(k) === "linkedin"),
+    [selectedChannelKeys, channelKeysKey]
   );
 
   const pushSharedToDrafts = (patch) => {
@@ -128,13 +136,37 @@ export default function CreatePostWorkspace({
     [sharedCaption, sharedFile, selectedChannelKeys, drafts]
   );
 
-  const linkedInFileWarning = useMemo(() => {
-    const shared = {
-      file: sharedFile || getSharedFromDrafts(selectedChannelKeys, drafts).file,
-      mediaUrl: sharedMediaUrl,
+  useEffect(() => {
+    if (!hasLinkedInChannel || sharedFile) return;
+    const url = (sharedMediaUrl || "").trim();
+    if (!url || isAppHostedMediaUrl(url)) return;
+
+    const importId = ++linkedInMediaImportRef.current;
+    setImportingLinkedInMedia(true);
+
+    (async () => {
+      try {
+        const mediaFile = await importRemoteMediaAsFile(url);
+        if (importId !== linkedInMediaImportRef.current) return;
+        pushSharedToDrafts({ file: mediaFile, mediaUrl: "" });
+        setSharedFile(mediaFile);
+      } catch (err) {
+        if (importId !== linkedInMediaImportRef.current) return;
+        setToast({
+          message: err?.message || "Could not import this image for LinkedIn. Upload a file from your device instead.",
+          error: true,
+        });
+      } finally {
+        if (importId === linkedInMediaImportRef.current) {
+          setImportingLinkedInMedia(false);
+        }
+      }
+    })();
+
+    return () => {
+      linkedInMediaImportRef.current += 1;
     };
-    return shouldWarnLinkedInMissingOriginalFile(selectedChannelKeys, shared);
-  }, [selectedChannelKeys, sharedFile, sharedMediaUrl, drafts, channelKeysKey]);
+  }, [hasLinkedInChannel, sharedMediaUrl, sharedFile, channelKeysKey]);
 
   const submitLabel = useMemo(() => {
     const n = selectedChannelKeys.length;
@@ -142,6 +174,10 @@ export default function CreatePostWorkspace({
   }, [selectedChannelKeys.length]);
 
   const handleSubmit = async () => {
+    if (importingLinkedInMedia) {
+      setToast({ message: "Wait for LinkedIn image import to finish.", error: true });
+      return;
+    }
     if (!hasContent) {
       setToast({ message: "Add a caption or media before posting.", error: true });
       return;
@@ -261,7 +297,7 @@ export default function CreatePostWorkspace({
               file={sharedFile}
               mediaUrl={sharedMediaUrl}
               captionLimit={captionLimit}
-              linkedInFileWarning={linkedInFileWarning}
+              linkedInMediaImporting={importingLinkedInMedia}
               onCaptionChange={handleCaptionChange}
               onFileChange={handleFileChange}
               onSuggestedImageSelect={handleSuggestedImageSelect}
@@ -313,7 +349,7 @@ export default function CreatePostWorkspace({
           </p>
           <button
             type="button"
-            disabled={publishing || !hasContent}
+            disabled={publishing || importingLinkedInMedia || !hasContent}
             onClick={handleSubmit}
             className="inline-flex items-center gap-2 rounded-lg bg-buffer-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-buffer-700 disabled:cursor-not-allowed disabled:opacity-50"
           >

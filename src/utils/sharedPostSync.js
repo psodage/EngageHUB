@@ -1,5 +1,6 @@
 import { createEmptyChannelDraft, getPlatformComposerConfig } from "../data/platformComposerConfig";
 import { getPlatformKeyFromCreatePostChannelKey } from "./createPostChannels";
+import { isLikelyImageMediaUrl, isLikelyVideoMediaUrl } from "./mediaUrlHeuristics";
 
 export function truncateCaptionForPlatform(caption, channelKey) {
   const max = getPlatformComposerConfig(channelKey).maxChars ?? 2200;
@@ -17,9 +18,8 @@ export function inferMediaKind(file, mediaUrl) {
     if ((file.type || "").startsWith("video/")) return "video";
     if ((file.type || "").startsWith("image/")) return "image";
   }
-  const u = (mediaUrl || "").toLowerCase();
-  if (/\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(u)) return "video";
-  if (/\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(u)) return "image";
+  if (isLikelyVideoMediaUrl(mediaUrl)) return "video";
+  if (isLikelyImageMediaUrl(mediaUrl)) return "image";
   return null;
 }
 

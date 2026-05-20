@@ -9,7 +9,7 @@ export default function SharedPostComposer({
   file,
   mediaUrl = "",
   captionLimit,
-  linkedInFileWarning = false,
+  linkedInMediaImporting = false,
   onCaptionChange,
   onFileChange,
   onSuggestedImageSelect,
@@ -81,13 +81,12 @@ export default function SharedPostComposer({
           ) : null}
         </div>
 
-        {linkedInFileWarning ? (
+        {linkedInMediaImporting ? (
           <p
             role="status"
-            className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100"
+            className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300"
           >
-            LinkedIn may not be able to load this image from an external link. Upload the photo or video from your
-            device for reliable posting to LinkedIn.
+            Importing image for LinkedIn…
           </p>
         ) : null}
 

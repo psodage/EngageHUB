@@ -8,7 +8,6 @@ import {
   postToX,
   postYouTubeVideo,
   publishInstagramPost,
-  ingestRemoteSocialMediaUrl,
   uploadSocialPublicMedia,
   uploadSocialPublicMediaFile,
 } from "../services/socialApi";
@@ -17,7 +16,7 @@ import {
   getPlatformKeyFromCreatePostChannelKey,
   parseCreatePostChannelKey,
 } from "./createPostChannels";
-import { fetchUrlAsMediaFile } from "./fetchMediaFile";
+import { importRemoteMediaAsFile } from "./importRemoteMediaFile";
 import {
   resolveDiscordTarget,
   resolveGoogleBusinessLocation,
@@ -186,16 +185,12 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
         );
       }
       try {
-        mediaFile = await fetchUrlAsMediaFile(remoteUrl);
-      } catch {
-        try {
-          const hosted = await ingestRemoteSocialMediaUrl(remoteUrl);
-          mediaFile = await fetchUrlAsMediaFile(hosted);
-        } catch {
-          throw new Error(
-            "LinkedIn could not use this image URL. Upload the file from your device instead of a link-preview image."
-          );
-        }
+        mediaFile = await importRemoteMediaAsFile(remoteUrl);
+      } catch (err) {
+        throw new Error(
+          err?.message ||
+            "LinkedIn could not import this image URL. Try another preview image or upload the file from your device."
+        );
       }
     }
     const payload = {

@@ -1,4 +1,5 @@
 import { ingestRemoteSocialMediaUrl, uploadSocialPublicMediaFile } from "../services/socialApi";
+import { isAppHostedMediaUrl } from "./importRemoteMediaFile";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import {
   getCreatePostChannelLabel,
@@ -92,6 +93,7 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
   const needsLinkedInIngest =
     !originalFile &&
     Boolean(preUploadedMediaUrl) &&
+    !isAppHostedMediaUrl(preUploadedMediaUrl) &&
     publishable.some((k) => getPlatformKeyFromCreatePostChannelKey(k) === "linkedin");
 
   if (needsLinkedInIngest) {
