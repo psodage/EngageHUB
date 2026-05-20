@@ -65,6 +65,22 @@ export async function connectThreads(req, res) {
       return errorResponse(res, "threads OAuth config is missing required environment variables.", 400, providerConfig.missing);
     }
 
+    const credentialCheck = await threadsService.verifyAppCredentials();
+    if (!credentialCheck.valid) {
+      console.error("[oauth:threads:connect:invalid-credentials]", {
+        platform: "threads",
+        userId: req.auth.userId,
+        code: credentialCheck.code,
+        graphMessage: credentialCheck.graphMessage,
+      });
+      return errorResponse(
+        res,
+        credentialCheck.message,
+        400,
+        credentialCheck.code || "threads_app_credentials_invalid"
+      );
+    }
+
     const state = createOAuthState({ userId: req.auth.userId, platform: "threads", flow });
     const { scopeSet, scopes } = resolveRequestedThreadsScopes(req);
     const authUrl = threadsService.getAuthUrl(state, scopes);

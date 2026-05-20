@@ -73,7 +73,22 @@ function ensureThreadsConfig() {
       ["THREADS_APP_ID", "THREADS_APP_SECRET", "THREADS_REDIRECT_URI"]
     );
   }
-  return { appId, appSecret, redirectUri };
+  return { appId: appId.trim(), appSecret: appSecret.trim(), redirectUri };
+}
+
+/** Confirms THREADS_APP_ID + THREADS_APP_SECRET belong to a real Meta app (catches stale/wrong-app credentials). */
+async function verifyThreadsAppCredentials(appId, appSecret) {
+  const token = `${appId}|${appSecret}`;
+  try {
+    const response = await axios.get(`https://graph.facebook.com/v20.0/${encodeURIComponent(appId)}`, {
+      params: { fields: "id,name", access_token: token },
+      timeout: 12000,
+    });
+    return { valid: true, appName: response.data?.name || "", appId: response.data?.id?.toString() || appId };
+  } catch (error) {
+    const graphMessage = error?.response?.data?.error?.message || error?.message || "Unknown error";
+    return { valid: false, graphMessage };
+  }
 }
 
 export const THREADS_TEXT_MAX_LENGTH = 500;
@@ -143,6 +158,44 @@ const threadsService = {
     } catch (error) {
       return { valid: false, missing: error?.details || ["THREADS_APP_ID", "THREADS_APP_SECRET", "THREADS_REDIRECT_URI"] };
     }
+  },
+
+  /**
+   * Validates that THREADS_APP_ID and THREADS_APP_SECRET are a matching pair for one Meta app.
+   * When invalid, OAuth may still open but token/profile calls fail with threads_graph_error.
+   */
+  async verifyAppCredentials() {
+    const { appId, appSecret } = ensureThreadsConfig();
+    const metaAppId = (process.env.META_APP_ID || "").trim();
+    const metaAppSecret = (process.env.META_APP_SECRET || "").trim();
+
+    const threadsCheck = await verifyThreadsAppCredentials(appId, appSecret);
+    if (threadsCheck.valid) {
+      return { valid: true, appName: threadsCheck.appName, appId: threadsCheck.appId };
+    }
+
+    let metaHint = "";
+    if (metaAppId && metaAppSecret) {
+      const metaCheck = await verifyThreadsAppCredentials(metaAppId, metaAppSecret);
+      if (metaCheck.valid) {
+        metaHint =
+          metaAppId === appId
+            ? ` META_APP_SECRET may be correct but THREADS_APP_SECRET is wrong for app "${metaCheck.appName}".`
+            : ` Your META app "${metaCheck.appName}" (${metaAppId}) credentials validate, but THREADS_APP_ID (${appId}) does not — they appear to be from different Meta apps.`;
+      }
+    }
+
+    const message =
+      `THREADS_APP_ID and THREADS_APP_SECRET are not a valid pair (${threadsCheck.graphMessage || "validation failed"}).` +
+      " Open your Meta app → App settings → Basic and copy Threads App ID and Threads App secret from that same app (AntiSocial V2), then update THREADS_* on Render and in .env." +
+      metaHint;
+
+    return {
+      valid: false,
+      code: "threads_app_credentials_invalid",
+      message,
+      graphMessage: threadsCheck.graphMessage,
+    };
   },
 
   getAuthUrl(state, requestedScopes = null) {

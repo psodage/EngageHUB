@@ -145,6 +145,11 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
       "Instagram’s API returned an error while finishing login. Confirm the account is a professional or creator profile, that your Meta app has Instagram Login with the right scopes, and try connecting again.";
     return detail ? `${base} (${detail})` : base;
   }
+  if (normalized === "threads_app_credentials_invalid") {
+    return detail
+      ? detail
+      : "Threads App ID and App Secret in the server environment are invalid or from a different Meta app. In Meta Developer Console → your app → App settings → Basic, copy Threads App ID and Threads App secret into THREADS_APP_ID and THREADS_APP_SECRET on Render (and .env for local).";
+  }
   if (normalized === "threads_graph_error" || normalized === "threads_long_lived_exchange_failed") {
     const base =
       "Threads API returned an error while finishing login. In Meta Developer Console, confirm you use the Threads App ID and Threads App Secret (not the Facebook app ID), add your account as a Threads Tester, and that THREADS_REDIRECT_URI matches the OAuth redirect URL exactly.";
