@@ -1,0 +1,108 @@
+/** Premium channel-detail page accents — hero, cover, glow, and glass surfaces. */
+export const PLATFORM_DETAIL_THEMES = {
+  facebook: {
+    hero: "from-blue-600/30 via-indigo-950/60 to-slate-950",
+    cover: "from-blue-600/40 via-indigo-900/50 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(37,99,235,0.35)]",
+    ring: "ring-blue-500/40",
+    accent: "text-blue-300",
+    border: "border-blue-500/20",
+    radial: "rgba(37,99,235,0.22)",
+  },
+  instagram: {
+    hero: "from-pink-500/20 via-purple-950/50 to-slate-950",
+    cover: "from-pink-500/30 via-purple-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(236,72,153,0.3)]",
+    ring: "ring-pink-500/40",
+    accent: "text-pink-300",
+    border: "border-pink-500/20",
+    radial: "rgba(236,72,153,0.2)",
+  },
+  threads: {
+    hero: "from-zinc-700/30 via-zinc-950/70 to-black",
+    cover: "from-zinc-600/30 via-zinc-900/60 to-black",
+    glow: "shadow-[0_0_60px_rgba(113,113,122,0.25)]",
+    ring: "ring-zinc-400/30",
+    accent: "text-zinc-300",
+    border: "border-zinc-500/20",
+    radial: "rgba(161,161,170,0.15)",
+  },
+  linkedin: {
+    hero: "from-cyan-500/20 via-blue-950/50 to-slate-950",
+    cover: "from-cyan-500/25 via-blue-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(6,182,212,0.28)]",
+    ring: "ring-cyan-500/40",
+    accent: "text-cyan-300",
+    border: "border-cyan-500/20",
+    radial: "rgba(6,182,212,0.2)",
+  },
+  youtube: {
+    hero: "from-red-500/20 via-rose-950/50 to-slate-950",
+    cover: "from-red-500/30 via-rose-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(239,68,68,0.28)]",
+    ring: "ring-red-500/40",
+    accent: "text-red-300",
+    border: "border-red-500/20",
+    radial: "rgba(239,68,68,0.2)",
+  },
+  telegram: {
+    hero: "from-sky-500/20 via-cyan-950/50 to-slate-950",
+    cover: "from-sky-500/25 via-cyan-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(14,165,233,0.28)]",
+    ring: "ring-sky-500/40",
+    accent: "text-sky-300",
+    border: "border-sky-500/20",
+    radial: "rgba(14,165,233,0.2)",
+  },
+  googleBusiness: {
+    hero: "from-emerald-500/20 via-teal-950/50 to-slate-950",
+    cover: "from-emerald-500/25 via-teal-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(16,185,129,0.25)]",
+    ring: "ring-emerald-500/40",
+    accent: "text-emerald-300",
+    border: "border-emerald-500/20",
+    radial: "rgba(16,185,129,0.18)",
+  },
+  discord: {
+    hero: "from-indigo-500/20 via-indigo-950/50 to-slate-950",
+    cover: "from-indigo-500/30 via-indigo-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(99,102,241,0.28)]",
+    ring: "ring-indigo-500/40",
+    accent: "text-indigo-300",
+    border: "border-indigo-500/20",
+    radial: "rgba(99,102,241,0.2)",
+  },
+  x: {
+    hero: "from-zinc-600/25 via-slate-950/70 to-black",
+    cover: "from-zinc-500/30 via-slate-900/60 to-black",
+    glow: "shadow-[0_0_60px_rgba(255,255,255,0.08)]",
+    ring: "ring-white/25",
+    accent: "text-slate-200",
+    border: "border-white/15",
+    radial: "rgba(255,255,255,0.08)",
+  },
+  reddit: {
+    hero: "from-orange-500/20 via-orange-950/50 to-slate-950",
+    cover: "from-orange-500/30 via-orange-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(249,115,22,0.25)]",
+    ring: "ring-orange-500/40",
+    accent: "text-orange-300",
+    border: "border-orange-500/20",
+    radial: "rgba(249,115,22,0.18)",
+  },
+  pinterest: {
+    hero: "from-rose-500/20 via-rose-950/50 to-slate-950",
+    cover: "from-rose-500/30 via-rose-900/40 to-slate-950",
+    glow: "shadow-[0_0_80px_rgba(244,63,94,0.25)]",
+    ring: "ring-rose-500/40",
+    accent: "text-rose-300",
+    border: "border-rose-500/20",
+    radial: "rgba(244,63,94,0.18)",
+  },
+};
+
+export const DEFAULT_PLATFORM_DETAIL_THEME = PLATFORM_DETAIL_THEMES.threads;
+
+export function getPlatformDetailTheme(platformKey) {
+  return PLATFORM_DETAIL_THEMES[platformKey] || DEFAULT_PLATFORM_DETAIL_THEME;
+}

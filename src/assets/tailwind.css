@@ -1,0 +1,549 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full w-full;
+  }
+
+  #root {
+    @apply flex min-h-0 flex-col;
+  }
+
+  body {
+    @apply overflow-hidden bg-[#f5f5f4] text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  }
+}
+
+@layer components {
+  /* —— App shell —— */
+  .dashboard-shell {
+    @apply flex h-dvh w-full overflow-hidden bg-[#f5f5f4] dark:bg-slate-950;
+  }
+
+  .dashboard-main {
+    @apply relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f5f5f4] dark:bg-slate-950;
+  }
+
+  .dashboard-scroll {
+    @apply min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain;
+  }
+
+  .dashboard-scroll--composer {
+    @apply flex min-h-0 flex-col overflow-hidden;
+  }
+
+  /* —— Main content regions (route-aware via DashboardLayout) —— */
+  .dashboard-content {
+    @apply mx-auto w-full min-h-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7;
+  }
+
+  .dashboard-content--default {
+    @apply max-w-7xl;
+  }
+
+  .dashboard-content--wide {
+    @apply max-w-[88rem];
+  }
+
+  .dashboard-content--settings {
+    @apply max-w-6xl;
+  }
+
+  .dashboard-content--composer {
+    @apply flex min-h-0 max-w-[88rem] flex-1 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6;
+  }
+
+  .dashboard-content--channel {
+    @apply max-w-6xl px-3 py-4 sm:px-5 sm:py-5 lg:px-6;
+  }
+
+  .dashboard-page {
+    @apply w-full;
+  }
+
+  /* —— Connected channel profile page —— */
+  .channel-page {
+    @apply w-full;
+  }
+
+  .channel-page-card {
+    @apply shadow-card;
+  }
+
+  .channel-page-tabs {
+    @apply border-t border-slate-200/90 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/50;
+  }
+
+  .channel-page-content {
+    @apply min-h-[14rem] bg-white p-5 sm:p-6 lg:p-8 dark:bg-slate-900;
+  }
+
+  .channel-page-content--feed {
+    @apply mx-auto max-w-2xl;
+  }
+
+  .channel-tabbar-underline {
+    @apply flex overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+  }
+
+  .channel-tabbar-underline-item {
+    @apply flex min-w-[5.5rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-4 py-3.5 text-sm font-semibold text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200;
+  }
+
+  .channel-tabbar-underline-item--active {
+    @apply border-buffer-600 text-buffer-700 dark:border-buffer-400 dark:text-buffer-300;
+  }
+
+  .channel-profile-page {
+    @apply mx-auto flex w-full max-w-6xl flex-col gap-5;
+  }
+
+  .channel-profile-hero-banner {
+    @apply h-20 sm:h-24;
+  }
+
+  .channel-profile-hero-body {
+    @apply px-5 pb-5 pt-0 sm:px-6 sm:pb-6;
+  }
+
+  .channel-profile-hero-top {
+    @apply flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between;
+  }
+
+  .channel-profile-identity {
+    @apply flex min-w-0 gap-4;
+  }
+
+  .channel-profile-avatar-wrap {
+    @apply relative -mt-10 shrink-0 sm:-mt-12;
+  }
+
+  .channel-profile-avatar {
+    @apply h-16 w-16 rounded-2xl border-4 border-white object-cover shadow-md dark:border-slate-900 sm:h-20 sm:w-20;
+  }
+
+  .channel-profile-avatar-badge {
+    @apply absolute -bottom-0.5 -right-0.5;
+  }
+
+  .channel-profile-identity-text {
+    @apply min-w-0 pt-1 sm:pt-2;
+  }
+
+  .channel-profile-name {
+    @apply text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl;
+  }
+
+  .channel-profile-handle {
+    @apply mt-0.5 text-sm font-medium text-slate-500 dark:text-slate-400;
+  }
+
+  .channel-profile-platform {
+    @apply mt-1 text-xs font-semibold uppercase tracking-wider text-slate-400;
+  }
+
+  .channel-profile-actions {
+    @apply flex flex-wrap gap-2 lg:justify-end;
+  }
+
+  .channel-profile-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition;
+  }
+
+  .channel-profile-btn--primary {
+    @apply bg-buffer-600 text-white shadow-sm hover:bg-buffer-700;
+  }
+
+  .channel-profile-btn--secondary {
+    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+  }
+
+  .channel-profile-bio {
+    @apply mt-4 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300;
+  }
+
+  .channel-profile-stats {
+    @apply mt-5 grid grid-cols-3 gap-2 sm:gap-3;
+  }
+
+  .channel-profile-stat {
+    @apply rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 py-3 text-center dark:border-slate-700 dark:bg-slate-800/50;
+  }
+
+  .channel-profile-stat-label {
+    @apply text-[10px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+
+  .channel-profile-stat-value {
+    @apply mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white;
+  }
+
+  .channel-profile-tabbar {
+    @apply flex gap-1 overflow-x-auto rounded-xl border border-slate-200/90 bg-white p-1 shadow-card dark:border-slate-800 dark:bg-slate-900 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+  }
+
+  .channel-profile-tabbar-item {
+    @apply flex min-w-[5rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2.5 text-xs font-semibold text-slate-500 transition sm:min-w-[6rem] sm:text-sm;
+  }
+
+  .channel-profile-tabbar-item--active {
+    @apply bg-buffer-50 text-buffer-800 shadow-sm dark:bg-buffer-500/15 dark:text-buffer-300;
+  }
+
+  .channel-profile-tabbar-item:not(.channel-profile-tabbar-item--active):hover {
+    @apply bg-slate-50 text-slate-800 dark:bg-slate-800 dark:text-slate-200;
+  }
+
+  .channel-profile-panel {
+    @apply min-h-[12rem];
+  }
+
+  .channel-profile-panel--feed {
+    @apply mx-auto w-full max-w-2xl;
+  }
+
+  .channel-profile-panel--wide {
+    @apply w-full;
+  }
+
+  .channel-profile-tab-grid {
+    @apply grid gap-5 lg:grid-cols-3 lg:gap-6;
+  }
+
+  .channel-profile-tab-main {
+    @apply lg:col-span-2;
+  }
+
+  .channel-profile-tab-aside {
+    @apply lg:col-span-1;
+  }
+
+  .channel-inner-card {
+    @apply overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/40 dark:border-slate-700 dark:bg-slate-800/30;
+  }
+
+  .channel-history-panel {
+    @apply w-full;
+  }
+
+  .channel-profile-section-header {
+    @apply border-b border-slate-200/90 px-5 py-4 dark:border-slate-800 sm:px-6;
+  }
+
+  .channel-profile-section-title {
+    @apply text-base font-semibold text-slate-900 dark:text-white;
+  }
+
+  .channel-profile-section-desc {
+    @apply mt-1 text-sm text-slate-500;
+  }
+
+  .channel-profile-section-body {
+    @apply p-5 sm:p-6;
+  }
+
+  .channel-profile-capability-badge {
+    @apply rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300;
+  }
+
+  .channel-profile-details-grid {
+    @apply grid gap-3;
+  }
+
+  .channel-profile-detail-item {
+    @apply rounded-xl border border-slate-200/90 bg-slate-50/50 p-3.5 dark:border-slate-700 dark:bg-slate-800/40;
+  }
+
+  .channel-profile-detail-label {
+    @apply text-[10px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+
+  .channel-profile-detail-value {
+    @apply mt-1.5 text-sm text-slate-800 dark:text-slate-200;
+  }
+
+  .channel-profile-detail-value--mono {
+    @apply break-all font-mono text-xs;
+  }
+
+  /* —— Top bar —— */
+  .dashboard-topbar {
+    @apply sticky top-0 z-20 shrink-0 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95;
+  }
+
+  .dashboard-topbar-inner {
+    @apply mx-auto flex min-h-[3.5rem] w-full items-center justify-between gap-3 px-4 py-2.5 sm:min-h-14 sm:gap-4 sm:px-6 sm:py-3 lg:px-8;
+  }
+
+  .dashboard-topbar-start {
+    @apply flex min-w-0 flex-1 items-center gap-2 sm:gap-3;
+  }
+
+  .dashboard-topbar-actions {
+    @apply flex shrink-0 items-center gap-1 sm:gap-2;
+  }
+
+  .topbar-page-title__heading {
+    @apply truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-white sm:text-xl;
+  }
+
+  .topbar-page-title__desc {
+    @apply mt-0.5 hidden truncate text-xs text-slate-500 sm:block;
+  }
+
+  .topbar-breadcrumb {
+    @apply flex min-w-0 items-center gap-1.5;
+  }
+
+  .topbar-breadcrumb__chevron {
+    @apply shrink-0 text-slate-300 dark:text-slate-600;
+  }
+
+  .topbar-breadcrumb__segment {
+    @apply rounded-lg px-2 py-1 text-sm;
+  }
+
+  .topbar-breadcrumb__segment--link {
+    @apply font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200;
+  }
+
+  .topbar-breadcrumb__segment--current {
+    @apply min-w-0 bg-slate-100/80 dark:bg-slate-800/60;
+  }
+
+  .topbar-cta {
+    @apply items-center gap-1.5 rounded-xl bg-gradient-to-r from-buffer-600 to-buffer-700 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-buffer-600/25 transition hover:from-buffer-700 hover:to-buffer-800;
+  }
+
+  .topbar-icon-group {
+    @apply flex items-center gap-0.5 rounded-xl border border-slate-200/90 bg-slate-50/80 p-0.5 dark:border-slate-700 dark:bg-slate-900/80;
+  }
+
+  .topbar-icon-btn {
+    @apply relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200;
+  }
+
+  .topbar-icon-btn--notify::after {
+    content: "";
+    @apply absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-buffer-500 ring-2 ring-white dark:ring-slate-900;
+  }
+
+  .topbar-icon-btn--avatar {
+    @apply bg-buffer-50 text-buffer-700 dark:bg-buffer-500/15 dark:text-buffer-300;
+  }
+
+  /* —— Sidebar shell —— */
+  .dashboard-sidebar {
+    @apply fixed inset-y-0 left-0 z-40 flex w-sidebar max-w-[min(16.5rem,88vw)] flex-col border-r border-slate-200/80 bg-white shadow-xl transition-transform duration-200 ease-out dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .dashboard-sidebar--open {
+    @apply translate-x-0;
+  }
+
+  .dashboard-sidebar--closed {
+    @apply -translate-x-full;
+  }
+
+  @media (min-width: 1024px) {
+    .dashboard-sidebar {
+      @apply static z-auto h-full max-w-none translate-x-0 shadow-none;
+    }
+
+    .dashboard-sidebar--closed {
+      @apply translate-x-0;
+    }
+  }
+
+  .dashboard-sidebar-header {
+    @apply flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 px-4 dark:border-slate-800;
+  }
+
+  .dashboard-sidebar-cta {
+    @apply shrink-0 border-b border-slate-200/80 px-3 py-3 dark:border-slate-800;
+  }
+
+  .dashboard-sidebar-nav {
+    @apply flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2;
+    scrollbar-gutter: stable;
+  }
+
+  .dashboard-sidebar-footer {
+    @apply shrink-0 space-y-1 border-t border-slate-200/80 p-3 dark:border-slate-800;
+  }
+
+  .dashboard-sidebar-backdrop {
+    @apply fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-[1px] lg:hidden;
+  }
+
+  .sidebar-nav-section {
+    @apply shrink-0 py-1;
+  }
+
+  .sidebar-nav-section--channels {
+    @apply mt-2 border-t border-slate-200/70 pt-3 dark:border-slate-800;
+  }
+
+  .sidebar-nav-label {
+    @apply mb-2 flex items-center px-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .sidebar-nav-list {
+    @apply space-y-1;
+  }
+
+  /* —— Sidebar channels —— */
+  .sidebar-channels-empty {
+    @apply rounded-lg border border-dashed border-slate-300/90 bg-slate-50/80 px-3 py-3.5 dark:border-slate-600 dark:bg-slate-800/30;
+  }
+
+  .sidebar-channels-heading {
+    @apply mb-2 flex items-center justify-between gap-2 px-2.5;
+  }
+
+  .sidebar-channels-count {
+    @apply rounded-full bg-buffer-100 px-2 py-0.5 text-[10px] font-bold tabular-nums text-buffer-800 dark:bg-buffer-500/20 dark:text-buffer-300;
+  }
+
+  .sidebar-channels-list {
+    @apply space-y-1;
+  }
+
+  .sidebar-channel-item {
+    @apply list-none rounded-xl transition;
+  }
+
+  .sidebar-channel-item--open {
+    @apply bg-slate-50/80 dark:bg-slate-800/40;
+  }
+
+  .sidebar-channel-card {
+    @apply flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-slate-100/80 dark:hover:bg-slate-800/50;
+  }
+
+  .sidebar-channel-card--active {
+    @apply bg-buffer-50 dark:bg-buffer-500/10;
+  }
+
+  .sidebar-channel-avatar {
+    @apply relative h-9 w-9 shrink-0;
+  }
+
+  .sidebar-channel-avatar-img {
+    @apply h-9 w-9 rounded-full object-cover ring-2 ring-white dark:ring-slate-800;
+  }
+
+  .sidebar-channel-platform-badge {
+    @apply absolute -bottom-0.5 -right-0.5;
+  }
+
+  .sidebar-channel-text {
+    @apply min-w-0 flex-1;
+  }
+
+  .sidebar-channel-name {
+    @apply block truncate text-sm font-semibold leading-tight text-slate-900 dark:text-white;
+  }
+
+  .sidebar-channel-meta {
+    @apply block truncate text-[11px] text-slate-500;
+  }
+
+  .sidebar-channel-chevron {
+    @apply transition-transform duration-200;
+  }
+
+  .sidebar-channel-chevron--open {
+    @apply rotate-180 text-buffer-600 dark:text-buffer-400;
+  }
+
+  .sidebar-channel-subnav {
+    @apply mx-2 mb-2 space-y-0.5 border-l-2 border-buffer-200/80 pl-2.5 dark:border-buffer-500/40;
+  }
+
+  .sidebar-channel-subnav-link {
+    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-white hover:text-slate-800 dark:hover:bg-slate-900/60 dark:hover:text-slate-200;
+  }
+
+  .sidebar-channel-subnav-link--active {
+    @apply bg-buffer-50 font-semibold text-buffer-800 dark:bg-buffer-500/15 dark:text-buffer-300;
+  }
+
+  .sidebar-manage-channels {
+    @apply mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300/90 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-buffer-300 hover:bg-buffer-50/50 hover:text-buffer-800 dark:border-slate-600 dark:text-slate-400 dark:hover:border-buffer-500/40 dark:hover:bg-buffer-500/10 dark:hover:text-buffer-300;
+  }
+
+  .sidebar-manage-channels--active {
+    @apply border-buffer-300 bg-buffer-50 text-buffer-800 dark:border-buffer-500/40 dark:bg-buffer-500/10 dark:text-buffer-300;
+  }
+
+  /* —— Settings layout nav —— */
+  .settings-layout {
+    @apply flex w-full flex-col gap-6 lg:flex-row lg:items-start lg:gap-8;
+  }
+
+  .settings-layout-body {
+    @apply min-w-0 flex-1;
+  }
+
+  .settings-layout-nav {
+    @apply lg:sticky lg:top-0 lg:w-64 lg:shrink-0 lg:self-start;
+  }
+
+  .settings-layout-nav-card {
+    @apply overflow-hidden;
+  }
+
+  .settings-layout-nav-header {
+    @apply border-b border-slate-200/90 px-5 py-4 dark:border-slate-800;
+  }
+
+  .settings-layout-nav-list {
+    @apply flex flex-row gap-1 overflow-x-auto p-2 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-col lg:overflow-visible [&::-webkit-scrollbar]:hidden;
+  }
+
+  .settings-nav-link {
+    @apply relative flex min-w-[10rem] flex-shrink-0 items-start gap-3 rounded-xl px-3 py-2.5 transition lg:min-w-0;
+  }
+
+  .settings-nav-link--active {
+    @apply bg-gradient-to-r from-buffer-50 to-transparent ring-1 ring-buffer-200/80 dark:from-buffer-500/15 dark:ring-buffer-500/30;
+  }
+
+  .settings-nav-link:not(.settings-nav-link--active) {
+    @apply text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50;
+  }
+
+  .settings-nav-link--active .settings-nav-link__icon {
+    @apply bg-buffer-600 text-white dark:bg-buffer-500;
+  }
+
+  .settings-nav-link__indicator {
+    @apply absolute left-0 top-1/2 hidden h-6 w-1 -translate-y-1/2 rounded-r-full bg-buffer-600 lg:block;
+  }
+
+  .settings-nav-link--active .settings-nav-link__indicator {
+    @apply block;
+  }
+
+  .settings-nav-link__icon {
+    @apply mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400;
+  }
+
+  /* —— Cards (legacy nav helpers) —— */
+  .buffer-card {
+    @apply rounded-xl border border-slate-200/90 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .buffer-nav-active {
+    @apply bg-buffer-50 font-semibold text-buffer-800 dark:bg-buffer-500/15 dark:text-buffer-300;
+  }
+
+  .buffer-nav-item {
+    @apply flex min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+}

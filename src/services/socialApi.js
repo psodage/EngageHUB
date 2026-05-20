@@ -1,0 +1,487 @@
+import axios from "axios";
+import { STORAGE_KEYS } from "../data/constants";
+import { apiUnreachableMessage, getClientApiBaseUrl } from "../utils/apiBaseUrl";
+import { formatHttpApiError } from "../utils/httpApiError";
+import { isNgrokHttpUrl, ngrokSkipBrowserWarningHeader } from "../utils/tunnelApiHeaders";
+
+const API_BASE_URL = getClientApiBaseUrl();
+
+const socialClient = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+socialClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem(STORAGE_KEYS.authToken);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (isNgrokHttpUrl(API_BASE_URL)) {
+    Object.assign(config.headers, ngrokSkipBrowserWarningHeader());
+  }
+  return config;
+});
+
+socialClient.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (!error.response) {
+      const code = error?.code;
+      const msg = error?.message || "";
+      if (msg === "Network Error" || code === "ERR_NETWORK") {
+        return Promise.reject(new Error(apiUnreachableMessage));
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+function parseApiError(error, fallbackMessage) {
+  return formatHttpApiError(error, fallbackMessage);
+}
+
+export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
+  const normalized = (reason || "").toLowerCase();
+  const platformKey = (platform || "").toLowerCase();
+  const detail = (oauthDetail || "").trim();
+  if (!normalized) return `Failed to connect ${platform}. Please retry.`;
+  if (normalized.includes("github_rate_limited") || normalized.includes("rate limit")) {
+    return "GitHub API rate limit reached. Try again in a few minutes.";
+  }
+  if (normalized.includes("invalid_scope")) {
+    if (platformKey === "github") {
+      return "GitHub rejected one or more requested permissions. Verify your OAuth app callback URL and scopes, then retry.";
+    }
+    if (platformKey === "linkedin") {
+      return "LinkedIn rejected one or more requested permissions. Verify your LinkedIn app products/scopes (for example, Share on LinkedIn) and confirm the redirect URI matches exactly, then retry.";
+    }
+    if (platformKey === "instagram") {
+      return "Instagram rejected one or more requested permissions. Verify Instagram Login products/scopes in your app settings and retry.";
+    }
+    if (platformKey === "threads") {
+      return "Threads rejected the requested scopes. This usually happens when Threads is accidentally routed through Facebook Login or your Threads app is missing approved permissions. Please retry and verify your Threads app settings + redirect URI.";
+    }
+    return "Meta rejected one or more permissions. Please retry and verify your app is configured for requested scopes.";
+  }
+  if (normalized.includes("missing_code")) {
+    return "Missing authorization code from provider. Please retry the login flow.";
+  }
+  if (normalized.includes("login_canceled") || normalized.includes("access_denied")) {
+    return "Connection was canceled before authorization completed.";
+  }
+  if (normalized.includes("no_facebook_pages")) {
+    return "No Facebook Pages were found for this account. Create or assign a Page before connecting.";
+  }
+  if (normalized.includes("no_page_found")) {
+    return "No Facebook Page could be loaded. Confirm your Meta Login configuration includes page access.";
+  }
+  if (normalized.includes("no_instagram_professional_account")) {
+    return "No Instagram professional account is linked to your Facebook Page.";
+  }
+  if (normalized.includes("instagram_personal_account")) {
+    return "This Instagram account is a personal profile. Switch to a Business or Creator account in the Instagram app (Settings → Account type and tools), then connect again.";
+  }
+  if (normalized.includes("missing_config_id")) {
+    return "Meta Login is misconfigured. Add META_CONFIG_ID to the backend environment and retry.";
+  }
+  if (normalized.includes("invalid_state")) {
+    return "OAuth session expired or became invalid. Start the connection again.";
+  }
+  if (normalized.includes("invalid_client")) {
+    if (platformKey === "instagram") {
+      return "Instagram OAuth client configuration is invalid. Verify INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, and INSTAGRAM_REDIRECT_URI.";
+    }
+    if (platformKey === "github") {
+      return "GitHub OAuth client configuration is invalid. Verify GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_REDIRECT_URI.";
+    }
+    return "OAuth client configuration is invalid. Verify provider credentials and redirect URI.";
+  }
+  if (normalized.includes("threads_redirect_uri_mismatch") || normalized.includes("callback_mismatch")) {
+    return "Threads redirect URI mismatch. In Meta Developer Console, add the exact callback URL from THREADS_REDIRECT_URI, and use the same URL when connecting (local vs production).";
+  }
+  if (normalized.includes("threads_invalid_client")) {
+    return "Threads app credentials are invalid. Use the Threads App ID and Threads App Secret from Meta → App settings → Basic (not the Facebook app ID).";
+  }
+  if (normalized.includes("threads_invalid_auth_code")) {
+    return "Threads authorization expired or was already used. Start Connect again without refreshing the callback page.";
+  }
+  if (normalized.includes("threads_token_exchange_failed") || normalized.includes("token_error")) {
+    if (platformKey === "github") {
+      return "Could not complete GitHub authorization. Reconnect your GitHub account.";
+    }
+    if (platformKey === "threads") {
+      return "Could not complete Threads authorization. Confirm your Meta app has a Threads Tester role for your account, redirect URLs match THREADS_REDIRECT_URI, and you are using the Threads app credentials.";
+    }
+    return "Could not complete token exchange with provider. Please reconnect.";
+  }
+  if (normalized.includes("linkedin_orgs_forbidden")) {
+    return "LinkedIn blocked listing company pages (missing product/scopes or app restrictions). Your profile connection may still work; fix LinkedIn app permissions and reconnect.";
+  }
+  if (normalized.includes("linkedin_orgs_failed")) {
+    return "LinkedIn company page lookup failed. Your profile connection may still work; retry or check LinkedIn API status.";
+  }
+  if (normalized === "instagram_graph_error") {
+    const base =
+      "Instagram’s API returned an error while finishing login. Confirm the account is a professional or creator profile, that your Meta app has Instagram Login with the right scopes, and try connecting again.";
+    return detail ? `${base} (${detail})` : base;
+  }
+  if (normalized === "account_already_linked" || normalized.includes("already linked to another engagehub user")) {
+    const label = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "This social account";
+    return `${label} is already connected to another EngageHub account. Sign in with that account and disconnect it under Channels, or connect a different account.`;
+  }
+  return reason;
+}
+
+export async function getSocialAccounts() {
+  try {
+    const { data } = await socialClient.get("/api/social/accounts");
+    return data.data.accounts || [];
+  } catch (error) {
+    throw parseApiError(error, "Unable to fetch social accounts.");
+  }
+}
+
+export async function startSocialConnect(platform, options = {}) {
+  try {
+    const params = new URLSearchParams();
+    const normalized = (platform || "").toLowerCase();
+    const isFacebook = normalized === "facebook";
+    const isInstagram = normalized === "instagram";
+    if (normalized === "threads") {
+      params.set("scope_set", "publish");
+    }
+    if (isFacebook) {
+      params.set("platform", normalized);
+    }
+    if (options.flow) params.set("flow", options.flow);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const endpoint = isInstagram
+      ? "/api/social/instagram/login"
+      : isFacebook
+        ? "/api/social/meta/connect"
+        : `/api/social/${platform}/connect`;
+    const { data } = await socialClient.get(`${endpoint}${query}`);
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, `Unable to connect ${platform}.`);
+  }
+}
+
+export async function manualConnectSocial(platform) {
+  try {
+    const { data } = await socialClient.post(`/api/social/${platform}/manual-connect`);
+    return data.data.account;
+  } catch (error) {
+    throw parseApiError(error, `Unable to manually connect ${platform}.`);
+  }
+}
+
+export async function disconnectSocial(platform) {
+  try {
+    const { data } = await socialClient.post(`/api/social/${platform}/disconnect`);
+    return data.data.account;
+  } catch (error) {
+    throw parseApiError(error, `Unable to disconnect ${platform}.`);
+  }
+}
+
+export async function refreshSocial(platform) {
+  try {
+    const { data } = await socialClient.post(`/api/social/${platform}/refresh`);
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, `Unable to refresh ${platform}.`);
+  }
+}
+
+export async function getSocialEnvDebug() {
+  try {
+    const { data } = await socialClient.get("/api/social/debug/env-check");
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to fetch OAuth environment diagnostics.");
+  }
+}
+
+/**
+ * Uploads image/video to the server and returns a public URL suitable for Instagram publishing.
+ */
+export async function uploadSocialPublicMediaFile(file) {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await socialClient.post("/api/social/upload/public-media", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data.data?.url || "";
+  } catch (error) {
+    throw parseApiError(error, "Unable to upload media.");
+  }
+}
+
+/**
+ * Publishes to the connected Instagram professional account (server uses stored token; never returned here).
+ */
+export async function publishInstagramPost(body) {
+  try {
+    const { data } = await socialClient.post("/api/social/instagram/post", body);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish to Instagram.");
+  }
+}
+
+export async function postToX(content) {
+  try {
+    const { data } = await socialClient.post("/api/social/x/post", { content });
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish post on X.");
+  }
+}
+
+export async function uploadSocialPublicMedia(file) {
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    const { data } = await socialClient.post("/api/social/upload/public-media", form);
+    return data.data?.url || "";
+  } catch (error) {
+    throw parseApiError(error, "Unable to upload media.");
+  }
+}
+
+export async function postToThreads(payload) {
+  try {
+    const { data } = await socialClient.post("/api/social/threads/post", payload);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish post on Threads.");
+  }
+}
+
+/**
+ * @param {{
+ *   content: string,
+ *   targetType: 'profile' | 'organization',
+ *   organizationId: string | null,
+ *   mediaType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'LINK',
+ *   mediaUrl?: string,
+ *   linkUrl?: string,
+ * }} payload
+ * @param {Blob | File | null | undefined} [mediaFile] Required for IMAGE/VIDEO (field name `media`).
+ */
+export async function postToLinkedIn(payload, mediaFile) {
+  try {
+    const isBlob = typeof Blob !== "undefined" && mediaFile instanceof Blob;
+    if (isBlob) {
+      const fd = new FormData();
+      fd.append("targetType", payload.targetType);
+      if (payload.organizationId != null && payload.organizationId !== "") {
+        fd.append("organizationId", String(payload.organizationId));
+      }
+      fd.append("mediaType", payload.mediaType);
+      fd.append("content", payload.content ?? "");
+      fd.append("linkUrl", payload.linkUrl ?? "");
+      fd.append("mediaUrl", payload.mediaUrl ?? "");
+      const filename =
+        typeof File !== "undefined" && mediaFile instanceof File && mediaFile.name ? mediaFile.name : "upload";
+      fd.append("media", mediaFile, filename);
+      const { data } = await socialClient.post("/api/social/linkedin/post", fd);
+      return data;
+    }
+    const { data } = await socialClient.post("/api/social/linkedin/post", payload);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish post on LinkedIn.");
+  }
+}
+
+/**
+ * @param {{
+ *   message: string,
+ *   mediaType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'LINK',
+ *   mediaUrl?: string,
+ *   linkUrl?: string,
+ * }} payload
+ */
+export async function postToFacebook(payload) {
+  try {
+    const { data } = await socialClient.post("/api/social/facebook/post", payload);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish post on Facebook.");
+  }
+}
+
+/**
+ * Upload a video to the connected YouTube channel (multipart field `video`). Server uses stored Google tokens only.
+ * @param {{
+ *   channelId?: string,
+ *   title: string,
+ *   description?: string,
+ *   tags?: string,
+ *   categoryId?: string,
+ *   privacyStatus: 'public' | 'private' | 'unlisted',
+ *   madeForKids: boolean,
+ *   videoFile: File | Blob,
+ * }} payload
+ * @param {(evt: { loaded: number, total: number }) => void} [onUploadProgress] Progress for the request body to your API (not YouTube).
+ */
+export async function postYouTubeVideo(payload, onUploadProgress) {
+  try {
+    const fd = new FormData();
+    if (payload.channelId != null && String(payload.channelId).trim() !== "") {
+      fd.append("channelId", String(payload.channelId).trim());
+    }
+    fd.append("title", payload.title ?? "");
+    fd.append("description", payload.description ?? "");
+    fd.append("tags", payload.tags ?? "");
+    fd.append("categoryId", String(payload.categoryId ?? "22"));
+    fd.append("privacyStatus", payload.privacyStatus);
+    fd.append("madeForKids", payload.madeForKids ? "true" : "false");
+    const file = payload.videoFile;
+    const filename =
+      typeof File !== "undefined" && file instanceof File && file.name ? file.name : "video";
+    fd.append("video", file, filename);
+    const { data } = await socialClient.post("/api/social/youtube/post", fd, {
+      timeout: 0,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      onUploadProgress: onUploadProgress
+        ? (pe) => {
+            const total = Number(pe.total) || 0;
+            const loaded = Number(pe.loaded) || 0;
+            if (total > 0) onUploadProgress({ loaded, total });
+          }
+        : undefined,
+    });
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to upload video to YouTube.");
+  }
+}
+
+/**
+ * @param {{ chatId: string, chatTitle: string, chatType: 'channel'|'group'|'supergroup' }[]} targets
+ */
+export async function putTelegramTargets(targets) {
+  try {
+    const { data } = await socialClient.put("/api/social/telegram/targets", { targets });
+    return data.data?.account;
+  } catch (error) {
+    throw parseApiError(error, "Unable to save Telegram targets.");
+  }
+}
+
+/**
+ * @param {{
+ *   chatId: string,
+ *   message: string,
+ *   mediaType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LINK',
+ *   mediaUrl?: string,
+ *   linkUrl?: string,
+ *   buttonText?: string,
+ *   buttonUrl?: string,
+ * }} payload
+ */
+export async function postToTelegram(payload) {
+  try {
+    const { data } = await socialClient.post("/api/social/telegram/post", payload);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish to Telegram.");
+  }
+}
+
+/**
+ * @param {{ guildId: string, channelId: string, connectionType: string, guildName?: string, channelName?: string, webhookUrl?: string }[]} targets
+ */
+export async function putDiscordTargets(targets) {
+  try {
+    const { data } = await socialClient.put("/api/social/discord/targets", { targets });
+    return data.data?.account;
+  } catch (error) {
+    throw parseApiError(error, "Unable to save Discord targets.");
+  }
+}
+
+/**
+ * @param {{
+ *   guildId: string,
+ *   channelId: string,
+ *   message: string,
+ *   mediaType: 'TEXT' | 'IMAGE' | 'EMBED' | 'LINK',
+ *   mediaUrl?: string,
+ *   linkUrl?: string,
+ *   embedTitle?: string,
+ *   embedDescription?: string,
+ *   embedUrl?: string,
+ * }} payload
+ */
+export async function postToDiscord(payload) {
+  try {
+    const { data } = await socialClient.post("/api/social/discord/post", payload);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish to Discord.");
+  }
+}
+
+/**
+ * @param {{
+ *   locationId: string,
+ *   accountId: string,
+ *   postType: 'STANDARD' | 'EVENT' | 'OFFER',
+ *   summary: string,
+ *   mediaUrl?: string,
+ *   ctaType?: string,
+ *   ctaUrl?: string,
+ *   eventTitle?: string,
+ *   offerTitle?: string,
+ *   startDate?: string,
+ *   endDate?: string,
+ *   couponCode?: string,
+ *   redeemUrl?: string,
+ *   termsConditions?: string,
+ * }} payload
+ */
+export async function postToGoogleBusiness(payload) {
+  try {
+    const { data } = await socialClient.post("/api/social/google-business/post", payload);
+    return data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to publish post on Google Business Profile.");
+  }
+}
+
+/**
+ * @param {{
+ *   platform: string,
+ *   mediaType?: string,
+ *   search?: string,
+ *   startDate?: string,
+ *   endDate?: string,
+ *   page?: number,
+ *   limit?: number,
+ * }} params
+ */
+export async function getPostHistory(params = {}) {
+  try {
+    const searchParams = new URLSearchParams();
+    if (params.platform) searchParams.set("platform", params.platform);
+    if (params.mediaType) searchParams.set("mediaType", params.mediaType);
+    if (params.search) searchParams.set("search", params.search);
+    if (params.startDate) searchParams.set("startDate", params.startDate);
+    if (params.endDate) searchParams.set("endDate", params.endDate);
+    searchParams.set("page", String(params.page ?? 1));
+    searchParams.set("limit", String(params.limit ?? 10));
+    const qs = searchParams.toString();
+    const { data } = await socialClient.get(`/api/social/history?${qs}`);
+    return {
+      records: Array.isArray(data.data) ? data.data : [],
+      pagination: data.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 },
+    };
+  } catch (error) {
+    throw parseApiError(error, "Unable to load post history.");
+  }
+}
