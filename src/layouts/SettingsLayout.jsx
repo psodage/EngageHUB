@@ -24,7 +24,6 @@ export default function SettingsLayout() {
                   key={item.key}
                   to={item.path}
                   end
-                  isActive={() => active}
                   className={`settings-nav-link ${active ? "settings-nav-link--active" : ""}`}
                 >
                   {active ? <span className="settings-nav-link__indicator" aria-hidden /> : null}

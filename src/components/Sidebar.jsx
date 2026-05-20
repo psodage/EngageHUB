@@ -67,7 +67,6 @@ export default function Sidebar({ open, onClose, onLogout }) {
                     <NavLink
                       to={route.path}
                       onClick={onClose}
-                      isActive={() => active}
                       className={`buffer-nav-item w-full ${active ? "buffer-nav-active" : ""}`}
                     >
                       <Icon size={18} strokeWidth={active ? 2.25 : 2} className="shrink-0 opacity-80" aria-hidden />

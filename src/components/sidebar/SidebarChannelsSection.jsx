@@ -55,7 +55,6 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
               <NavLink
                 to={`${channel.path}?tab=profile`}
                 onClick={onClose}
-                isActive={() => channelActive}
                 className={() =>
                   `sidebar-channel-card ${channelActive ? "sidebar-channel-card--active" : ""}`
                 }
@@ -91,7 +90,6 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
                         <NavLink
                           to={`${channel.path}?tab=${tab.id}`}
                           onClick={onClose}
-                          isActive={() => tabActive}
                           className={() =>
                             `sidebar-channel-subnav-link ${tabActive ? "sidebar-channel-subnav-link--active" : ""}`
                           }
@@ -112,7 +110,6 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
       <NavLink
         to="/channels"
         onClick={onClose}
-        isActive={() => isChannelsListActive(location.pathname)}
         className={({ isActive }) =>
           `sidebar-manage-channels ${isActive ? "sidebar-manage-channels--active" : ""}`
         }

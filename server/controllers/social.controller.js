@@ -1015,11 +1015,28 @@ export async function manualConnectSocialPlatform(req, res) {
 }
 
 export async function connectInstagramPlatform(req, res) {
-  req.query = {
-    ...(req.query || {}),
-    platform: "instagram",
-  };
-  return connectMetaPlatform(req, res);
+  const flow = normalizeOAuthFlow(req.query?.flow);
+  try {
+    const provider = getProvider("instagram");
+    if (!provider) {
+      return errorResponse(res, "Unsupported Meta platform.", 400);
+    }
+    const providerConfig = validateProviderConfig("instagram");
+    if (!providerConfig.valid) {
+      return errorResponse(res, "instagram OAuth config is missing required environment variables.", 400, providerConfig.missing);
+    }
+    const configId = req.query?.config_id != null ? String(req.query.config_id).trim() : "";
+    const state = createOAuthState({ userId: req.auth.userId, platform: "instagram", flow });
+    const authUrl = provider.getAuthUrl({ state, configId });
+    return successResponse(res, { url: authUrl, state }, "Meta OAuth URL generated.");
+  } catch (error) {
+    console.error("[oauth:instagram:connect:error]", {
+      userId: req.auth?.userId,
+      message: error?.message,
+      code: error?.code,
+    });
+    return errorResponse(res, error.message || "Unable to start Meta OAuth flow.", error?.status || 400, error?.code || error.message);
+  }
 }
 
 export async function connectMetaPlatform(req, res) {
