@@ -12,7 +12,13 @@ function entityIcon(type) {
   return User;
 }
 
-export default function ChannelProfileView({ account, platformKey, capabilities = [] }) {
+export default function ChannelProfileView({
+  account,
+  platformKey,
+  capabilities = [],
+  onDisconnectEntity,
+  disconnectingEntityId = "",
+}) {
   const info = getChannelDisplayInfo(account);
   const entities = Array.isArray(account?.entities) ? account.entities : [];
 
@@ -65,6 +71,14 @@ export default function ChannelProfileView({ account, platformKey, capabilities 
                   platformKey={platformKey}
                   fallbackImage={info.profileImage}
                   entityIcon={entityIcon(entity.entityType)}
+                  onDisconnect={
+                    typeof onDisconnectEntity === "function" &&
+                    platformKey === "googleBusiness" &&
+                    entity?.entityType === "location"
+                      ? () => onDisconnectEntity(entity)
+                      : undefined
+                  }
+                  disconnecting={disconnectingEntityId === String(entity?.entityId || "")}
                 />
               ))}
             </ul>

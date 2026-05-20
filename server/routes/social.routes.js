@@ -7,6 +7,7 @@ import {
   createFacebookPost,
   createDiscordPost,
   createGoogleBusinessPost,
+  disconnectGoogleBusinessLocationAccount,
   createLinkedInPost,
   createTelegramPost,
   createYouTubePost,
@@ -68,6 +69,7 @@ export function createSocialRoutes(requireAuth) {
   router.post("/google-business/post", requireAuth, createGoogleBusinessPost);
   router.get("/google-business/locations-session", requireAuth, googleBusinessLocationsSession);
   router.post("/google-business/select-locations", requireAuth, selectGoogleBusinessLocations);
+  router.post("/google-business/disconnect-location", requireAuth, disconnectGoogleBusinessLocationAccount);
   router.get("/google-business/callback", googleBusinessOauthCallback);
   router.post("/facebook/post", requireAuth, createFacebookPost);
   router.get("/facebook/pages-session", requireAuth, facebookPagesSession);

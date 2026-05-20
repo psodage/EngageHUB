@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { getPostHistory, refreshSocial } from "../services/socialApi";
+import { disconnectGoogleBusinessLocation, getPostHistory, refreshSocial } from "../services/socialApi";
 import { syncGitHubAccount } from "../services/githubApi";
 import GitHubDashboard from "../components/github/GitHubDashboard";
 import { AlertCircle, Building2, PenSquare, Sparkles, User, Video } from "lucide-react";
@@ -122,6 +122,7 @@ export default function ConnectedPlatformDetailPage() {
 
   const [googleBusinessModalOpen, setGoogleBusinessModalOpen] = useState(false);
   const [googleBusinessPreset, setGoogleBusinessPreset] = useState(null);
+  const [disconnectingGoogleLocationId, setDisconnectingGoogleLocationId] = useState("");
   const openGoogleBusinessComposer = (preset) => {
     setGoogleBusinessPreset(
       preset && typeof preset === "object" && preset.accountId && preset.locationId ? preset : null
@@ -203,6 +204,21 @@ export default function ConnectedPlatformDetailPage() {
     postingTargets?.primaryCtaPath ||
     ["linkedin", "facebook", "instagram", "googleBusiness", "youtube", "telegram", "discord"].includes(platformKey);
 
+  const handleDisconnectGoogleBusinessLocation = async (entity) => {
+    const locationId = entity?.entityId ? String(entity.entityId).trim() : "";
+    if (!locationId || disconnectingGoogleLocationId) return;
+    setDisconnectingGoogleLocationId(locationId);
+    try {
+      await disconnectGoogleBusinessLocation(locationId);
+      if (refreshConnectedAccounts) await refreshConnectedAccounts();
+      setToast?.({ message: "Google Business location disconnected." });
+    } catch (err) {
+      setToast?.({ message: err?.message || "Unable to disconnect Google Business location.", error: true });
+    } finally {
+      setDisconnectingGoogleLocationId("");
+    }
+  };
+
   if (!platformConfig) {
     return (
       <div className="channel-page">
@@ -252,7 +268,13 @@ export default function ConnectedPlatformDetailPage() {
         panelClassName={panelClass}
       >
         {detailTab === "profile" ? (
-          <ChannelProfileView account={account} platformKey={platformKey} capabilities={capabilities} />
+          <ChannelProfileView
+            account={account}
+            platformKey={platformKey}
+            capabilities={capabilities}
+            onDisconnectEntity={handleDisconnectGoogleBusinessLocation}
+            disconnectingEntityId={disconnectingGoogleLocationId}
+          />
         ) : null}
 
         {detailTab === "analytics" && platformKey === "github" ? (

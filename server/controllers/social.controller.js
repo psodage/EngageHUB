@@ -15,6 +15,7 @@ import { getPlatformCapabilities } from "../config/platformCapabilities.js";
 import {
   disconnectAccount,
   findDiscordTargetFromAccount,
+  disconnectGoogleBusinessLocation,
   getAccountsForUser,
   getAccountStatus,
   getGoogleBusinessAccountForToken,
@@ -865,6 +866,25 @@ export async function selectGoogleBusinessLocations(req, res) {
       error.message || "Unable to finish Google Business connection.",
       error?.status || 400,
       error?.code || "google_business_select_failed"
+    );
+  }
+}
+
+export async function disconnectGoogleBusinessLocationAccount(req, res) {
+  try {
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : null;
+    const locationId = body?.locationId != null ? String(body.locationId).trim() : "";
+    if (!locationId) {
+      return errorResponse(res, "locationId is required.", 400, "validation_error");
+    }
+    const result = await disconnectGoogleBusinessLocation(new ObjectId(req.auth.userId), locationId);
+    return successResponse(res, result, "Google Business location disconnected.");
+  } catch (error) {
+    return errorResponse(
+      res,
+      error.message || "Unable to disconnect Google Business location.",
+      error?.status || 400,
+      error?.code || "google_business_disconnect_location_failed"
     );
   }
 }

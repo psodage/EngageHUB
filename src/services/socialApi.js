@@ -275,6 +275,15 @@ export async function selectGoogleBusinessLocations({ sessionId, locationIds }) 
   }
 }
 
+export async function disconnectGoogleBusinessLocation(locationId) {
+  try {
+    const { data } = await socialClient.post("/api/social/google-business/disconnect-location", { locationId });
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to disconnect Google Business location.");
+  }
+}
+
 export async function manualConnectSocial(platform) {
   try {
     const { data } = await socialClient.post(`/api/social/${platform}/manual-connect`);

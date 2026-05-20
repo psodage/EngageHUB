@@ -164,6 +164,38 @@ export async function disconnectAccount(userId, platform) {
   return { platform: normalizedPlatform, isConnected: false };
 }
 
+export async function disconnectGoogleBusinessLocation(userId, locationIdRaw) {
+  const locationId = locationIdRaw != null ? String(locationIdRaw).trim() : "";
+  if (!locationId) {
+    const err = new Error("locationId is required.");
+    err.status = 400;
+    err.code = "validation_error";
+    throw err;
+  }
+  const deleted = await SocialAccount.findOneAndDelete({
+    userId,
+    platform: "googleBusiness",
+    entityType: "location",
+    entityId: locationId,
+  });
+  if (!deleted) {
+    const err = new Error("Selected Google Business location not found.");
+    err.status = 404;
+    err.code = "selected_location_not_found";
+    throw err;
+  }
+  const remaining = await SocialAccount.countDocuments({
+    userId,
+    platform: "googleBusiness",
+    entityType: "location",
+  });
+  return {
+    locationId,
+    removed: true,
+    remainingLocations: remaining,
+  };
+}
+
 export async function refreshAccountToken(userId, platform, refreshed) {
   const normalizedPlatform = normalizePlatform(platform);
 

@@ -6,6 +6,8 @@ export default function LinkedAccountCard({
   platformKey,
   fallbackImage,
   entityIcon: EntityIcon,
+  onDisconnect,
+  disconnecting = false,
 }) {
   const name = entity.accountName || entity.name || entity.username || "Untitled";
   const typeLabel = (entity.entityType || "account").replace(/_/g, " ");
@@ -47,6 +49,16 @@ export default function LinkedAccountCard({
                 Attention
               </span>
             )}
+            {typeof onDisconnect === "function" ? (
+              <button
+                type="button"
+                disabled={disconnecting}
+                onClick={onDisconnect}
+                className="inline-flex items-center rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-red-800/50 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/40"
+              >
+                {disconnecting ? "Disconnecting…" : "Disconnect"}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
