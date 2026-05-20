@@ -76,19 +76,90 @@ function ensureThreadsConfig() {
   return { appId: appId.trim(), appSecret: appSecret.trim(), redirectUri };
 }
 
-/** Confirms THREADS_APP_ID + THREADS_APP_SECRET belong to a real Meta app (catches stale/wrong-app credentials). */
-async function verifyThreadsAppCredentials(appId, appSecret) {
+/** Facebook Graph app lookup — works for some combined Meta apps, not Threads-only apps. */
+async function verifyThreadsAppViaFacebookGraph(appId, appSecret) {
   const token = `${appId}|${appSecret}`;
   try {
     const response = await axios.get(`https://graph.facebook.com/v20.0/${encodeURIComponent(appId)}`, {
       params: { fields: "id,name", access_token: token },
       timeout: 12000,
     });
-    return { valid: true, appName: response.data?.name || "", appId: response.data?.id?.toString() || appId };
+    return {
+      valid: true,
+      appName: response.data?.name || "",
+      appId: response.data?.id?.toString() || appId,
+      method: "facebook_graph",
+    };
   } catch (error) {
     const graphMessage = error?.response?.data?.error?.message || error?.message || "Unknown error";
-    return { valid: false, graphMessage };
+    return { valid: false, graphMessage, method: "facebook_graph" };
   }
+}
+
+/**
+ * Probes Threads OAuth token endpoint with a dummy code.
+ * Valid app id + secret return "Invalid verification code"; invalid client_id is rejected outright.
+ */
+async function verifyThreadsAppViaOAuthProbe(appId, appSecret, redirectUri) {
+  try {
+    await axios.post(
+      THREADS_TOKEN_URL,
+      new URLSearchParams({
+        client_id: appId,
+        client_secret: appSecret,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri,
+        code: "__engagehub_credential_probe__",
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 12000 }
+    );
+    return { valid: true, appName: "Threads app", appId, method: "threads_oauth_probe" };
+  } catch (error) {
+    const data = error?.response?.data || null;
+    const message =
+      extractThreadsOAuthErrorMessage(data) ||
+      extractThreadsGraphErrorMessage(data) ||
+      error?.message ||
+      "Unknown error";
+    const normalized = message.toLowerCase();
+
+    if (normalized.includes("invalid client_id") || normalized.includes("invalid client secret")) {
+      return { valid: false, graphMessage: message, method: "threads_oauth_probe" };
+    }
+
+    // Expected for a deliberate bad code — app id + secret were accepted.
+    if (
+      normalized.includes("invalid verification code") ||
+      normalized.includes("matching code was not found") ||
+      normalized.includes("authorization code")
+    ) {
+      return { valid: true, appName: "Threads app", appId, method: "threads_oauth_probe" };
+    }
+
+    if (normalized.includes("redirect_uri") || normalized.includes("redirect uri")) {
+      return {
+        valid: false,
+        graphMessage: `${message} (check THREADS_REDIRECT_URI matches Meta OAuth redirect URLs exactly)`,
+        method: "threads_oauth_probe",
+      };
+    }
+
+    return { valid: false, graphMessage: message, method: "threads_oauth_probe" };
+  }
+}
+
+async function verifyThreadsAppCredentials(appId, appSecret, redirectUri) {
+  const facebook = await verifyThreadsAppViaFacebookGraph(appId, appSecret);
+  if (facebook.valid) return facebook;
+
+  const threads = await verifyThreadsAppViaOAuthProbe(appId, appSecret, redirectUri);
+  if (threads.valid) return threads;
+
+  return {
+    valid: false,
+    graphMessage: threads.graphMessage || facebook.graphMessage || "Credential validation failed.",
+    method: threads.method || facebook.method,
+  };
 }
 
 export const THREADS_TEXT_MAX_LENGTH = 500;
@@ -165,30 +236,22 @@ const threadsService = {
    * When invalid, OAuth may still open but token/profile calls fail with threads_graph_error.
    */
   async verifyAppCredentials() {
-    const { appId, appSecret } = ensureThreadsConfig();
-    const metaAppId = (process.env.META_APP_ID || "").trim();
-    const metaAppSecret = (process.env.META_APP_SECRET || "").trim();
+    const { appId, appSecret, redirectUri } = ensureThreadsConfig();
 
-    const threadsCheck = await verifyThreadsAppCredentials(appId, appSecret);
+    const threadsCheck = await verifyThreadsAppCredentials(appId, appSecret, redirectUri);
     if (threadsCheck.valid) {
-      return { valid: true, appName: threadsCheck.appName, appId: threadsCheck.appId };
-    }
-
-    let metaHint = "";
-    if (metaAppId && metaAppSecret) {
-      const metaCheck = await verifyThreadsAppCredentials(metaAppId, metaAppSecret);
-      if (metaCheck.valid) {
-        metaHint =
-          metaAppId === appId
-            ? ` META_APP_SECRET may be correct but THREADS_APP_SECRET is wrong for app "${metaCheck.appName}".`
-            : ` Your META app "${metaCheck.appName}" (${metaAppId}) credentials validate, but THREADS_APP_ID (${appId}) does not — they appear to be from different Meta apps.`;
-      }
+      return {
+        valid: true,
+        appName: threadsCheck.appName,
+        appId: threadsCheck.appId,
+        method: threadsCheck.method,
+      };
     }
 
     const message =
-      `THREADS_APP_ID and THREADS_APP_SECRET are not a valid pair (${threadsCheck.graphMessage || "validation failed"}).` +
-      " Open your Meta app → App settings → Basic and copy Threads App ID and Threads App secret from that same app (AntiSocial V2), then update THREADS_* on Render and in .env." +
-      metaHint;
+      `THREADS_APP_ID and THREADS_APP_SECRET could not be verified (${threadsCheck.graphMessage || "validation failed"}). ` +
+      "Copy Threads App ID and Threads App secret from your Threads Meta app → App settings → Basic, then update THREADS_APP_ID, THREADS_APP_SECRET, and THREADS_REDIRECT_URI on Render (required for production) and in .env. " +
+      "If you use a separate Threads-only app, that is fine — it does not need to match META_APP_ID.";
 
     return {
       valid: false,
