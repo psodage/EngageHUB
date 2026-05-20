@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import { resolveProviderRedirectUri } from "../server/utils/redirectUri.util.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = path.join(projectRoot, ".env");
@@ -96,9 +97,10 @@ async function run() {
   const trimmedMetaAppId = metaAppId.trim();
 
   const redirects = {
-    facebook: `${appBaseUrl}/api/social/facebook/callback`,
-    instagram: `${appBaseUrl}/api/social/instagram/callback`,
-    threads: `${appBaseUrl}/api/social/threads/callback`,
+    facebook: resolveProviderRedirectUri("facebook"),
+    instagram:
+      process.env.INSTAGRAM_REDIRECT_URI || `${appBaseUrl}/api/social/instagram/callback`,
+    threads: resolveProviderRedirectUri("threads"),
   };
 
   const fbExtras = (process.env.FACEBOOK_LOGIN_EXTRA_SCOPES || "")

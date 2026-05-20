@@ -20,7 +20,6 @@ export default defineConfig(({ mode }) => {
       proxy: apiProxy,
       allowedHosts: [
         "engagehub.onrender.com",
-        "engagehub-1pig.onrender.com",
         "engage-hub-chi.vercel.app",
         ".ngrok-free.dev",
         ".ngrok-free.app",

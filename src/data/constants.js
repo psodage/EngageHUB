@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import { SOCIAL_PLATFORM_CONFIGS } from "./socialPlatforms";
 
+/** Hosted Express API on Render (OAuth callbacks and VITE_API_URL must use this host). */
+export const DEPLOYED_API_BASE_URL = "https://engagehub.onrender.com";
+
 export const STORAGE_KEYS = {
   theme: "engagehub-theme",
   auth: "engagehub-auth",

@@ -38,7 +38,8 @@ export function formatHttpApiError(error, fallback) {
       return new Error(
         `API route not found (${method} ${url || "unknown"}). ` +
           "Start the API with `npm run server` from the EngageHub project. " +
-          "For local dev, leave VITE_API_URL unset (Vite proxies /api) or set VITE_API_URL=http://localhost:4000 without a trailing /api."
+          "For local dev, leave VITE_API_URL unset (Vite proxies /api) or set VITE_API_URL=http://localhost:4000 without a trailing /api. " +
+          "For hosted API, use VITE_API_URL=https://engagehub.onrender.com"
       );
     }
     return new Error(bodyMsg);
