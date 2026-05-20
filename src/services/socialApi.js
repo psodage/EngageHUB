@@ -186,6 +186,30 @@ export async function selectFacebookPage(sessionId, pageId) {
   }
 }
 
+export async function getLinkedInAccountsSession(sessionId) {
+  try {
+    const qs = new URLSearchParams();
+    qs.set("session", String(sessionId || "").trim());
+    const { data } = await socialClient.get(`/api/social/linkedin/accounts-session?${qs.toString()}`);
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to load LinkedIn accounts.");
+  }
+}
+
+export async function selectLinkedInAccount({ sessionId, accountId, accountType }) {
+  try {
+    const { data } = await socialClient.post("/api/social/linkedin/select-account", {
+      sessionId,
+      accountId,
+      accountType,
+    });
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to finish LinkedIn connection.");
+  }
+}
+
 export async function manualConnectSocial(platform) {
   try {
     const { data } = await socialClient.post(`/api/social/${platform}/manual-connect`);

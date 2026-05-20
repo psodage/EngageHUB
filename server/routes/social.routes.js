@@ -21,6 +21,8 @@ import {
   metaOauthCallback,
   oauthCallback,
   selectFacebookPage,
+  linkedinAccountsSession,
+  selectLinkedInAccount,
   postToInstagram,
   refreshSocialPlatform,
   socialPlatformStatus,
@@ -62,6 +64,8 @@ export function createSocialRoutes(requireAuth) {
   router.post("/facebook/post", requireAuth, createFacebookPost);
   router.get("/facebook/pages-session", requireAuth, facebookPagesSession);
   router.post("/facebook/select-page", requireAuth, selectFacebookPage);
+  router.get("/linkedin/accounts-session", requireAuth, linkedinAccountsSession);
+  router.post("/linkedin/select-account", requireAuth, selectLinkedInAccount);
   router.post("/x/post", requireAuth, createXPost);
   router.get("/accounts", requireAuth, listSocialAccounts);
   router.get("/history", requireAuth, listSocialPostHistory);

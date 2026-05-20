@@ -12,6 +12,10 @@ const socialOAuthSessionSchema = new mongoose.Schema(
     tokenType: { type: String, default: "Bearer" },
     scopes: { type: [String], default: [] },
     expiresAt: { type: Date, default: null },
+    /** Encrypted provider access token (server-only; never returned to client). */
+    accessTokenEnc: { type: String, default: "" },
+    /** Encrypted provider refresh token (server-only; never returned to client). */
+    refreshTokenEnc: { type: String, default: "" },
     payload: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }

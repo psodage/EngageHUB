@@ -2,18 +2,15 @@ import axios from "axios";
 import { createOAuthService } from "./sharedOAuth.js";
 import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
 
-// `r_organization_admin` / org posting scopes are required for company page ACLs + posting.
-// See: https://learn.microsoft.com/en-us/linkedin/marketing/community-management/organizations/organization-access-control-by-role
-const defaultScopes = [
-  "r_liteprofile",
-  "w_member_social",
-  "r_organization_social",
-  "w_organization_social",
-  "r_organization_admin",
-];
+// Default to standard LinkedIn OIDC + member posting scopes.
+// Organization/page scopes often require additional LinkedIn approvals.
+const defaultScopes = ["openid", "profile", "email", "w_member_social"];
 const configuredScopes = process.env.LINKEDIN_SCOPES
   ? process.env.LINKEDIN_SCOPES.split(/[,\s]+/).filter(Boolean)
   : defaultScopes;
+const configuredOrgScopes = process.env.LINKEDIN_ORG_SCOPES
+  ? process.env.LINKEDIN_ORG_SCOPES.split(/[,\s]+/).filter(Boolean)
+  : [];
 const hasOpenIdScopes = configuredScopes.some((scope) => ["openid", "profile", "email"].includes(scope));
 const linkedinProfileUrl = hasOpenIdScopes ? "https://api.linkedin.com/v2/userinfo" : "https://api.linkedin.com/v2/me";
 
@@ -91,6 +88,8 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
   };
 
   let acl;
+  /** @type {Record<string, Set<string>>} */
+  const rolesByOrgId = {};
   try {
     const baseParams = { q: "roleAssignee", state: "APPROVED" };
     const fetchByRoles = async () => {
@@ -102,6 +101,12 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
             params: { ...baseParams, role },
           });
           const els = Array.isArray(r.data?.elements) ? r.data.elements : [];
+          for (const el of els) {
+            const oid = organizationIdFromAclElement(el);
+            if (!oid) continue;
+            if (!rolesByOrgId[oid]) rolesByOrgId[oid] = new Set();
+            rolesByOrgId[oid].add(role);
+          }
           mergedElements.push(...els);
         } catch {
           /* continue */
@@ -129,6 +134,14 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
 
     acl = response.data;
     const firstElements = Array.isArray(acl?.elements) ? acl.elements : [];
+    for (const el of firstElements) {
+      const oid = organizationIdFromAclElement(el);
+      if (!oid) continue;
+      const role = typeof el?.role === "string" ? el.role : "";
+      if (!role) continue;
+      if (!rolesByOrgId[oid]) rolesByOrgId[oid] = new Set();
+      rolesByOrgId[oid].add(role);
+    }
     if (!firstElements.length) {
       const mergedElements = await fetchByRoles();
       acl = { elements: mergedElements };
@@ -148,6 +161,8 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
 
   const organizations = await Promise.all(
     orgIds.map(async (orgId) => {
+      const roleSet = rolesByOrgId[orgId] ? Array.from(rolesByOrgId[orgId]) : [];
+      const role = roleSet[0] || "";
       try {
         const response = await axios.get(`https://api.linkedin.com/v2/organizations/${orgId}`, {
           headers,
@@ -162,6 +177,8 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
           name: org.localizedName || org.vanityName || `Organization ${orgId}`,
           profileImage: pickLinkedInOrgLogo(org),
           metadata: {
+            role,
+            roles: roleSet,
             vanityName: org.vanityName || "",
             rawOrganization: org,
           },
@@ -172,13 +189,17 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
           entityId: orgId.toString(),
           name: `Organization ${orgId}`,
           profileImage: "",
-          metadata: {},
+          metadata: { role, roles: roleSet },
         };
       }
     })
   );
 
   return organizations;
+};
+
+linkedinService.getConfiguredScopes = function getConfiguredScopes() {
+  return { scopes: configuredScopes, orgScopes: configuredOrgScopes };
 };
 
 const FEEDSHARE_IMAGE_RECIPE = "urn:li:digitalmediaRecipe:feedshare-image";

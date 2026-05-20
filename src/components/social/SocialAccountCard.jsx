@@ -32,6 +32,14 @@ export default function SocialAccountCard({
   const capability = PLATFORM_CAPABILITY_MATRIX[platformConfig.key];
   const badges = account?.capabilities?.length ? account.capabilities : capability?.badges || [];
   const oauthSupported = capability?.oauth !== false;
+  const entityTypeLabel =
+    account?.entityType === "organization"
+      ? "Organization"
+      : account?.entityType === "profile"
+        ? "Profile"
+        : account?.entityType
+          ? String(account.entityType)
+          : "";
 
   return (
     <motion.article
@@ -103,7 +111,7 @@ export default function SocialAccountCard({
           <div>
             <p className={`text-sm font-medium ${isBuffer ? "text-slate-800 dark:text-slate-100" : "text-slate-100"}`}>{displayName}</p>
             <p className={`text-xs ${isBuffer ? "text-slate-500" : "text-slate-400"}`}>
-              {isConnected && account?.entityType ? `Type: ${account.entityType}` : "Not connected"}
+              {isConnected && entityTypeLabel ? `Type: ${entityTypeLabel}` : "Not connected"}
             </p>
           </div>
         </div>

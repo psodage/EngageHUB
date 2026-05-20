@@ -43,6 +43,7 @@ import { publishTelegramPost } from "../services/social/telegramPublish.service.
 import SocialAccount from "../models/SocialAccount.js";
 import SocialOAuthSession from "../models/SocialOAuthSession.js";
 import linkedinProvider from "../services/social/linkedin.service.js";
+import { getLinkedInAuthorUrn } from "../services/social/linkedinAuthor.util.js";
 import youtubeService from "../services/social/youtube.service.js";
 import { publishGoogleBusinessLocalPost } from "../services/social/googleBusinessPublish.service.js";
 import { listPostHistoryForUser, recordSuccessfulPublish } from "../services/social/postHistory.service.js";
@@ -320,6 +321,172 @@ export async function selectFacebookPage(req, res) {
   } catch (error) {
     const message = error?.message || "Unable to finish Facebook connection.";
     return errorResponse(res, message, error?.status || 400, error?.code || message);
+  }
+}
+
+function sanitizeLinkedInDestinations(payload) {
+  const destinations = Array.isArray(payload?.destinations) ? payload.destinations : [];
+  return destinations
+    .map((d) => {
+      if (!d || typeof d !== "object" || Array.isArray(d)) return null;
+      return {
+        type: d.type === "organization" ? "organization" : "profile",
+        platform: "linkedin",
+        id: d.id ? String(d.id) : "",
+        name: d.name || "",
+        avatar: d.avatar || "",
+        email: d.email || "",
+        canPost: d.canPost !== false,
+        role: d.role || "",
+        permissionStatus: d.permissionStatus || "",
+      };
+    })
+    .filter((d) => d && d.id);
+}
+
+export async function linkedinAccountsSession(req, res) {
+  try {
+    const sessionId = req.query?.session ? String(req.query.session).trim() : "";
+    if (!sessionId) {
+      return errorResponse(res, "Missing session id.", 400, "missing_session");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "linkedin") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    const destinations = sanitizeLinkedInDestinations(doc.payload || {});
+    const orgWarning =
+      typeof doc?.payload?.orgWarning === "string" ? doc.payload.orgWarning : "";
+
+    return successResponse(
+      res,
+      {
+        sessionId: doc._id,
+        platform: doc.platform,
+        flow: doc.flow || "settings",
+        destinations,
+        orgWarning,
+      },
+      "Fetched LinkedIn destinations for selection."
+    );
+  } catch (error) {
+    return errorResponse(res, error.message || "Unable to load LinkedIn accounts.", 400, error?.code || error.message);
+  }
+}
+
+export async function selectLinkedInAccount(req, res) {
+  try {
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : null;
+    const sessionId = body?.sessionId != null ? String(body.sessionId).trim() : "";
+    const accountId = body?.accountId != null ? String(body.accountId).trim() : "";
+    const accountTypeRaw = body?.accountType != null ? String(body.accountType).trim().toLowerCase() : "";
+    const accountType = accountTypeRaw === "organization" ? "organization" : "profile";
+
+    if (!sessionId || !accountId) {
+      return errorResponse(res, "sessionId and accountId are required.", 400, "validation_error");
+    }
+    if (!["profile", "organization"].includes(accountType)) {
+      return errorResponse(res, "accountType must be profile or organization.", 400, "validation_error");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "linkedin") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    const accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
+    const refreshToken = doc.refreshTokenEnc ? decryptToken(doc.refreshTokenEnc) : "";
+    if (!accessToken) {
+      return errorResponse(res, "Access token is unavailable. Please reconnect LinkedIn.", 400, "token_missing");
+    }
+
+    const destinations = sanitizeLinkedInDestinations(doc.payload || {});
+    const selected =
+      destinations.find((d) => d.id === accountId && d.type === accountType) || null;
+    if (!selected) {
+      return errorResponse(res, "Selected LinkedIn destination not found.", 404, "selected_account_not_found");
+    }
+
+    const tokenExpiresIn = doc.expiresAt
+      ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
+      : null;
+
+    const platformUserId = doc.providerUserId ? String(doc.providerUserId).trim() : "";
+    if (!platformUserId) {
+      return errorResponse(res, "LinkedIn profile identity is missing. Please reconnect.", 400, "profile_identification_failed");
+    }
+
+    const metadataBase = {
+      selectedAt: new Date().toISOString(),
+    };
+
+    const linkedinAccount = await upsertConnectedAccount({
+      userId: new ObjectId(req.auth.userId),
+      platform: "linkedin",
+      profile: {
+        platformUserId,
+        entityType: accountType,
+        entityId: selected.id,
+        accountName: selected.name || "",
+        username: "",
+        email: selected.email || "",
+        profileImage: selected.avatar || "",
+        isPrimary: accountType === "profile",
+        capabilities: ["posting", "analytics"],
+        metadata:
+          accountType === "organization"
+            ? {
+                ...metadataBase,
+                organizationId: selected.id,
+                organizationUrn: `urn:li:organization:${selected.id}`,
+                role: selected.role || "",
+                canPost: selected.canPost !== false,
+              }
+            : {
+                ...metadataBase,
+                personUrn: `urn:li:person:${platformUserId}`,
+                canPost: true,
+              },
+      },
+      tokenData: {
+        accessToken,
+        refreshToken,
+        tokenType: doc.tokenType || "Bearer",
+        expiresIn: tokenExpiresIn,
+        scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+      },
+    });
+
+    doc.status = "consumed";
+    await doc.save();
+
+    return successResponse(
+      res,
+      { account: linkedinAccount, flow: doc.flow || "settings" },
+      "LinkedIn connected successfully."
+    );
+  } catch (error) {
+    return errorResponse(res, error.message || "Unable to finish LinkedIn connection.", error?.status || 400, error?.code || "linkedin_select_failed");
   }
 }
 
@@ -649,6 +816,105 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
       const profile = await provider.getProfile(tokenData.accessToken);
       if (!profile?.platformUserId) {
         throw new Error("Unable to identify social account from provider profile.");
+      }
+
+      if (platform === "linkedin") {
+        let managedEntities = [];
+        let organizationDiscoveryErrorCode = null;
+        if (typeof provider.getManagedEntities === "function") {
+          try {
+            managedEntities = await provider.getManagedEntities(tokenData.accessToken, profile);
+          } catch (discoveryError) {
+            const code = discoveryError?.code;
+            if (code === "linkedin_orgs_forbidden" || code === "linkedin_orgs_failed") {
+              organizationDiscoveryErrorCode = code;
+              console.warn("[oauth:callback:linkedin-orgs]", {
+                userId: decodedState.userId,
+                code,
+                message: discoveryError?.message,
+              });
+            } else {
+              throw discoveryError;
+            }
+          }
+        }
+
+        const destinations = [
+          {
+            type: "profile",
+            platform: "linkedin",
+            id: String(profile.platformUserId || ""),
+            name: profile.accountName || "",
+            avatar: profile.profileImage || "",
+            email: profile.email || "",
+            canPost: true,
+            permissionStatus: "granted",
+          },
+          ...(Array.isArray(managedEntities)
+            ? managedEntities
+                .map((e) => {
+                  const oid = e?.entityId != null ? String(e.entityId).trim() : "";
+                  if (!oid) return null;
+                  const role = e?.metadata?.role || "";
+                  return {
+                    type: "organization",
+                    platform: "linkedin",
+                    id: oid,
+                    name: e?.name || `Organization ${oid}`,
+                    avatar: e?.profileImage || "",
+                    email: "",
+                    role,
+                    canPost: true,
+                    permissionStatus: role ? `admin: ${role}` : "admin",
+                  };
+                })
+                .filter(Boolean)
+            : []),
+        ];
+
+        const encAccess = encryptToken(tokenData.accessToken || "");
+        const encRefresh = tokenData.refreshToken ? encryptToken(tokenData.refreshToken) : "";
+        if (!encAccess) {
+          const tokenErr = new Error("Token encryption failed.");
+          tokenErr.code = "token_encryption_failed";
+          tokenErr.status = 500;
+          throw tokenErr;
+        }
+
+        const orgWarning =
+          organizationDiscoveryErrorCode === "linkedin_orgs_forbidden" || organizationDiscoveryErrorCode === "linkedin_orgs_failed"
+            ? "LinkedIn organization pages require additional LinkedIn permissions or approval."
+            : "";
+
+        const session = await SocialOAuthSession.create({
+          userId: new ObjectId(decodedState.userId),
+          platform: "linkedin",
+          flow,
+          providerUserId: String(profile.platformUserId || ""),
+          tokenType: tokenData.tokenType || "Bearer",
+          scopes: Array.isArray(tokenData.scopes) ? tokenData.scopes : [],
+          expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000) : null,
+          accessTokenEnc: encAccess,
+          refreshTokenEnc: encRefresh,
+          payload: {
+            organizationDiscoveryErrorCode,
+            orgWarning,
+            destinations,
+          },
+        });
+
+        console.info("[oauth:linkedin:accounts-session]", {
+          userId: decodedState.userId,
+          flow,
+          sessionId: session?._id?.toString?.(),
+          destinationCount: destinations.length,
+          orgCount: destinations.filter((d) => d.type === "organization").length,
+          orgErrorCode: organizationDiscoveryErrorCode || undefined,
+        });
+
+        return res.redirect(
+          `${clientBaseUrl}/connect/linkedin/accounts?session=${encodeURIComponent(session._id.toString())}`
+        );
       }
 
       let managedEntities = [];
@@ -1788,7 +2054,10 @@ export async function createLinkedInPost(req, res) {
       targetName: tokenAccount.accountName || tokenAccount.username || personId,
     };
     if (parsed.targetType === "profile") {
-      authorUrn = `urn:li:person:${personId}`;
+      authorUrn = getLinkedInAuthorUrn(tokenAccount);
+      if (!authorUrn) {
+        return errorResponse(res, reconnectMessage, 401, "invalid_account");
+      }
     } else {
       const orgAccount = await getLinkedInOrganizationAccount(userId, parsed.organizationId);
       if (!orgAccount) {
@@ -1799,7 +2068,10 @@ export async function createLinkedInPost(req, res) {
           "organization_not_allowed"
         );
       }
-      authorUrn = `urn:li:organization:${parsed.organizationId}`;
+      authorUrn = getLinkedInAuthorUrn(orgAccount);
+      if (!authorUrn) {
+        return errorResponse(res, "Invalid LinkedIn organization author identity. Please reconnect.", 400, "invalid_account");
+      }
       historyTarget = {
         targetType: "organization",
         targetId: String(parsed.organizationId),

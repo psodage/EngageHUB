@@ -17,6 +17,7 @@ import ChannelsPage from "./pages/ChannelsPage";
 import ConnectedPlatformDetailPage from "./pages/ConnectedPlatformDetailPage";
 import OnboardingPlatformsPage from "./pages/OnboardingPlatformsPage";
 import FacebookPageSelectPage from "./pages/FacebookPageSelectPage";
+import LinkedInAccountSelectPage from "./pages/LinkedInAccountSelectPage";
 import Toast from "./components/Toast";
 import AuthAlert from "./components/auth/AuthAlert";
 
@@ -89,6 +90,7 @@ function RootRouter() {
           <Route path="channels" element={<ChannelsPage />} />
           <Route path="channels/:platformKey" element={<ConnectedPlatformDetailPage />} />
           <Route path="connect/facebook/pages" element={<FacebookPageSelectPage />} />
+          <Route path="connect/linkedin/accounts" element={<LinkedInAccountSelectPage />} />
           <Route path="connected-platforms" element={<Navigate to="/channels" replace />} />
           <Route path="connected-platforms/:platformKey" element={<RedirectLegacyConnectedPlatform />} />
           <Route path="settings" element={<SettingsLayout />}>
