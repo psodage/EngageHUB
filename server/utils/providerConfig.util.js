@@ -75,8 +75,8 @@ export function getSafeProviderDebugInfo(platform) {
   if (platform === "instagram") {
     return {
       platform,
-      clientId: maskIdentifier(process.env.INSTAGRAM_CLIENT_ID),
-      redirectUri: process.env.INSTAGRAM_REDIRECT_URI || "missing",
+      clientId: maskIdentifier(process.env.META_APP_ID),
+      redirectUri: process.env.META_REDIRECT_URI || "missing",
     };
   }
   if (platform === "github") {

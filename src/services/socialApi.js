@@ -74,8 +74,26 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   if (normalized.includes("no_page_found")) {
     return "No Facebook Page could be loaded. Confirm your Meta Login configuration includes page access.";
   }
+  if (normalized.includes("no_google_business_accounts") || normalized.includes("no_google_business_locations")) {
+    return "No Google Business Profiles found for this account.";
+  }
+  if (normalized.includes("google_business_scope_missing")) {
+    return "Google Business permission is required.";
+  }
+  if (normalized.includes("no_locations_selected")) {
+    return "Select at least one business profile.";
+  }
+  if (normalized.includes("selected_location_not_found")) {
+    return "Selected Google Business Profile was not found. Please reload and try again.";
+  }
+  if (normalized.includes("expired_session")) {
+    return "Connection session expired. Please reconnect Google Business Profile.";
+  }
   if (normalized.includes("no_instagram_professional_account")) {
-    return "No Instagram professional account is linked to your Facebook Page.";
+    return "No linked Instagram professional account found. Connect your Instagram account to a Facebook Page first.";
+  }
+  if (normalized.includes("meta_pages_permission_missing")) {
+    return "Instagram permissions are missing.";
   }
   if (normalized.includes("instagram_personal_account")) {
     return "This Instagram account is a personal profile. Switch to a Business or Creator account in the Instagram app (Settings → Account type and tools), then connect again.";
@@ -88,7 +106,7 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   }
   if (normalized.includes("invalid_client")) {
     if (platformKey === "instagram") {
-      return "Instagram OAuth client configuration is invalid. Verify INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, and INSTAGRAM_REDIRECT_URI.";
+      return "Instagram Meta OAuth client configuration is invalid. Verify META_APP_ID, META_APP_SECRET, and META_REDIRECT_URI.";
     }
     if (platformKey === "github") {
       return "GitHub OAuth client configuration is invalid. Verify GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_REDIRECT_URI.";
@@ -186,6 +204,30 @@ export async function selectFacebookPage(sessionId, pageId) {
   }
 }
 
+export async function getInstagramAccountsSession(sessionId) {
+  try {
+    const qs = new URLSearchParams();
+    qs.set("session", String(sessionId || "").trim());
+    const { data } = await socialClient.get(`/api/social/instagram/accounts-session?${qs.toString()}`);
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to load Instagram professional accounts.");
+  }
+}
+
+export async function selectInstagramAccount({ sessionId, instagramAccountId, autoConnectLinkedFacebookPage = false }) {
+  try {
+    const { data } = await socialClient.post("/api/social/instagram/select-account", {
+      sessionId,
+      instagramAccountId,
+      autoConnectLinkedFacebookPage,
+    });
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to finish Instagram connection.");
+  }
+}
+
 export async function getLinkedInAccountsSession(sessionId) {
   try {
     const qs = new URLSearchParams();
@@ -207,6 +249,29 @@ export async function selectLinkedInAccount({ sessionId, accountId, accountType 
     return data.data;
   } catch (error) {
     throw parseApiError(error, "Unable to finish LinkedIn connection.");
+  }
+}
+
+export async function getGoogleBusinessLocationsSession(sessionId) {
+  try {
+    const qs = new URLSearchParams();
+    qs.set("session", String(sessionId || "").trim());
+    const { data } = await socialClient.get(`/api/social/google-business/locations-session?${qs.toString()}`);
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to load Google Business Profiles.");
+  }
+}
+
+export async function selectGoogleBusinessLocations({ sessionId, locationIds }) {
+  try {
+    const { data } = await socialClient.post("/api/social/google-business/select-locations", {
+      sessionId,
+      locationIds: Array.isArray(locationIds) ? locationIds : [],
+    });
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to finish Google Business connection.");
   }
 }
 

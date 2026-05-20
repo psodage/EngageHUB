@@ -9,10 +9,10 @@ const requiredEnvKeys = [
 ];
 
 const providerEnvMap = {
-  youtube: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
+  youtube: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_YOUTUBE_REDIRECT_URI"],
   googleBusiness: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_BUSINESS_REDIRECT_URI"],
   facebook: ["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI"],
-  instagram: ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET", "INSTAGRAM_REDIRECT_URI"],
+  instagram: ["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI"],
   threads: ["THREADS_APP_ID", "THREADS_APP_SECRET", "THREADS_REDIRECT_URI"],
   linkedin: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI"],
   x: ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET", "TWITTER_REDIRECT_URI"],
@@ -31,7 +31,7 @@ export function getAppConfig() {
   return {
     appBaseUrl: ensureNoTrailingSlash(process.env.APP_BASE_URL || "http://localhost:4000"),
     clientBaseUrl: ensureNoTrailingSlash(process.env.CLIENT_BASE_URL || "http://localhost:5173"),
-    googleRedirectUri: process.env.GOOGLE_REDIRECT_URI,
+    googleRedirectUri: process.env.GOOGLE_YOUTUBE_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI,
     googleBusinessRedirectUri: process.env.GOOGLE_BUSINESS_REDIRECT_URI,
     twitterRedirectUri: process.env.TWITTER_REDIRECT_URI,
     redditRedirectUri: process.env.REDDIT_REDIRECT_URI,
@@ -39,8 +39,7 @@ export function getAppConfig() {
     discordRedirectUri: process.env.DISCORD_REDIRECT_URI,
     linkedinRedirectUri: process.env.LINKEDIN_REDIRECT_URI,
     metaRedirectUri: process.env.META_REDIRECT_URI,
-    instagramRedirectUri: process.env.INSTAGRAM_REDIRECT_URI,
-    instagramClientId: process.env.INSTAGRAM_CLIENT_ID,
+    instagramRedirectUri: process.env.META_REDIRECT_URI,
     threadsRedirectUri: process.env.THREADS_REDIRECT_URI,
     githubRedirectUri: process.env.GITHUB_REDIRECT_URI,
   };

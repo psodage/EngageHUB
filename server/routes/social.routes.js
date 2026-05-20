@@ -14,6 +14,7 @@ import {
   facebookPagesSession,
   debugSocialEnvCheck,
   disconnectSocialPlatform,
+  instagramAccountsSession,
   instagramOauthCallback,
   listSocialAccounts,
   listSocialPostHistory,
@@ -21,10 +22,14 @@ import {
   metaOauthCallback,
   oauthCallback,
   selectFacebookPage,
+  googleBusinessOauthCallback,
   linkedinAccountsSession,
   selectLinkedInAccount,
   postToInstagram,
+  googleBusinessLocationsSession,
   refreshSocialPlatform,
+  selectInstagramAccount,
+  selectGoogleBusinessLocations,
   socialPlatformStatus,
   updateDiscordTargets,
   updateTelegramTargets,
@@ -61,9 +66,14 @@ export function createSocialRoutes(requireAuth) {
   router.post("/linkedin/post", requireAuth, handleLinkedInPostUpload, createLinkedInPost);
   router.post("/youtube/post", requireAuth, handleYouTubeVideoUpload, createYouTubePost);
   router.post("/google-business/post", requireAuth, createGoogleBusinessPost);
+  router.get("/google-business/locations-session", requireAuth, googleBusinessLocationsSession);
+  router.post("/google-business/select-locations", requireAuth, selectGoogleBusinessLocations);
+  router.get("/google-business/callback", googleBusinessOauthCallback);
   router.post("/facebook/post", requireAuth, createFacebookPost);
   router.get("/facebook/pages-session", requireAuth, facebookPagesSession);
   router.post("/facebook/select-page", requireAuth, selectFacebookPage);
+  router.get("/instagram/accounts-session", requireAuth, instagramAccountsSession);
+  router.post("/instagram/select-account", requireAuth, selectInstagramAccount);
   router.get("/linkedin/accounts-session", requireAuth, linkedinAccountsSession);
   router.post("/linkedin/select-account", requireAuth, selectLinkedInAccount);
   router.post("/x/post", requireAuth, createXPost);

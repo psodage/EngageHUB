@@ -19,6 +19,15 @@ export const META_SCOPE_SETS = {
   insights: ["instagram_manage_insights"],
 };
 
+export const INSTAGRAM_META_DISCOVERY_SCOPES = [
+  ...META_SCOPE_SETS.initialLogin,
+  ...META_SCOPE_SETS.pages,
+  ...META_SCOPE_SETS.instagramBasic,
+  ...META_SCOPE_SETS.pagePosting,
+  ...META_SCOPE_SETS.publishing,
+  ...META_SCOPE_SETS.insights,
+];
+
 function maskAppId(value) {
   if (!value) return "missing";
   return `***${value.slice(-8)}`;
@@ -209,7 +218,7 @@ export function createMetaOAuthService({
       try {
         const pagesResponse = await fetchMetaGraph("/me/accounts", accessToken, {
           fields:
-            "id,name,category,access_token,picture{url},instagram_business_account{id,username,profile_picture_url}",
+            "id,name,category,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}",
         });
         return Array.isArray(pagesResponse?.data) ? pagesResponse.data : [];
       } catch (error) {
@@ -236,6 +245,14 @@ export function createMetaOAuthService({
           linkedInstagramId: page.instagram_business_account?.id || "",
         },
       }));
+    },
+    async getInstagramAccountDetails(accessToken, instagramAccountId) {
+      if (!instagramAccountId) {
+        throw createMetaError("Instagram account id is required.", "instagram_account_id_missing", 400);
+      }
+      return fetchMetaGraph(`/${instagramAccountId}`, accessToken, {
+        fields: "id,username,name,profile_picture_url,account_type",
+      });
     },
     async getLinkedInstagramAccount(accessToken, pages) {
       const availablePages = Array.isArray(pages) ? pages : await this.getPages(accessToken);

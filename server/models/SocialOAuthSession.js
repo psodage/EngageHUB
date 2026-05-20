@@ -6,6 +6,7 @@ const socialOAuthSessionSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     platform: { type: String, required: true, index: true },
+    provider: { type: String, default: "" },
     flow: { type: String, default: "settings" },
     status: { type: String, default: "pending", enum: ["pending", "consumed"] },
     providerUserId: { type: String, default: "" },
@@ -17,6 +18,10 @@ const socialOAuthSessionSchema = new mongoose.Schema(
     /** Encrypted provider refresh token (server-only; never returned to client). */
     refreshTokenEnc: { type: String, default: "" },
     payload: { type: mongoose.Schema.Types.Mixed, default: {} },
+    expiresAtSession: {
+      type: Date,
+      default: () => new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
+    },
   },
   { timestamps: true }
 );

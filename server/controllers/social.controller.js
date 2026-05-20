@@ -46,9 +46,14 @@ import linkedinProvider from "../services/social/linkedin.service.js";
 import { getLinkedInAuthorUrn } from "../services/social/linkedinAuthor.util.js";
 import youtubeService from "../services/social/youtube.service.js";
 import { publishGoogleBusinessLocalPost } from "../services/social/googleBusinessPublish.service.js";
+import {
+  getBusinessAccounts,
+  getBusinessLocations,
+  getGoogleBusinessLocationName,
+} from "../services/social/googleBusiness.service.js";
 import { listPostHistoryForUser, recordSuccessfulPublish } from "../services/social/postHistory.service.js";
 
-const META_PLATFORMS = new Set(["facebook"]);
+const META_PLATFORMS = new Set(["facebook", "instagram"]);
 const META_UPGRADE_SCOPE_SETS = {
   pages_show_list: [...META_SCOPE_SETS.pages, ...META_SCOPE_SETS.pagePosting],
   instagram_basic: [...META_SCOPE_SETS.pages, ...META_SCOPE_SETS.pagePosting, ...META_SCOPE_SETS.instagramBasic],
@@ -124,6 +129,10 @@ function mapCallbackReason(callbackError) {
   if (normalized.includes("unable to identify social account")) return "profile_identification_failed";
   if (normalized.includes("unable to read facebook pages")) return "no_page_found";
   if (normalized.includes("already linked to another engagehub user")) return "account_already_linked";
+  if (normalized.includes("google business permission")) return "google_business_scope_missing";
+  if (normalized.includes("no google business profiles")) return "no_google_business_locations";
+  if (normalized.includes("selected location not found")) return "selected_location_not_found";
+  if (normalized.includes("connection session expired")) return "expired_session";
   if (normalized.includes("token")) return "token_error";
   return "oauth_callback_failed";
 }
@@ -143,6 +152,25 @@ function sanitizeFacebookSessionPages(payload) {
         }
       : null,
   }));
+}
+
+function sanitizeInstagramSessionAccounts(payload) {
+  const accounts = Array.isArray(payload?.instagramAccounts) ? payload.instagramAccounts : [];
+  return accounts
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      return {
+        instagramAccountId: item.instagramAccountId ? String(item.instagramAccountId) : "",
+        username: item.username || "",
+        name: item.name || "",
+        profilePicture: item.profilePicture || "",
+        accountType: item.accountType || "business",
+        linkedPageId: item.linkedPageId || "",
+        linkedPageName: item.linkedPageName || "",
+        pageCategory: item.pageCategory || "",
+      };
+    })
+    .filter((item) => item && item.instagramAccountId && item.linkedPageId);
 }
 
 export async function facebookPagesSession(req, res) {
@@ -324,6 +352,181 @@ export async function selectFacebookPage(req, res) {
   }
 }
 
+export async function instagramAccountsSession(req, res) {
+  try {
+    const sessionId = req.query?.session ? String(req.query.session).trim() : "";
+    if (!sessionId) {
+      return errorResponse(res, "Missing session id.", 400, "missing_session");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "instagram") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    return successResponse(
+      res,
+      {
+        sessionId: doc._id,
+        platform: doc.platform,
+        flow: doc.flow || "settings",
+        instagramAccounts: sanitizeInstagramSessionAccounts(doc.payload || {}),
+      },
+      "Fetched Instagram professional accounts for selection."
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      error.message || "Unable to load Instagram professional accounts.",
+      400,
+      error?.code || error.message
+    );
+  }
+}
+
+export async function selectInstagramAccount(req, res) {
+  try {
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : null;
+    const sessionId = body?.sessionId != null ? String(body.sessionId).trim() : "";
+    const instagramAccountId = body?.instagramAccountId != null ? String(body.instagramAccountId).trim() : "";
+    const autoConnectLinkedFacebookPage = Boolean(body?.autoConnectLinkedFacebookPage);
+
+    if (!sessionId || !instagramAccountId) {
+      return errorResponse(res, "sessionId and instagramAccountId are required.", 400, "validation_error");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "instagram") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    const pages = Array.isArray(doc?.payload?.pages) ? doc.payload.pages : [];
+    const accounts = Array.isArray(doc?.payload?.instagramAccounts) ? doc.payload.instagramAccounts : [];
+    const selected =
+      accounts.find((item) => String(item?.instagramAccountId || "").trim() === instagramAccountId) || null;
+    if (!selected) {
+      return errorResponse(res, "Selected Instagram account not found.", 404, "selected_instagram_account_not_found");
+    }
+
+    const linkedPage =
+      pages.find((p) => String(p?.id || "").trim() === String(selected.linkedPageId || "").trim()) || null;
+    if (!linkedPage) {
+      return errorResponse(res, "Linked Facebook Page was not found in this session.", 404, "linked_page_not_found");
+    }
+    const pageAccessToken = linkedPage.pageAccessTokenEnc ? decryptToken(linkedPage.pageAccessTokenEnc) : null;
+    if (!pageAccessToken) {
+      return errorResponse(res, "Page access token is unavailable. Please reconnect.", 400, "token_missing");
+    }
+
+    const tokenExpiresIn = doc.expiresAt
+      ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
+      : null;
+
+    const instagramAccount = await upsertConnectedAccount({
+      userId: new ObjectId(req.auth.userId),
+      platform: "instagram",
+      profile: {
+        platformUserId: selected.instagramAccountId,
+        entityType: "business",
+        entityId: selected.instagramAccountId,
+        accountName: selected.username || selected.name || "",
+        username: selected.username || "",
+        email: "",
+        profileImage: selected.profilePicture || "",
+        isPrimary: true,
+        capabilities: ["posting", "analytics"],
+        metadata: {
+          accountType: (selected.accountType || "business").toLowerCase(),
+          parentPageId: selected.linkedPageId || "",
+          linkedPageName: selected.linkedPageName || "",
+          pageCategory: selected.pageCategory || "",
+        },
+      },
+      tokenData: {
+        accessToken: pageAccessToken,
+        refreshToken: "",
+        tokenType: doc.tokenType || "Bearer",
+        expiresIn: tokenExpiresIn,
+        scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+      },
+    });
+
+    let facebookAccount = null;
+    if (autoConnectLinkedFacebookPage) {
+      facebookAccount = await upsertConnectedAccount({
+        userId: new ObjectId(req.auth.userId),
+        platform: "facebook",
+        profile: {
+          platformUserId: String(linkedPage.id || "").trim(),
+          entityType: "page",
+          entityId: String(linkedPage.id || "").trim(),
+          accountName: linkedPage.name || "",
+          username: "",
+          email: "",
+          profileImage: linkedPage.pictureUrl || "",
+          isPrimary: true,
+          capabilities: ["posting", "analytics"],
+          metadata: {
+            category: linkedPage.category || "",
+            pageId: String(linkedPage.id || "").trim(),
+            pageName: linkedPage.name || "",
+            pictureUrl: linkedPage.pictureUrl || "",
+            selectedAt: new Date().toISOString(),
+          },
+        },
+        tokenData: {
+          accessToken: pageAccessToken,
+          refreshToken: "",
+          tokenType: doc.tokenType || "Bearer",
+          expiresIn: tokenExpiresIn,
+          scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+        },
+      });
+    }
+
+    if (instagramAccount?.id && facebookAccount?.id) {
+      await SocialAccount.updateOne(
+        { _id: instagramAccount.id, userId: new ObjectId(req.auth.userId) },
+        { $set: { parentAccountId: facebookAccount.id } }
+      );
+    }
+
+    doc.status = "consumed";
+    await doc.save();
+
+    return successResponse(
+      res,
+      {
+        instagram: instagramAccount,
+        facebook: facebookAccount,
+        flow: doc.flow || "settings",
+      },
+      "Instagram account connected successfully."
+    );
+  } catch (error) {
+    const message = error?.message || "Unable to finish Instagram connection.";
+    return errorResponse(res, message, error?.status || 400, error?.code || message);
+  }
+}
+
 function sanitizeLinkedInDestinations(payload) {
   const destinations = Array.isArray(payload?.destinations) ? payload.destinations : [];
   return destinations
@@ -342,6 +545,29 @@ function sanitizeLinkedInDestinations(payload) {
       };
     })
     .filter((d) => d && d.id);
+}
+
+function sanitizeGoogleBusinessLocations(payload) {
+  const locations = Array.isArray(payload?.locations) ? payload.locations : [];
+  return locations
+    .map((loc) => {
+      if (!loc || typeof loc !== "object" || Array.isArray(loc)) return null;
+      const locationId = loc.locationId ? String(loc.locationId).trim() : "";
+      if (!locationId) return null;
+      return {
+        locationId,
+        title: loc.title || "",
+        address: loc.address || "",
+        phone: loc.phone || "",
+        website: loc.website || "",
+        primaryCategory: loc.primaryCategory || "",
+        verificationStatus: loc.verificationStatus || "",
+        storefrontUrl: loc.storefrontUrl || "",
+        accountId: loc.accountId ? String(loc.accountId).trim() : "",
+        accountName: loc.accountName || "",
+      };
+    })
+    .filter(Boolean);
 }
 
 export async function linkedinAccountsSession(req, res) {
@@ -490,6 +716,159 @@ export async function selectLinkedInAccount(req, res) {
   }
 }
 
+export async function googleBusinessLocationsSession(req, res) {
+  try {
+    const sessionId = req.query?.session ? String(req.query.session).trim() : "";
+    if (!sessionId) {
+      return errorResponse(res, "Missing session id.", 400, "missing_session");
+    }
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "googleBusiness") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+    const locations = sanitizeGoogleBusinessLocations(doc.payload || {});
+    if (!locations.length) {
+      return errorResponse(res, "No Google Business Profiles found for this account.", 404, "no_google_business_locations");
+    }
+    return successResponse(
+      res,
+      {
+        sessionId: doc._id,
+        platform: doc.platform,
+        flow: doc.flow || "settings",
+        googleUser: doc?.payload?.googleUser || null,
+        accounts: Array.isArray(doc?.payload?.accounts) ? doc.payload.accounts : [],
+        locations,
+      },
+      "Fetched Google Business locations for selection."
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      error.message || "Unable to load Google Business Profiles.",
+      error?.status || 400,
+      error?.code || "google_business_locations_session_failed"
+    );
+  }
+}
+
+export async function selectGoogleBusinessLocations(req, res) {
+  try {
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : null;
+    const sessionId = body?.sessionId != null ? String(body.sessionId).trim() : "";
+    const locationIdsRaw = Array.isArray(body?.locationIds) ? body.locationIds : [];
+    const locationIds = [...new Set(locationIdsRaw.map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!sessionId) {
+      return errorResponse(res, "sessionId is required.", 400, "validation_error");
+    }
+    if (!locationIds.length) {
+      return errorResponse(res, "Select at least one business profile.", 400, "no_locations_selected");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "googleBusiness") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    const accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
+    const refreshToken = doc.refreshTokenEnc ? decryptToken(doc.refreshTokenEnc) : "";
+    if (!accessToken) {
+      return errorResponse(res, "Access token is unavailable. Please reconnect Google Business Profile.", 400, "token_missing");
+    }
+
+    const allLocations = sanitizeGoogleBusinessLocations(doc.payload || {});
+    const selectedLocations = allLocations.filter((loc) => locationIds.includes(loc.locationId));
+    if (!selectedLocations.length || selectedLocations.length !== locationIds.length) {
+      return errorResponse(res, "Selected location not found.", 404, "selected_location_not_found");
+    }
+
+    const tokenExpiresIn = doc.expiresAt
+      ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
+      : null;
+
+    const profileId = doc.providerUserId ? String(doc.providerUserId).trim() : "";
+    const googleUser = doc?.payload?.googleUser && typeof doc.payload.googleUser === "object" ? doc.payload.googleUser : {};
+    const accountRows = [];
+    for (const loc of selectedLocations) {
+      const account = await upsertConnectedAccount({
+        userId: new ObjectId(req.auth.userId),
+        platform: "googleBusiness",
+        profile: {
+          platformUserId: profileId || loc.locationId,
+          entityType: "location",
+          entityId: loc.locationId,
+          accountName: loc.title || `Location ${loc.locationId}`,
+          username: googleUser?.email || "",
+          email: googleUser?.email || "",
+          profileImage: "",
+          isPrimary: false,
+          capabilities: ["posting", "analytics", "business-updates"],
+          metadata: {
+            accountId: loc.accountId || "",
+            googleBusinessAccountId: loc.accountId || "",
+            accountName: loc.accountName || "",
+            address: loc.address || "",
+            category: loc.primaryCategory || "",
+            website: loc.website || "",
+            verificationStatus: loc.verificationStatus || "",
+            locationTitle: loc.title || "",
+            locationType: "business_location",
+            storefrontUrl: loc.storefrontUrl || "",
+            managedEntity: {
+              googleBusinessAccountId: loc.accountId || "",
+              googleBusinessAccountName: loc.accountName || "",
+              title: loc.title || "",
+              address: loc.address || "",
+              primaryCategory: loc.primaryCategory || "",
+            },
+            selectedAt: new Date().toISOString(),
+          },
+        },
+        tokenData: {
+          accessToken,
+          refreshToken,
+          tokenType: doc.tokenType || "Bearer",
+          expiresIn: tokenExpiresIn,
+          scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+        },
+      });
+      accountRows.push(account);
+    }
+    doc.status = "consumed";
+    await doc.save();
+    return successResponse(
+      res,
+      { accounts: accountRows, count: accountRows.length, flow: doc.flow || "settings" },
+      "Google Business Profiles connected successfully."
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      error.message || "Unable to finish Google Business connection.",
+      error?.status || 400,
+      error?.code || "google_business_select_failed"
+    );
+  }
+}
+
 function resolveMetaUpgradeScopes(scopeSet) {
   const normalizedScopeSet = (scopeSet || "all").toString().toLowerCase();
   const scopes = META_UPGRADE_SCOPE_SETS[normalizedScopeSet];
@@ -616,8 +995,11 @@ export async function manualConnectSocialPlatform(req, res) {
 }
 
 export async function connectInstagramPlatform(req, res) {
-  req.params.platform = "instagram";
-  return connectSocialPlatform(req, res);
+  req.query = {
+    ...(req.query || {}),
+    platform: "instagram",
+  };
+  return connectMetaPlatform(req, res);
 }
 
 export async function connectMetaPlatform(req, res) {
@@ -783,12 +1165,74 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
               ? {
                   id: page.instagram_business_account?.id ? String(page.instagram_business_account.id) : "",
                   username: page.instagram_business_account?.username || "",
+                  name: page.instagram_business_account?.name || "",
                   profile_picture_url: page.instagram_business_account?.profile_picture_url || "",
                 }
               : null,
           };
         })
         .filter(Boolean);
+
+      if (platform === "instagram") {
+        const instagramAccounts = [];
+        for (const page of sessionPages) {
+          const ig = page?.instagram_business_account;
+          if (!ig?.id) continue;
+          let accountType = "business";
+          try {
+            const details = await provider.getInstagramAccountDetails(tokenData.accessToken, ig.id);
+            accountType = String(details?.account_type || "business").toLowerCase();
+          } catch (detailsError) {
+            console.warn("[oauth:instagram:details-warning]", {
+              userId: decodedState.userId,
+              pageId: page.id,
+              igId: ig.id,
+              message: detailsError?.message,
+            });
+          }
+          instagramAccounts.push({
+            instagramAccountId: String(ig.id || "").trim(),
+            username: ig.username || "",
+            name: ig.name || "",
+            profilePicture: ig.profile_picture_url || "",
+            accountType: accountType === "creator" ? "creator" : "business",
+            linkedPageId: page.id || "",
+            linkedPageName: page.name || "",
+            pageCategory: page.category || "",
+          });
+        }
+
+        if (!instagramAccounts.length) {
+          const noInstagram = new Error("No linked Instagram professional account found.");
+          noInstagram.code = "no_instagram_professional_account";
+          noInstagram.status = 400;
+          throw noInstagram;
+        }
+
+        const session = await SocialOAuthSession.create({
+          userId: new ObjectId(decodedState.userId),
+          platform: "instagram",
+          flow,
+          providerUserId: String(userProfile.platformUserId || ""),
+          tokenType: tokenData.tokenType || "Bearer",
+          scopes: Array.isArray(tokenData.scopes) ? tokenData.scopes : [],
+          expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000) : null,
+          payload: {
+            metaUser: {
+              id: String(userProfile.platformUserId || ""),
+              name: userProfile.accountName || "",
+              email: userProfile.email || "",
+            },
+            pageDiscoveryErrorCode,
+            pages: sessionPages,
+            instagramAccounts,
+          },
+        });
+
+        return res.redirect(
+          `${clientBaseUrl}/connect/instagram/accounts?session=${encodeURIComponent(session._id.toString())}`
+        );
+      }
 
       const session = await SocialOAuthSession.create({
         userId: new ObjectId(decodedState.userId),
@@ -917,6 +1361,69 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
         );
       }
 
+      if (platform === "googleBusiness") {
+        const encAccess = encryptToken(tokenData.accessToken || "");
+        const encRefresh = tokenData.refreshToken ? encryptToken(tokenData.refreshToken) : "";
+        if (!encAccess) {
+          const tokenErr = new Error("Token encryption failed.");
+          tokenErr.code = "token_encryption_failed";
+          tokenErr.status = 500;
+          throw tokenErr;
+        }
+
+        const googleUser = {
+          id: String(profile.platformUserId || ""),
+          email: profile.email || "",
+          name: profile.accountName || "",
+          avatar: profile.profileImage || "",
+        };
+
+        const accounts = await getBusinessAccounts(tokenData.accessToken);
+        if (!accounts.length) {
+          const noAccountsErr = new Error("No Google Business Profiles found for this account.");
+          noAccountsErr.code = "no_google_business_accounts";
+          noAccountsErr.status = 404;
+          throw noAccountsErr;
+        }
+
+        const locations = [];
+        for (const account of accounts) {
+          const accountId = String(account.accountId || "").trim();
+          if (!accountId) continue;
+          const locs = await getBusinessLocations(accountId, tokenData.accessToken, account);
+          locations.push(...locs);
+        }
+        if (!locations.length) {
+          const noLocationsErr = new Error("No Google Business Profiles found for this account.");
+          noLocationsErr.code = "no_google_business_locations";
+          noLocationsErr.status = 404;
+          throw noLocationsErr;
+        }
+
+        const session = await SocialOAuthSession.create({
+          userId: new ObjectId(decodedState.userId),
+          platform: "googleBusiness",
+          provider: "google_business",
+          flow,
+          providerUserId: String(profile.platformUserId || ""),
+          tokenType: tokenData.tokenType || "Bearer",
+          scopes: Array.isArray(tokenData.scopes) ? tokenData.scopes : [],
+          expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000) : null,
+          accessTokenEnc: encAccess,
+          refreshTokenEnc: encRefresh,
+          payload: {
+            provider: "google_business",
+            googleUser,
+            accounts,
+            locations,
+          },
+        });
+
+        return res.redirect(
+          `${clientBaseUrl}/connect/google-business/locations?session=${encodeURIComponent(session._id.toString())}`
+        );
+      }
+
       let managedEntities = [];
       let organizationDiscoveryErrorCode = null;
       if (typeof provider.getManagedEntities === "function") {
@@ -1021,6 +1528,10 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
 
 export async function oauthCallback(req, res) {
   return handleOAuthCallback(req, res, req.params.platform);
+}
+
+export async function googleBusinessOauthCallback(req, res) {
+  return handleOAuthCallback(req, res, "googleBusiness");
 }
 
 export async function metaOauthCallback(req, res) {
@@ -2282,8 +2793,8 @@ function parseGoogleBusinessPostBody(body) {
     err.code = "validation_error";
     throw err;
   }
-  if (!["STANDARD", "EVENT", "OFFER"].includes(postTypeRaw)) {
-    const err = new Error("postType must be one of: STANDARD, EVENT, OFFER.");
+  if (!["STANDARD", "UPDATE", "EVENT", "OFFER"].includes(postTypeRaw)) {
+    const err = new Error("postType must be one of: UPDATE, STANDARD, EVENT, OFFER.");
     err.status = 400;
     err.code = "validation_error";
     throw err;
@@ -2299,7 +2810,9 @@ function parseGoogleBusinessPostBody(body) {
     throw err;
   }
 
-  if (postTypeRaw === "STANDARD") {
+  const normalizedPostType = postTypeRaw === "UPDATE" ? "STANDARD" : postTypeRaw;
+
+  if (normalizedPostType === "STANDARD") {
     if (!summary.replace(/\s/g, "").length) {
       const err = new Error("summary is required for STANDARD posts and cannot be only spaces.");
       err.status = 400;
@@ -2372,7 +2885,7 @@ function parseGoogleBusinessPostBody(body) {
   let startDateParts = null;
   let endDateParts = null;
 
-  if (postTypeRaw === "EVENT") {
+  if (normalizedPostType === "EVENT") {
     if (!eventTitle.replace(/\s/g, "").length) {
       const err = new Error("eventTitle is required for EVENT posts.");
       err.status = 400;
@@ -2381,7 +2894,7 @@ function parseGoogleBusinessPostBody(body) {
     }
     startDateParts = parseIsoDateParts(body.startDate, "startDate");
     endDateParts = parseIsoDateParts(body.endDate, "endDate");
-  } else if (postTypeRaw === "OFFER") {
+  } else if (normalizedPostType === "OFFER") {
     if (!offerTitle.replace(/\s/g, "").length) {
       const err = new Error("offerTitle is required for OFFER posts.");
       err.status = 400;
@@ -2418,7 +2931,8 @@ function parseGoogleBusinessPostBody(body) {
   return {
     locationId,
     accountId,
-    postType: postTypeRaw,
+    postType: normalizedPostType,
+    requestedPostType: postTypeRaw,
     summary,
     mediaUrl,
     mediaFormat: inferMediaFormat(),
@@ -2580,7 +3094,7 @@ export async function createGoogleBusinessPost(req, res) {
       platformAccountName: tokenAccount.accountName || tokenAccount.username || "",
       targetType: "location",
       targetId: parsed.locationId,
-      targetName: locationAccount.accountName || parsed.locationId,
+      targetName: getGoogleBusinessLocationName(locationAccount) || parsed.locationId,
       content: historySummary || parsed.summary,
       mediaType: historyMediaType,
       mediaUrl: parsed.mediaUrl || "",
@@ -3196,7 +3710,7 @@ export async function debugSocialEnvCheck(req, res) {
         linkedinRedirectUri: appConfig.linkedinRedirectUri || "missing",
         metaRedirectUri: appConfig.metaRedirectUri || "missing",
         instagramRedirectUri: appConfig.instagramRedirectUri || "missing",
-        hasInstagramClientId: Boolean(appConfig.instagramClientId),
+        hasMetaAppId: Boolean(process.env.META_APP_ID),
       },
     },
     "Environment diagnostics loaded."
@@ -3269,6 +3783,11 @@ export async function postToInstagram(req, res) {
     }
 
     const mediaType = (req.body?.mediaType || "").toString().trim().toUpperCase();
+    const hasSingleMedia = typeof req.body?.mediaUrl === "string" && req.body.mediaUrl.trim().length > 0;
+    const hasCarouselMedia = Array.isArray(req.body?.mediaUrls) ? req.body.mediaUrls.length > 0 : false;
+    if (!hasSingleMedia && !hasCarouselMedia) {
+      return errorResponse(res, "Instagram requires an image or video.", 400, "instagram_media_required");
+    }
     if (!["IMAGE", "VIDEO", "REEL", "CAROUSEL"].includes(mediaType)) {
       return errorResponse(res, "mediaType must be IMAGE, VIDEO, REEL, or CAROUSEL.", 400, "invalid_media_type");
     }

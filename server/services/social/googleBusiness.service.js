@@ -58,93 +58,139 @@ const baseGoogleBusinessService = createOAuthService({
  * @returns {Promise<object[]>}
  */
 async function fetchManagedLocations(accessToken) {
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  const accounts = await getBusinessAccounts(accessToken);
   const entities = [];
-
-  let accountsResponse;
-  try {
-    accountsResponse = await axios.get(`${MYBUSINESS_V4}/accounts`, {
-      headers,
-      validateStatus: () => true,
+  for (const account of accounts) {
+    const accountId = String(account?.accountId || "").trim();
+    if (!accountId) continue;
+    const locations = await getBusinessLocations(accountId, accessToken, {
+      accountName: account.accountName,
+      accountDisplayName: account.accountDisplayName,
     });
-  } catch (error) {
-    console.warn("[googleBusiness:accounts:error]", {
-      message: error?.message,
-      status: error?.response?.status,
-    });
-    return [];
-  }
-
-  if (accountsResponse.status < 200 || accountsResponse.status >= 300) {
-    console.warn("[googleBusiness:accounts:failed]", {
-      status: accountsResponse.status,
-      data: accountsResponse.data,
-    });
-    return [];
-  }
-
-  const accounts = Array.isArray(accountsResponse.data?.accounts) ? accountsResponse.data.accounts : [];
-
-  for (const acc of accounts) {
-    const accountName = typeof acc?.name === "string" ? acc.name : "";
-    if (!accountName.startsWith("accounts/")) continue;
-    const accountId = accountName.replace(/^accounts\//, "");
-
-    let pageToken = "";
-    for (;;) {
-      const params = pageToken ? { pageToken } : {};
-      let locResponse;
-      try {
-        locResponse = await axios.get(`${MYBUSINESS_V4}/accounts/${encodeURIComponent(accountId)}/locations`, {
-          headers,
-          params,
-          validateStatus: () => true,
-        });
-      } catch (error) {
-        console.warn("[googleBusiness:locations:error]", {
-          accountName,
-          message: error?.message,
-        });
-        break;
-      }
-
-      if (locResponse.status < 200 || locResponse.status >= 300) {
-        console.warn("[googleBusiness:locations:failed]", {
-          accountName,
-          status: locResponse.status,
-          data: locResponse.data,
-        });
-        break;
-      }
-
-      const locations = Array.isArray(locResponse.data?.locations) ? locResponse.data.locations : [];
-      for (const loc of locations) {
-        const locName = typeof loc?.name === "string" ? loc.name : "";
-        const parts = locName.split("/locations/");
-        const locationId = parts.length >= 2 ? parts[parts.length - 1] : "";
-        if (!locationId) continue;
-        const title =
-          loc.title ||
-          loc.locationName ||
-          loc.storefrontAddress?.addressLines?.[0] ||
-          `Location ${locationId}`;
-
-        entities.push({
-          entityType: "location",
-          entityId: locationId,
-          name: title,
-          profileImage: "",
-          googleBusinessAccountId: accountId,
-          googleBusinessLocationResourceName: locName,
-        });
-      }
-
-      pageToken = typeof locResponse.data?.nextPageToken === "string" ? locResponse.data.nextPageToken : "";
-      if (!pageToken) break;
+    for (const loc of locations) {
+      entities.push({
+        entityType: "location",
+        entityId: loc.locationId,
+        name: loc.title || `Location ${loc.locationId}`,
+        profileImage: "",
+        googleBusinessAccountId: loc.accountId,
+        googleBusinessAccountName: loc.accountName,
+        googleBusinessLocationResourceName: loc.resourceName || "",
+        metadata: {
+          address: loc.address || "",
+          phone: loc.phone || "",
+          website: loc.website || "",
+          primaryCategory: loc.primaryCategory || "",
+          verificationStatus: loc.verificationStatus || "",
+          storefrontUrl: loc.storefrontUrl || "",
+        },
+      });
     }
   }
-
   return entities;
+}
+
+function joinAddress(addr) {
+  const lines = Array.isArray(addr?.addressLines) ? addr.addressLines.filter(Boolean) : [];
+  const extras = [addr?.locality, addr?.administrativeArea, addr?.postalCode, addr?.regionCode].filter(Boolean);
+  return [...lines, ...extras].join(", ");
+}
+
+export async function getBusinessAccounts(accessToken) {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  let response;
+  try {
+    response = await axios.get(`${MYBUSINESS_V4}/accounts`, { headers, validateStatus: () => true });
+  } catch (error) {
+    const err = new Error("Failed to fetch Google Business accounts.");
+    err.code = "google_business_accounts_failed";
+    err.status = error?.response?.status || 502;
+    throw err;
+  }
+  if (response.status < 200 || response.status >= 300) {
+    const message = response?.data?.error?.message || "Failed to fetch Google Business accounts.";
+    const err = new Error(message);
+    err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_accounts_failed";
+    err.status = response.status || 502;
+    throw err;
+  }
+  const accounts = Array.isArray(response.data?.accounts) ? response.data.accounts : [];
+  return accounts
+    .map((acc) => {
+      const accountName = typeof acc?.name === "string" ? acc.name : "";
+      const accountId = accountName.startsWith("accounts/") ? accountName.replace(/^accounts\//, "") : "";
+      if (!accountId) return null;
+      return {
+        accountName,
+        accountId,
+        type: acc?.type || "",
+        accountDisplayName: acc?.accountName || acc?.name || `Account ${accountId}`,
+      };
+    })
+    .filter(Boolean);
+}
+
+export async function getBusinessLocations(accountId, accessToken, accountInfo = {}) {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const rows = [];
+  let pageToken = "";
+  for (;;) {
+    const params = pageToken ? { pageToken } : {};
+    let response;
+    try {
+      response = await axios.get(`${MYBUSINESS_V4}/accounts/${encodeURIComponent(accountId)}/locations`, {
+        headers,
+        params,
+        validateStatus: () => true,
+      });
+    } catch (error) {
+      const err = new Error("Failed to fetch Google Business locations.");
+      err.code = "google_business_locations_failed";
+      err.status = error?.response?.status || 502;
+      throw err;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      const message = response?.data?.error?.message || "Failed to fetch Google Business locations.";
+      const err = new Error(message);
+      err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_locations_failed";
+      err.status = response.status || 502;
+      throw err;
+    }
+    const locations = Array.isArray(response.data?.locations) ? response.data.locations : [];
+    for (const loc of locations) {
+      const resourceName = typeof loc?.name === "string" ? loc.name : "";
+      const parts = resourceName.split("/locations/");
+      const locationId = parts.length >= 2 ? parts[parts.length - 1] : "";
+      if (!locationId) continue;
+      rows.push({
+        locationId,
+        resourceName,
+        title: loc?.title || loc?.locationName || "",
+        address: joinAddress(loc?.storefrontAddress || loc?.address || {}),
+        phone: loc?.primaryPhone || "",
+        website: loc?.websiteUri || "",
+        primaryCategory: loc?.primaryCategory?.displayName || loc?.primaryCategory?.categoryId || "",
+        verificationStatus: loc?.metadata?.verification?.verificationState || loc?.openInfo?.status || "",
+        storefrontUrl: loc?.metadata?.mapsUri || loc?.websiteUri || "",
+        accountId: String(accountId),
+        accountName: accountInfo.accountDisplayName || accountInfo.accountName || `Account ${accountId}`,
+      });
+    }
+    pageToken = typeof response.data?.nextPageToken === "string" ? response.data.nextPageToken : "";
+    if (!pageToken) break;
+  }
+  return rows;
+}
+
+export function getGoogleBusinessLocationName(account) {
+  if (!account || typeof account !== "object") return "";
+  return (
+    account?.accountName ||
+    account?.metadata?.locationTitle ||
+    account?.metadata?.managedEntity?.name ||
+    account?.metadata?.managedEntity?.title ||
+    ""
+  );
 }
 
 const googleBusinessService = {

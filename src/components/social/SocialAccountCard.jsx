@@ -29,6 +29,10 @@ export default function SocialAccountCard({
   const linkedInCurrentCompany = linkedInOrganizations[0] || null;
   const linkedInstagram = account?.metadata?.linkedInstagramAccount || account?.metadata?.linkedFacebookPage || null;
   const instagramUserId = account?.metadata?.instagramUserId || account?.platformUserId || "";
+  const googleBusinessLocations =
+    platformConfig.key === "googleBusiness" && Array.isArray(account?.entities)
+      ? account.entities.filter((item) => item.entityType === "location")
+      : [];
   const capability = PLATFORM_CAPABILITY_MATRIX[platformConfig.key];
   const badges = account?.capabilities?.length ? account.capabilities : capability?.badges || [];
   const oauthSupported = capability?.oauth !== false;
@@ -161,6 +165,21 @@ export default function SocialAccountCard({
                 ? `${account.metadata.repositoriesCount} repos`
                 : "Repositories syncing…"}
               {typeof account?.metadata?.followers === "number" ? ` · ${account.metadata.followers} followers` : ""}
+            </p>
+          ) : null}
+          {isConnected && platformConfig.key === "googleBusiness" ? (
+            <p className="text-xs text-slate-400">
+              {googleBusinessLocations[0]?.accountName ||
+              googleBusinessLocations[0]?.metadata?.locationTitle ||
+              googleBusinessLocations[0]?.entityId
+                ? `Primary location: ${
+                    googleBusinessLocations[0]?.accountName ||
+                    googleBusinessLocations[0]?.metadata?.locationTitle ||
+                    "Business location"
+                  }`
+                : "Google Business Profile connected"}
+              {" · "}
+              {`Connected locations: ${googleBusinessLocations.length || (account?.isConnected ? 1 : 0)}`}
             </p>
           ) : null}
           <TokenExpiryWarning account={account} />

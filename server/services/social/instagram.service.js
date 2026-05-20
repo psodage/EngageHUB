@@ -1,24 +1,13 @@
 import axios from "axios";
-import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
+import { createMetaOAuthService, INSTAGRAM_META_DISCOVERY_SCOPES } from "./meta.service.js";
 
-const INSTAGRAM_AUTH_URL = "https://www.instagram.com/oauth/authorize";
-const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
-const INSTAGRAM_GRAPH_BASE_URL = "https://graph.instagram.com";
+const INSTAGRAM_GRAPH_BASE_URL = "https://graph.facebook.com";
 const INSTAGRAM_GRAPH_API_VERSION = "v20.0";
-const INSTAGRAM_LONG_LIVED_TOKEN_URL = `${INSTAGRAM_GRAPH_BASE_URL}/access_token`;
-const INSTAGRAM_REFRESH_TOKEN_URL = `${INSTAGRAM_GRAPH_BASE_URL}/refresh_access_token`;
-const INSTAGRAM_LONG_LIVED_DEFAULT_SECONDS = 60 * 60 * 24 * 60;
-
-const INSTAGRAM_DEFAULT_SCOPES = ["instagram_business_basic", "instagram_business_content_publish"];
+const INSTAGRAM_DEFAULT_SCOPES = INSTAGRAM_META_DISCOVERY_SCOPES;
 
 export const INSTAGRAM_CAPTION_MAX_LENGTH = 2200;
 
 const SUPPORTED_PUBLISH_MEDIA_TYPES = new Set(["IMAGE", "VIDEO", "REEL", "CAROUSEL"]);
-
-function maskClientId(value) {
-  if (!value) return "missing";
-  return `***${value.slice(-8)}`;
-}
 
 function createInstagramError(message, code, status = 400, details = null) {
   const error = new Error(message);
@@ -26,64 +15,6 @@ function createInstagramError(message, code, status = 400, details = null) {
   error.status = status;
   error.details = details;
   return error;
-}
-
-async function requestInstagramLongLivedToken(shortLivedToken) {
-  const { clientSecret } = ensureInstagramConfig();
-  const params = {
-    grant_type: "ig_exchange_token",
-    client_secret: clientSecret,
-    access_token: shortLivedToken,
-  };
-
-  try {
-    const response = await axios.get(INSTAGRAM_LONG_LIVED_TOKEN_URL, { params });
-    return response.data || {};
-  } catch (getError) {
-    const methodNotAllowed =
-      getError?.response?.status === 405 ||
-      /method type:\s*get/i.test(String(getError?.response?.data?.error?.message || ""));
-    if (!methodNotAllowed) throw getError;
-    const response = await axios.post(
-      INSTAGRAM_LONG_LIVED_TOKEN_URL,
-      new URLSearchParams(params),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
-    return response.data || {};
-  }
-}
-
-function mapInstagramTokenPayload(data, scopes) {
-  return {
-    accessToken: data.access_token || "",
-    refreshToken: "",
-    tokenType: data.token_type || "Bearer",
-    expiresIn: Number(data.expires_in) || INSTAGRAM_LONG_LIVED_DEFAULT_SECONDS,
-    scopes,
-  };
-}
-
-function ensureInstagramConfig() {
-  const clientId = process.env.INSTAGRAM_CLIENT_ID;
-  const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
-  const redirectUri = resolveProviderRedirectUri("instagram");
-
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw createInstagramError(
-      "Instagram OAuth is not configured.",
-      "instagram_config_missing",
-      400,
-      ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET", "INSTAGRAM_REDIRECT_URI"]
-    );
-  }
-
-  return { clientId, clientSecret, redirectUri };
-}
-
-function normalizeScopes(scopes) {
-  const requested = Array.isArray(scopes) ? scopes : [];
-  const cleaned = requested.map((scope) => (scope || "").toString().trim()).filter(Boolean);
-  return Array.from(new Set([...(cleaned.length ? cleaned : INSTAGRAM_DEFAULT_SCOPES)]));
 }
 
 function instagramVersionedRoot() {
@@ -259,91 +190,11 @@ export async function publishInstagramContent({
 const instagramService = {
   platform: "instagram",
   defaultScopes: INSTAGRAM_DEFAULT_SCOPES,
-
-  validateConfig() {
-    try {
-      ensureInstagramConfig();
-      return { valid: true, missing: [] };
-    } catch (error) {
-      return {
-        valid: false,
-        missing: error?.details || ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET", "INSTAGRAM_REDIRECT_URI"],
-      };
-    }
-  },
-
-  getAuthUrl(state, requestedScopes = null) {
-    const { clientId, redirectUri } = ensureInstagramConfig();
-    const scopes = normalizeScopes(requestedScopes || this.defaultScopes);
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope: scopes.join(","),
-      state,
-    });
-    console.info("[oauth:instagram:auth-url]", {
-      platform: "instagram",
-      clientId: maskClientId(clientId),
-      redirectUri,
-      authEndpoint: INSTAGRAM_AUTH_URL,
-      scopes,
-    });
-    return `${INSTAGRAM_AUTH_URL}?${params.toString()}`;
-  },
-
-  getAdvancedAuthUrl(state, additionalScopes = []) {
-    return this.getAuthUrl(state, additionalScopes);
-  },
-
-  async exchangeCodeForToken(code) {
-    const { clientId, clientSecret, redirectUri } = ensureInstagramConfig();
-    try {
-      const response = await axios.post(
-        INSTAGRAM_TOKEN_URL,
-        new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          grant_type: "authorization_code",
-          redirect_uri: redirectUri,
-          code,
-        }),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-      );
-      const data = response.data || {};
-      const scopes = normalizeScopes(this.defaultScopes);
-      const shortLived = mapInstagramTokenPayload(data, scopes);
-      if (!shortLived.accessToken) {
-        throw createInstagramError("Instagram did not return an access token.", "instagram_token_exchange_failed", 400);
-      }
-
-      try {
-        const longLivedData = await requestInstagramLongLivedToken(shortLived.accessToken);
-        const longLived = mapInstagramTokenPayload(longLivedData, scopes);
-        if (longLived.accessToken) {
-          console.info("[oauth:instagram:long-lived:success]", {
-            expiresIn: longLived.expiresIn,
-          });
-          return longLived;
-        }
-      } catch (longLivedError) {
-        console.warn("[oauth:instagram:long-lived:failed]", {
-          message: longLivedError?.message,
-          status: longLivedError?.response?.status,
-        });
-      }
-
-      console.warn("[oauth:instagram:using-short-lived-token]");
-      return shortLived;
-    } catch (error) {
-      throw createInstagramError(
-        "Token exchange failed for Instagram.",
-        "instagram_token_exchange_failed",
-        error?.response?.status || 400,
-        error?.response?.data || null
-      );
-    }
-  },
+  ...createMetaOAuthService({
+    platform: "instagram",
+    profileFields: "id,name,email,picture",
+    scopes: INSTAGRAM_DEFAULT_SCOPES,
+  }),
 
   async getProfile(accessToken) {
     // Minimal fields for Instagram Login — extra fields can trigger (#100) errors if scopes/app config differ.
@@ -380,61 +231,6 @@ const instagramService = {
     };
   },
 
-  async refreshTokenIfNeeded(account) {
-    const accessToken = account?.getDecryptedAccessToken?.();
-    if (!accessToken) {
-      return null;
-    }
-
-    const expiresMs = account?.expiresAt ? new Date(account.expiresAt).getTime() : 0;
-    const now = Date.now();
-    const isExpired = expiresMs > 0 && expiresMs <= now;
-    const expiresWithinWeek = expiresMs > 0 && expiresMs - now < 7 * 24 * 60 * 60 * 1000;
-    if (!isExpired && !expiresWithinWeek) return null;
-
-    const scopes = Array.isArray(account.scopes) ? account.scopes : normalizeScopes(this.defaultScopes);
-
-    try {
-      const response = await axios.get(INSTAGRAM_REFRESH_TOKEN_URL, {
-        params: {
-          grant_type: "ig_refresh_token",
-          access_token: accessToken,
-        },
-      });
-      return mapInstagramTokenPayload(response.data || {}, scopes);
-    } catch (refreshError) {
-      if (!isExpired) {
-        throw createInstagramError(
-          "Instagram token refresh failed.",
-          "instagram_token_refresh_failed",
-          refreshError?.response?.status || 400,
-          refreshError?.response?.data || null
-        );
-      }
-
-      try {
-        const longLivedData = await requestInstagramLongLivedToken(accessToken);
-        const upgraded = mapInstagramTokenPayload(longLivedData, scopes);
-        if (upgraded.accessToken) {
-          console.info("[instagram:token:upgraded-short-to-long]");
-          return upgraded;
-        }
-      } catch {
-        /* fall through */
-      }
-
-      throw createInstagramError(
-        "Instagram token refresh failed.",
-        "instagram_token_refresh_failed",
-        refreshError?.response?.status || 400,
-        refreshError?.response?.data || null
-      );
-    }
-  },
-
-  async disconnectAccount() {
-    return { disconnected: true };
-  },
 };
 
 export default instagramService;
