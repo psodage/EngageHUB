@@ -4,6 +4,8 @@ import { createOAuthService } from "./sharedOAuth.js";
 import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
 
 const MYBUSINESS_V4 = "https://mybusiness.googleapis.com/v4";
+const BUSINESS_ACCOUNT_MGMT_V1 = "https://businessaccountmanagement.googleapis.com/v1";
+const BUSINESS_INFO_V1 = "https://mybusinessbusinessinformation.googleapis.com/v1";
 
 function maskClientId(value) {
   if (!value) return "missing";
@@ -108,11 +110,23 @@ export async function getBusinessAccounts(accessToken) {
     throw err;
   }
   if (response.status < 200 || response.status >= 300) {
-    const message = response?.data?.error?.message || "Failed to fetch Google Business accounts.";
-    const err = new Error(message);
-    err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_accounts_failed";
-    err.status = response.status || 502;
-    throw err;
+    // Some Google projects only have Business Profile APIs enabled on the v1 endpoints.
+    const useV1Fallback = [400, 404, 410, 501].includes(Number(response.status || 0));
+    if (!useV1Fallback) {
+      const message = response?.data?.error?.message || "Failed to fetch Google Business accounts.";
+      const err = new Error(message);
+      err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_accounts_failed";
+      err.status = response.status || 502;
+      throw err;
+    }
+    response = await axios.get(`${BUSINESS_ACCOUNT_MGMT_V1}/accounts`, { headers, validateStatus: () => true });
+    if (response.status < 200 || response.status >= 300) {
+      const message = response?.data?.error?.message || "Failed to fetch Google Business accounts.";
+      const err = new Error(message);
+      err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_accounts_failed";
+      err.status = response.status || 502;
+      throw err;
+    }
   }
   const accounts = Array.isArray(response.data?.accounts) ? response.data.accounts : [];
   return accounts
@@ -150,17 +164,37 @@ export async function getBusinessLocations(accountId, accessToken, accountInfo =
       throw err;
     }
     if (response.status < 200 || response.status >= 300) {
-      const message = response?.data?.error?.message || "Failed to fetch Google Business locations.";
-      const err = new Error(message);
-      err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_locations_failed";
-      err.status = response.status || 502;
-      throw err;
+      const useV1Fallback = [400, 404, 410, 501].includes(Number(response.status || 0));
+      if (!useV1Fallback) {
+        const message = response?.data?.error?.message || "Failed to fetch Google Business locations.";
+        const err = new Error(message);
+        err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_locations_failed";
+        err.status = response.status || 502;
+        throw err;
+      }
+      response = await axios.get(`${BUSINESS_INFO_V1}/accounts/${encodeURIComponent(accountId)}/locations`, {
+        headers,
+        params,
+        validateStatus: () => true,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        const message = response?.data?.error?.message || "Failed to fetch Google Business locations.";
+        const err = new Error(message);
+        err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_locations_failed";
+        err.status = response.status || 502;
+        throw err;
+      }
     }
     const locations = Array.isArray(response.data?.locations) ? response.data.locations : [];
     for (const loc of locations) {
       const resourceName = typeof loc?.name === "string" ? loc.name : "";
       const parts = resourceName.split("/locations/");
-      const locationId = parts.length >= 2 ? parts[parts.length - 1] : "";
+      const locationId =
+        parts.length >= 2
+          ? parts[parts.length - 1]
+          : resourceName.startsWith("locations/")
+            ? resourceName.replace(/^locations\//, "")
+            : "";
       if (!locationId) continue;
       rows.push({
         locationId,

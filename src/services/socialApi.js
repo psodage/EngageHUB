@@ -77,6 +77,9 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   if (normalized.includes("no_google_business_accounts") || normalized.includes("no_google_business_locations")) {
     return "No Google Business Profiles found for this account.";
   }
+  if (normalized.includes("google_business_accounts_failed")) {
+    return "Could not load Google Business Profiles. Ensure Business Profile APIs are enabled and try again.";
+  }
   if (normalized.includes("google_business_scope_missing")) {
     return "Google Business permission is required.";
   }
