@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, ChevronLeft, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ExternalLink, Loader2, RefreshCcw, User } from "lucide-react";
 import { getFacebookPagesSession, selectFacebookPage, startSocialConnect } from "../services/socialApi";
 import { useApp } from "../context/AppContext";
 
@@ -21,28 +21,35 @@ function InstagramChip({ ig }) {
   );
 }
 
-function PageCard({ page, selected, onSelect }) {
-  const ig = page?.instagram_business_account;
+function AccountCard({ account, selected, onSelect }) {
+  const ig = account?.instagram_business_account;
+  const isProfile = account?.entityType === "profile";
   return (
     <button
       type="button"
-      onClick={() => onSelect(page.id)}
+      onClick={() => onSelect(account.id)}
       className={[
         "group relative flex w-full items-start gap-4 rounded-2xl border p-4 text-left shadow-card transition",
         "bg-white hover:border-buffer-300 dark:bg-slate-900 dark:hover:border-buffer-500",
         selected ? "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15" : "border-slate-200/90 dark:border-slate-800",
       ].join(" ")}
     >
-      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
-        {page.pictureUrl ? (
-          <img src={page.pictureUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
+        {account.pictureUrl ? (
+          <img src={account.pictureUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+        ) : isProfile ? (
+          <User size={22} className="text-slate-400" aria-hidden />
         ) : null}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{page.name || "Facebook Page"}</p>
-            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{page.category || "Page"}</p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+              {account.name || (isProfile ? "Facebook Profile" : "Facebook Page")}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+              {account.category || (isProfile ? "Personal profile" : "Page")}
+            </p>
           </div>
           <div className="shrink-0">
             <CheckCircle2
@@ -70,9 +77,19 @@ export default function FacebookPageSelectPage() {
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState("");
+  const [profile, setProfile] = useState(null);
   const [pages, setPages] = useState([]);
   const [flow, setFlow] = useState("settings");
-  const [selectedPageId, setSelectedPageId] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+
+  const destinations = useMemo(() => {
+    const list = [];
+    if (profile?.id) list.push(profile);
+    for (const page of pages) {
+      if (page?.id) list.push(page);
+    }
+    return list;
+  }, [profile, pages]);
 
   const loadSession = async () => {
     if (!sessionId) {
@@ -84,12 +101,15 @@ export default function FacebookPageSelectPage() {
     setError("");
     try {
       const data = await getFacebookPagesSession(sessionId);
+      const nextProfile = data?.profile?.id ? data.profile : null;
       const nextPages = Array.isArray(data?.pages) ? data.pages : [];
+      setProfile(nextProfile);
       setPages(nextPages);
       setFlow(data?.flow || "settings");
-      setSelectedPageId((prev) => prev || (nextPages[0]?.id ? String(nextPages[0].id) : ""));
-      if (!nextPages.length) {
-        setError("No Facebook Pages were found for this account.");
+      const defaultId = nextProfile?.id || nextPages[0]?.id || "";
+      setSelectedId((prev) => prev || (defaultId ? String(defaultId) : ""));
+      if (!nextProfile?.id && !nextPages.length) {
+        setError("No Facebook Profile or Pages were found for this account.");
       }
     } catch (err) {
       setError(err?.message || "Unable to load Facebook Pages.");
@@ -113,15 +133,18 @@ export default function FacebookPageSelectPage() {
   };
 
   const handleFinish = async () => {
-    if (!selectedPageId || finishing) return;
+    if (!selectedId || finishing) return;
     setFinishing(true);
     try {
-      const result = await selectFacebookPage(sessionId, selectedPageId);
+      const result = await selectFacebookPage(sessionId, selectedId);
       await refreshConnectedAccounts?.().catch(() => {});
+      const isProfile = profile?.id && selectedId === profile.id;
       if (result?.warning) {
         setToast?.({ message: result.warning, error: false });
       } else {
-        setToast?.({ message: "Facebook Page connected successfully." });
+        setToast?.({
+          message: isProfile ? "Facebook Profile connected successfully." : "Facebook Page connected successfully.",
+        });
       }
       const returnPath = flowReturnPath(result?.flow || flow);
       const qs = new URLSearchParams();
@@ -159,7 +182,7 @@ export default function FacebookPageSelectPage() {
           <div className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800 dark:bg-slate-950/30">
             <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Confirm your Account</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Choose the Facebook Page you want to connect.
+              Choose your Facebook Profile or Page to connect.
             </p>
           </div>
 
@@ -167,11 +190,11 @@ export default function FacebookPageSelectPage() {
             {loading ? (
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
                 <Loader2 className="animate-spin" size={18} aria-hidden />
-                Loading Facebook Pages…
+                Loading Facebook accounts…
               </div>
             ) : error ? (
               <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-                <p className="font-semibold">We couldn’t load your Pages.</p>
+                <p className="font-semibold">We couldn’t load your accounts.</p>
                 <p className="opacity-90">{error}</p>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -194,12 +217,12 @@ export default function FacebookPageSelectPage() {
               </div>
             ) : (
               <div className="grid gap-3">
-                {pages.map((page) => (
-                  <PageCard
-                    key={page.id}
-                    page={page}
-                    selected={selectedPageId === page.id}
-                    onSelect={(id) => setSelectedPageId(String(id))}
+                {destinations.map((account) => (
+                  <AccountCard
+                    key={`${account.entityType || "page"}-${account.id}`}
+                    account={account}
+                    selected={selectedId === account.id}
+                    onSelect={(id) => setSelectedId(String(id))}
                   />
                 ))}
               </div>
@@ -208,11 +231,11 @@ export default function FacebookPageSelectPage() {
             <div className="flex items-center justify-end pt-2">
               <button
                 type="button"
-                disabled={loading || Boolean(error) || !selectedPageId || finishing}
+                disabled={loading || Boolean(error) || !selectedId || finishing}
                 onClick={handleFinish}
                 className={[
                   "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition",
-                  loading || error || !selectedPageId || finishing
+                  loading || error || !selectedId || finishing
                     ? "bg-slate-400 dark:bg-slate-700"
                     : "bg-buffer-600 hover:bg-buffer-700 dark:bg-buffer-500 dark:hover:bg-buffer-600",
                 ].join(" ")}

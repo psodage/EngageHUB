@@ -138,10 +138,27 @@ function mapCallbackReason(callbackError) {
   return "oauth_callback_failed";
 }
 
+function sanitizeFacebookSessionProfile(payload) {
+  const profile = payload?.profile;
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) return null;
+  const id = profile?.id ? String(profile.id).trim() : "";
+  if (!id) return null;
+  return {
+    id,
+    entityType: "profile",
+    name: profile.name || "",
+    category: profile.category || "Personal profile",
+    pictureUrl: profile.pictureUrl || "",
+    email: profile.email || "",
+    instagram_business_account: null,
+  };
+}
+
 function sanitizeFacebookSessionPages(payload) {
   const pages = Array.isArray(payload?.pages) ? payload.pages : [];
   return pages.map((p) => ({
     id: p?.id || "",
+    entityType: "page",
     name: p?.name || "",
     category: p?.category || "",
     pictureUrl: p?.pictureUrl || "",
@@ -195,6 +212,7 @@ export async function facebookPagesSession(req, res) {
       return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
     }
 
+    const profile = sanitizeFacebookSessionProfile(doc.payload || {});
     const pages = sanitizeFacebookSessionPages(doc.payload || {});
     return successResponse(
       res,
@@ -202,9 +220,10 @@ export async function facebookPagesSession(req, res) {
         sessionId: doc._id,
         platform: doc.platform,
         flow: doc.flow || "settings",
+        profile,
         pages,
       },
-      "Fetched Facebook Pages for selection."
+      "Fetched Facebook accounts for selection."
     );
   } catch (error) {
     return errorResponse(res, error.message || "Unable to load Facebook Pages.", 400, error?.code || error.message);
@@ -234,44 +253,61 @@ export async function selectFacebookPage(req, res) {
       return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
     }
 
+    const sessionProfile = doc?.payload?.profile;
     const pages = Array.isArray(doc?.payload?.pages) ? doc.payload.pages : [];
-    const selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
-    if (!selected) {
-      return errorResponse(res, "Selected Facebook Page not found.", 404, "selected_page_not_found");
-    }
-    const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
-    const pageAccessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : null;
-    if (!pageAccessToken) {
-      return errorResponse(res, "Page access token is unavailable. Please reconnect.", 400, "token_missing");
-    }
+    const profileId = sessionProfile?.id ? String(sessionProfile.id).trim() : "";
+    const isProfileSelection = profileId && pageId === profileId;
 
     const tokenExpiresIn = doc.expiresAt
       ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
       : null;
+
+    let accessToken = "";
+    let selected = null;
+    let entityType = "page";
+
+    if (isProfileSelection) {
+      entityType = "profile";
+      selected = sessionProfile;
+      accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
+      if (!accessToken) {
+        return errorResponse(res, "Facebook access token is unavailable. Please reconnect.", 400, "token_missing");
+      }
+    } else {
+      selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
+      if (!selected) {
+        return errorResponse(res, "Selected Facebook account not found.", 404, "selected_page_not_found");
+      }
+      const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
+      accessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : "";
+      if (!accessToken) {
+        return errorResponse(res, "Page access token is unavailable. Please reconnect.", 400, "token_missing");
+      }
+    }
 
     const facebookAccount = await upsertConnectedAccount({
       userId: new ObjectId(req.auth.userId),
       platform: "facebook",
       profile: {
         platformUserId: String(selected.id || "").trim(),
-        entityType: "page",
+        entityType,
         entityId: String(selected.id || "").trim(),
         accountName: selected.name || "",
         username: "",
-        email: "",
+        email: selected.email || "",
         profileImage: selected.pictureUrl || "",
         isPrimary: true,
         capabilities: ["posting", "analytics"],
         metadata: {
-          category: selected.category || "",
-          pageId: String(selected.id || "").trim(),
-          pageName: selected.name || "",
+          category: selected.category || (entityType === "profile" ? "Personal profile" : ""),
+          pageId: entityType === "page" ? String(selected.id || "").trim() : "",
+          pageName: entityType === "page" ? selected.name || "" : "",
           pictureUrl: selected.pictureUrl || "",
           selectedAt: new Date().toISOString(),
         },
       },
       tokenData: {
-        accessToken: pageAccessToken,
+        accessToken,
         refreshToken: "",
         tokenType: doc.tokenType || "Bearer",
         expiresIn: tokenExpiresIn,
@@ -281,7 +317,7 @@ export async function selectFacebookPage(req, res) {
 
     let instagramAccount = null;
     let instagramWarning = "";
-    const ig = selected?.instagram_business_account;
+    const ig = entityType === "page" ? selected?.instagram_business_account : null;
     if (ig?.id) {
       instagramAccount = await upsertConnectedAccount({
         userId: new ObjectId(req.auth.userId),
@@ -1252,14 +1288,34 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
         });
       }
 
-      if (!pages.length) {
-        const noPages = new Error("No Facebook Pages were found for this account.");
-        noPages.code = pageDiscoveryErrorCode || "no_facebook_pages";
-        noPages.status = 400;
-        throw noPages;
+      const sessionProfile = {
+        id: String(userProfile.platformUserId || "").trim(),
+        name: userProfile.accountName || "",
+        email: userProfile.email || "",
+        category: "Personal profile",
+        pictureUrl: userProfile.profileImage || "",
+      };
+
+      if (!sessionProfile.id) {
+        throw new Error("Unable to identify Facebook account from Meta profile.");
       }
 
-      // Create short-lived server-side session storing pages + encrypted tokens; frontend only receives session id.
+      if (!pages.length) {
+        console.warn("[oauth:facebook:no-pages]", {
+          userId: decodedState.userId,
+          code: pageDiscoveryErrorCode || "no_facebook_pages",
+        });
+      }
+
+      const encUserAccess = encryptToken(tokenData.accessToken || "");
+      if (!encUserAccess) {
+        const tokenErr = new Error("Token encryption failed.");
+        tokenErr.code = "token_encryption_failed";
+        tokenErr.status = 500;
+        throw tokenErr;
+      }
+
+      // Create short-lived server-side session storing profile + pages + encrypted tokens; frontend only receives session id.
       const sessionPages = pages
         .map((page) => {
           const pid = page?.id != null ? String(page.id) : "";
@@ -1358,8 +1414,10 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
         tokenType: tokenData.tokenType || "Bearer",
         scopes: Array.isArray(tokenData.scopes) ? tokenData.scopes : [],
         expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000) : null,
+        accessTokenEnc: encUserAccess,
         payload: {
           pageDiscoveryErrorCode,
+          profile: sessionProfile,
           pages: sessionPages,
         },
       });
@@ -1368,6 +1426,7 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
         userId: decodedState.userId,
         flow,
         sessionId: session?._id?.toString?.(),
+        profileId: sessionProfile.id,
         pageCount: sessionPages.length,
       });
 
