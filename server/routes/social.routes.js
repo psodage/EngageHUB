@@ -11,6 +11,7 @@ import {
   createTelegramPost,
   createYouTubePost,
   createXPost,
+  facebookPagesSession,
   debugSocialEnvCheck,
   disconnectSocialPlatform,
   instagramOauthCallback,
@@ -19,6 +20,7 @@ import {
   manualConnectSocialPlatform,
   metaOauthCallback,
   oauthCallback,
+  selectFacebookPage,
   postToInstagram,
   refreshSocialPlatform,
   socialPlatformStatus,
@@ -58,6 +60,8 @@ export function createSocialRoutes(requireAuth) {
   router.post("/youtube/post", requireAuth, handleYouTubeVideoUpload, createYouTubePost);
   router.post("/google-business/post", requireAuth, createGoogleBusinessPost);
   router.post("/facebook/post", requireAuth, createFacebookPost);
+  router.get("/facebook/pages-session", requireAuth, facebookPagesSession);
+  router.post("/facebook/select-page", requireAuth, selectFacebookPage);
   router.post("/x/post", requireAuth, createXPost);
   router.get("/accounts", requireAuth, listSocialAccounts);
   router.get("/history", requireAuth, listSocialPostHistory);

@@ -8,7 +8,7 @@ import { getProvider } from "../services/social/providerRegistry.js";
 import instagramService, { publishInstagramContent, INSTAGRAM_CAPTION_MAX_LENGTH } from "../services/social/instagram.service.js";
 import { META_SCOPE_SETS } from "../services/social/meta.service.js";
 import { decryptToken, encryptToken } from "../utils/crypto.js";
-import { publishFacebookProfilePost } from "../services/social/facebookPublish.service.js";
+import { publishFacebookPagePost, publishFacebookProfilePost } from "../services/social/facebookPublish.service.js";
 import facebookService from "../services/social/facebook.service.js";
 import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/providerConfig.util.js";
 import { getPlatformCapabilities } from "../config/platformCapabilities.js";
@@ -41,6 +41,7 @@ import {
 } from "../services/social/discordPublish.service.js";
 import { publishTelegramPost } from "../services/social/telegramPublish.service.js";
 import SocialAccount from "../models/SocialAccount.js";
+import SocialOAuthSession from "../models/SocialOAuthSession.js";
 import linkedinProvider from "../services/social/linkedin.service.js";
 import youtubeService from "../services/social/youtube.service.js";
 import { publishGoogleBusinessLocalPost } from "../services/social/googleBusinessPublish.service.js";
@@ -124,6 +125,202 @@ function mapCallbackReason(callbackError) {
   if (normalized.includes("already linked to another engagehub user")) return "account_already_linked";
   if (normalized.includes("token")) return "token_error";
   return "oauth_callback_failed";
+}
+
+function sanitizeFacebookSessionPages(payload) {
+  const pages = Array.isArray(payload?.pages) ? payload.pages : [];
+  return pages.map((p) => ({
+    id: p?.id || "",
+    name: p?.name || "",
+    category: p?.category || "",
+    pictureUrl: p?.pictureUrl || "",
+    instagram_business_account: p?.instagram_business_account
+      ? {
+          id: p.instagram_business_account?.id || "",
+          username: p.instagram_business_account?.username || "",
+          profile_picture_url: p.instagram_business_account?.profile_picture_url || "",
+        }
+      : null,
+  }));
+}
+
+export async function facebookPagesSession(req, res) {
+  try {
+    const sessionId = req.query?.session ? String(req.query.session).trim() : "";
+    if (!sessionId) {
+      return errorResponse(res, "Missing session id.", 400, "missing_session");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "facebook") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    const pages = sanitizeFacebookSessionPages(doc.payload || {});
+    return successResponse(
+      res,
+      {
+        sessionId: doc._id,
+        platform: doc.platform,
+        flow: doc.flow || "settings",
+        pages,
+      },
+      "Fetched Facebook Pages for selection."
+    );
+  } catch (error) {
+    return errorResponse(res, error.message || "Unable to load Facebook Pages.", 400, error?.code || error.message);
+  }
+}
+
+export async function selectFacebookPage(req, res) {
+  try {
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : null;
+    const sessionId = body?.sessionId != null ? String(body.sessionId).trim() : "";
+    const pageId = body?.pageId != null ? String(body.pageId).trim() : "";
+    if (!sessionId || !pageId) {
+      return errorResponse(res, "sessionId and pageId are required.", 400, "validation_error");
+    }
+
+    const doc = await SocialOAuthSession.findById(sessionId);
+    if (!doc) {
+      return errorResponse(res, "Connection session expired. Please reconnect.", 404, "expired_session");
+    }
+    if (String(doc.userId) !== String(req.auth.userId)) {
+      return errorResponse(res, "Invalid connection session.", 403, "invalid_session");
+    }
+    if (doc.status === "consumed") {
+      return errorResponse(res, "Connection session already used. Please reconnect.", 400, "session_consumed");
+    }
+    if (doc.platform !== "facebook") {
+      return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
+    }
+
+    const pages = Array.isArray(doc?.payload?.pages) ? doc.payload.pages : [];
+    const selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
+    if (!selected) {
+      return errorResponse(res, "Selected Facebook Page not found.", 404, "selected_page_not_found");
+    }
+    const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
+    const pageAccessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : null;
+    if (!pageAccessToken) {
+      return errorResponse(res, "Page access token is unavailable. Please reconnect.", 400, "token_missing");
+    }
+
+    const tokenExpiresIn = doc.expiresAt
+      ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
+      : null;
+
+    const facebookAccount = await upsertConnectedAccount({
+      userId: new ObjectId(req.auth.userId),
+      platform: "facebook",
+      profile: {
+        platformUserId: String(selected.id || "").trim(),
+        entityType: "page",
+        entityId: String(selected.id || "").trim(),
+        accountName: selected.name || "",
+        username: "",
+        email: "",
+        profileImage: selected.pictureUrl || "",
+        isPrimary: true,
+        capabilities: ["posting", "analytics"],
+        metadata: {
+          category: selected.category || "",
+          pageId: String(selected.id || "").trim(),
+          pageName: selected.name || "",
+          pictureUrl: selected.pictureUrl || "",
+          selectedAt: new Date().toISOString(),
+        },
+      },
+      tokenData: {
+        accessToken: pageAccessToken,
+        refreshToken: "",
+        tokenType: doc.tokenType || "Bearer",
+        expiresIn: tokenExpiresIn,
+        scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+      },
+    });
+
+    let instagramAccount = null;
+    let instagramWarning = "";
+    const ig = selected?.instagram_business_account;
+    if (ig?.id) {
+      instagramAccount = await upsertConnectedAccount({
+        userId: new ObjectId(req.auth.userId),
+        platform: "instagram",
+        profile: {
+          platformUserId: String(ig.id || "").trim(),
+          entityType: "business",
+          entityId: String(ig.id || "").trim(),
+          accountName: ig.username || "",
+          username: ig.username || "",
+          email: "",
+          profileImage: ig.profile_picture_url || "",
+          isPrimary: true,
+          capabilities: ["posting", "analytics"],
+          metadata: {
+            parentPageId: String(selected.id || "").trim(),
+          },
+        },
+        tokenData: {
+          accessToken: pageAccessToken,
+          refreshToken: "",
+          tokenType: doc.tokenType || "Bearer",
+          expiresIn: tokenExpiresIn,
+          scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+        },
+      });
+
+      if (instagramAccount?.id) {
+        await SocialAccount.updateOne(
+          { _id: instagramAccount.id, userId: new ObjectId(req.auth.userId) },
+          { $set: { parentAccountId: facebookAccount?.id || null } }
+        );
+      }
+
+      if (facebookAccount?.id) {
+        await SocialAccount.updateOne(
+          { _id: facebookAccount.id, userId: new ObjectId(req.auth.userId) },
+          {
+            $set: {
+              "metadata.linkedInstagramAccount": {
+                id: String(ig.id || "").trim(),
+                username: ig.username || "",
+                profile_picture_url: ig.profile_picture_url || "",
+              },
+            },
+          }
+        );
+      }
+    } else {
+      instagramWarning = "No Instagram professional account linked to this Facebook Page.";
+    }
+
+    doc.status = "consumed";
+    await doc.save();
+
+    return successResponse(
+      res,
+      {
+        facebook: facebookAccount,
+        instagram: instagramAccount,
+        warning: instagramWarning || null,
+        flow: doc.flow || "settings",
+      },
+      "Facebook Page connected successfully."
+    );
+  } catch (error) {
+    const message = error?.message || "Unable to finish Facebook connection.";
+    return errorResponse(res, message, error?.status || 400, error?.code || message);
+  }
 }
 
 function resolveMetaUpgradeScopes(scopeSet) {
@@ -271,15 +468,16 @@ export async function connectMetaPlatform(req, res) {
     if (!providerConfig.valid) {
       return errorResponse(res, `${requestedMetaPlatform} OAuth config is missing required environment variables.`, 400, providerConfig.missing);
     }
+    const configId = req.query?.config_id != null ? String(req.query.config_id).trim() : "";
     const state = createOAuthState({ userId: req.auth.userId, platform: requestedMetaPlatform, flow });
-    const authUrl = provider.getAuthUrl(state);
+    const authUrl = provider.getAuthUrl({ state, configId });
     console.info("[oauth:meta:connect:start]", {
       requestedMetaPlatform,
       flow,
       userId: req.auth.userId,
       hasMetaAppId: Boolean(process.env.META_APP_ID),
       redirectUri: getAppConfig().metaRedirectUri || "missing",
-      authMode: "classic_scope",
+      authMode: configId ? "config_id" : "classic_scope",
       scopes: Array.isArray(provider.defaultScopes) ? provider.defaultScopes.join(",") : "",
     });
     return successResponse(res, { url: authUrl, state }, "Meta OAuth URL generated.");
@@ -389,43 +587,64 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
         });
       }
 
-      const linkedInstagram = pages.length ? await provider.getLinkedInstagramAccount(tokenData.accessToken, pages) : null;
-      const pagePublishingTokens = {};
-      for (const page of pages) {
-        const pid = page?.id != null ? String(page.id) : "";
-        if (!pid || !page.access_token) continue;
-        const enc = encryptToken(page.access_token);
-        if (enc) pagePublishingTokens[pid] = enc;
+      if (!pages.length) {
+        const noPages = new Error("No Facebook Pages were found for this account.");
+        noPages.code = pageDiscoveryErrorCode || "no_facebook_pages";
+        noPages.status = 400;
+        throw noPages;
       }
-      await upsertConnectedAccount({
-        userId: new ObjectId(decodedState.userId),
-        platform: "facebook",
-        profile: {
-          ...userProfile,
-          entityType: "profile",
-          entityId: userProfile.platformUserId,
-          capabilities: ["posting", "analytics"],
-          pagePublishingTokens,
-          metadata: {
-            ...(userProfile.metadata || {}),
-            pages: pages.map((page) => ({
-              id: page.id || "",
-              name: page.name || "",
-              hasLinkedInstagram: Boolean(page.instagram_business_account?.id),
-              linkedInstagramId: page.instagram_business_account?.id || "",
-            })),
-            linkedInstagramAccount: linkedInstagram?.profile
+
+      // Create short-lived server-side session storing pages + encrypted tokens; frontend only receives session id.
+      const sessionPages = pages
+        .map((page) => {
+          const pid = page?.id != null ? String(page.id) : "";
+          if (!pid) return null;
+          const encToken = page?.access_token ? encryptToken(page.access_token) : null;
+          if (page?.access_token && !encToken) {
+            const tokenErr = new Error("Token encryption failed.");
+            tokenErr.code = "token_encryption_failed";
+            tokenErr.status = 500;
+            throw tokenErr;
+          }
+          return {
+            id: pid,
+            name: page?.name || "",
+            category: page?.category || "",
+            pictureUrl: page?.picture?.data?.url || page?.picture?.url || "",
+            pageAccessTokenEnc: encToken,
+            instagram_business_account: page?.instagram_business_account
               ? {
-                  id: linkedInstagram.profile.platformUserId,
-                  username: linkedInstagram.profile.username,
-                  name: linkedInstagram.profile.accountName,
+                  id: page.instagram_business_account?.id ? String(page.instagram_business_account.id) : "",
+                  username: page.instagram_business_account?.username || "",
+                  profile_picture_url: page.instagram_business_account?.profile_picture_url || "",
                 }
               : null,
-            pageDiscoveryErrorCode,
-          },
+          };
+        })
+        .filter(Boolean);
+
+      const session = await SocialOAuthSession.create({
+        userId: new ObjectId(decodedState.userId),
+        platform: "facebook",
+        flow,
+        providerUserId: String(userProfile.platformUserId || ""),
+        tokenType: tokenData.tokenType || "Bearer",
+        scopes: Array.isArray(tokenData.scopes) ? tokenData.scopes : [],
+        expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000) : null,
+        payload: {
+          pageDiscoveryErrorCode,
+          pages: sessionPages,
         },
-        tokenData,
       });
+
+      console.info("[oauth:facebook:pages-session]", {
+        userId: decodedState.userId,
+        flow,
+        sessionId: session?._id?.toString?.(),
+        pageCount: sessionPages.length,
+      });
+
+      return res.redirect(`${clientBaseUrl}/connect/facebook/pages?session=${encodeURIComponent(session._id.toString())}`);
     } else {
       const profile = await provider.getProfile(tokenData.accessToken);
       if (!profile?.platformUserId) {
@@ -1150,17 +1369,30 @@ export async function createFacebookPost(req, res) {
       return errorResponse(res, reconnectMessage, 401, "token_missing");
     }
 
-    const profileUserId = String(account.platformUserId || "").trim();
-    const targetName = account.accountName || account.username || profileUserId || "Facebook profile";
+    const platformUserId = String(account.platformUserId || "").trim();
+    const entityType = String(account.entityType || "profile").trim().toLowerCase();
+    const targetName = account.accountName || account.username || platformUserId || "Facebook Page";
+    const targetType = entityType === "page" ? "page" : "profile";
 
-    const runPublish = async (token) =>
-      publishFacebookProfilePost({
+    const runPublish = async (token) => {
+      if (targetType === "page") {
+        return publishFacebookPagePost({
+          pageId: platformUserId,
+          pageAccessToken: token,
+          mediaType: parsed.mediaType,
+          message: parsed.message,
+          mediaUrl: parsed.mediaUrl,
+          linkUrl: parsed.linkUrl,
+        });
+      }
+      return publishFacebookProfilePost({
         userAccessToken: token,
         mediaType: parsed.mediaType,
         message: parsed.message,
         mediaUrl: parsed.mediaUrl,
         linkUrl: parsed.linkUrl,
       });
+    };
 
     let result;
     try {
@@ -1219,10 +1451,10 @@ export async function createFacebookPost(req, res) {
     await recordSuccessfulPublish({
       userId,
       platform: "facebook",
-      platformAccountId: profileUserId,
+      platformAccountId: platformUserId,
       platformAccountName: account.accountName || account.username || "",
-      targetType: "profile",
-      targetId: profileUserId,
+      targetType,
+      targetId: platformUserId,
       targetName: targetName,
       content: parsed.message || "",
       mediaType: parsed.mediaType,

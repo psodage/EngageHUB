@@ -12,8 +12,8 @@ export const META_SCOPE_SETS = {
    * Facebook Login for Business are configured and permissions are approved.
    * Append Page scopes via `FACEBOOK_LOGIN_EXTRA_SCOPES` in `facebook.service.js` when your app supports them.
    */
-  pages: [],
-  pagePosting: [],
+  pages: ["pages_show_list", "pages_read_engagement"],
+  pagePosting: ["pages_manage_posts", "pages_manage_metadata"],
   instagramBasic: ["instagram_basic"],
   publishing: ["instagram_content_publish"],
   insights: ["instagram_manage_insights"],
@@ -122,14 +122,15 @@ export function createMetaOAuthService({
   profileFields = "id,name,email,picture",
   scopes = META_SCOPE_SETS.initialLogin,
 }) {
-  function buildAuthUrl(state, requestedScopes = scopes) {
+  function buildAuthUrl(state, requestedScopes = scopes, runtimeParams = {}) {
     const { appId, redirectUri } = ensureMetaConfig(platform);
+    const configId = runtimeParams?.configId ? String(runtimeParams.configId).trim() : "";
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: redirectUri,
       response_type: "code",
       state,
-      scope: requestedScopes.join(","),
+      ...(configId ? { config_id: configId } : { scope: requestedScopes.join(",") }),
     });
     console.info("[oauth:meta:auth-url]", {
       platform,
@@ -137,7 +138,8 @@ export function createMetaOAuthService({
       redirectUri,
       scopeCount: requestedScopes.length,
       scopes: requestedScopes,
-      flowType: "classic_facebook_login",
+      flowType: configId ? "facebook_login_for_business" : "classic_facebook_login",
+      configId: configId ? "***configured***" : "",
     });
     return `${META_OAUTH_BASE_URL}?${params.toString()}`;
   }
@@ -158,12 +160,14 @@ export function createMetaOAuthService({
     },
     getAuthUrl(input) {
       const state = typeof input === "string" ? input : input?.state;
-      return buildAuthUrl(state, scopes);
+      const configId = typeof input === "object" && input ? input.configId : "";
+      return buildAuthUrl(state, scopes, { configId });
     },
     getAdvancedAuthUrl(input, additionalScopes = []) {
       const state = typeof input === "string" ? input : input?.state;
+      const configId = typeof input === "object" && input ? input.configId : "";
       const mergedScopes = Array.from(new Set([...scopes, ...additionalScopes]));
-      return buildAuthUrl(state, mergedScopes);
+      return buildAuthUrl(state, mergedScopes, { configId });
     },
     async exchangeCodeForToken(code) {
       const { appId, appSecret, redirectUri } = ensureMetaConfig(platform);
@@ -204,7 +208,8 @@ export function createMetaOAuthService({
     async getPages(accessToken) {
       try {
         const pagesResponse = await fetchMetaGraph("/me/accounts", accessToken, {
-          fields: "id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}",
+          fields:
+            "id,name,category,access_token,picture{url},instagram_business_account{id,username,profile_picture_url}",
         });
         return Array.isArray(pagesResponse?.data) ? pagesResponse.data : [];
       } catch (error) {

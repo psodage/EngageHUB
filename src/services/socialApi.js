@@ -166,6 +166,26 @@ export async function startSocialConnect(platform, options = {}) {
   }
 }
 
+export async function getFacebookPagesSession(sessionId) {
+  try {
+    const qs = new URLSearchParams();
+    qs.set("session", String(sessionId || "").trim());
+    const { data } = await socialClient.get(`/api/social/facebook/pages-session?${qs.toString()}`);
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to load Facebook Pages.");
+  }
+}
+
+export async function selectFacebookPage(sessionId, pageId) {
+  try {
+    const { data } = await socialClient.post("/api/social/facebook/select-page", { sessionId, pageId });
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, "Unable to finish Facebook connection.");
+  }
+}
+
 export async function manualConnectSocial(platform) {
   try {
     const { data } = await socialClient.post(`/api/social/${platform}/manual-connect`);

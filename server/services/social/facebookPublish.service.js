@@ -96,3 +96,80 @@ export async function publishFacebookProfilePost(opts) {
     throw normalizeAxiosError(error);
   }
 }
+
+/**
+ * Publish a post to a Facebook Page using a Page access token.
+ * @param {{
+ *   pageId: string,
+ *   pageAccessToken: string,
+ *   mediaType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'LINK',
+ *   message: string,
+ *   mediaUrl: string,
+ *   linkUrl: string,
+ * }} opts
+ */
+export async function publishFacebookPagePost(opts) {
+  const { pageId, pageAccessToken, mediaType, message, mediaUrl, linkUrl } = opts;
+  const token = pageAccessToken;
+  const pid = String(pageId || "").trim();
+  if (!pid) {
+    throw createPublishError("Missing Facebook Page id.", "facebook_publish_invalid", 400);
+  }
+  if (!token) {
+    throw createPublishError("Missing access token.", "facebook_publish_invalid", 400);
+  }
+
+  try {
+    if (mediaType === "TEXT") {
+      const body = formBody({ message, access_token: token });
+      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/${encodeURIComponent(pid)}/feed`, body, {
+        headers: formHeaders,
+      });
+      return { postId: data?.id ? String(data.id) : "", raw: { id: data?.id } };
+    }
+
+    if (mediaType === "LINK") {
+      const body = formBody({
+        message: message || undefined,
+        link: linkUrl,
+        access_token: token,
+      });
+      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/${encodeURIComponent(pid)}/feed`, body, {
+        headers: formHeaders,
+      });
+      return { postId: data?.id ? String(data.id) : "", raw: { id: data?.id } };
+    }
+
+    if (mediaType === "IMAGE") {
+      const body = formBody({
+        url: mediaUrl,
+        caption: message || undefined,
+        access_token: token,
+      });
+      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/${encodeURIComponent(pid)}/photos`, body, {
+        headers: formHeaders,
+      });
+      const postId = data?.post_id ? String(data.post_id) : data?.id ? String(data.id) : "";
+      return { postId, raw: { id: data?.id, post_id: data?.post_id } };
+    }
+
+    if (mediaType === "VIDEO") {
+      const body = formBody({
+        file_url: mediaUrl,
+        description: message || undefined,
+        access_token: token,
+      });
+      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/${encodeURIComponent(pid)}/videos`, body, {
+        headers: formHeaders,
+      });
+      return { postId: data?.id ? String(data.id) : "", raw: data };
+    }
+
+    throw createPublishError("Unsupported media type.", "unsupported_media", 400);
+  } catch (error) {
+    if (error?.code === "unsupported_media" || error?.code === "facebook_publish_invalid") {
+      throw error;
+    }
+    throw normalizeAxiosError(error);
+  }
+}
