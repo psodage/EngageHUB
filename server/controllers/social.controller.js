@@ -14,6 +14,7 @@ import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/provi
 import { getPlatformCapabilities } from "../config/platformCapabilities.js";
 import {
   disconnectAccount,
+  disconnectAccountById,
   findDiscordTargetFromAccount,
   disconnectGoogleBusinessLocation,
   getAccountsForUser,
@@ -130,6 +131,7 @@ function mapCallbackReason(callbackError) {
   if (normalized.includes("unable to identify social account")) return "profile_identification_failed";
   if (normalized.includes("unable to read facebook pages")) return "no_page_found";
   if (normalized.includes("already linked to another engagehub user")) return "account_already_linked";
+  if (normalized.includes("already connected to your engagehub")) return "account_already_connected";
   if (normalized.includes("google business permission")) return "google_business_scope_missing";
   if (normalized.includes("no google business profiles")) return "no_google_business_locations";
   if (normalized.includes("selected location not found")) return "selected_location_not_found";
@@ -1726,6 +1728,46 @@ export async function disconnectSocialPlatform(req, res) {
     return successResponse(res, { account }, `${normalizedPlatform} disconnected.`);
   } catch (error) {
     return errorResponse(res, error.message || "Unable to disconnect account.", 400, error.message);
+  }
+}
+
+export async function disconnectSocialAccountEntity(req, res) {
+  try {
+    const { platform } = req.params;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const accountId = body.accountId != null ? String(body.accountId).trim() : "";
+    if (!accountId) {
+      return errorResponse(res, "accountId is required.", 400, "validation_error");
+    }
+
+    const { provider, platform: normalizedPlatform } = resolvePlatform(platform);
+    const result = await disconnectAccountById(new ObjectId(req.auth.userId), accountId);
+
+    if (!result.isConnected) {
+      try {
+        await provider.disconnectAccount();
+      } catch (providerError) {
+        console.warn("[social:disconnect-account:provider]", {
+          platform: normalizedPlatform,
+          message: providerError?.message,
+        });
+      }
+    }
+
+    const accounts = await getAccountsForUser(new ObjectId(req.auth.userId));
+    const grouped = accounts.find((item) => item.platform === normalizedPlatform) || {
+      platform: normalizedPlatform,
+      isConnected: result.isConnected,
+    };
+
+    return successResponse(res, { account: grouped, ...result }, "Account disconnected.");
+  } catch (error) {
+    return errorResponse(
+      res,
+      error.message || "Unable to disconnect account.",
+      error?.status || 400,
+      error?.code || error.message
+    );
   }
 }
 

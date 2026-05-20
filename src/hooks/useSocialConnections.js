@@ -8,6 +8,7 @@ import {
 } from "../data/socialPlatforms";
 import {
   disconnectSocial,
+  disconnectSocialAccount,
   getSocialAccounts,
   getSocialOAuthErrorMessage,
   manualConnectSocial,
@@ -35,7 +36,7 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [processingPlatform, setProcessingPlatform] = useState("");
-  const [disconnectDialog, setDisconnectDialog] = useState({ open: false, platform: "" });
+  const [disconnectDialog, setDisconnectDialog] = useState({ open: false, platform: "", accountId: "" });
   const [oauthBanner, setOauthBanner] = useState(null);
 
   const visibleAccounts = useMemo(
@@ -185,9 +186,7 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
 
   const startConnectQueue = useCallback(
     async (platformKeys, flow = oauthFlow) => {
-      const queue = platformKeys.filter(
-        (key) => !isPlatformConnectTemporarilyDisabled(key) && !accountsByPlatform[key]?.isConnected
-      );
+      const queue = platformKeys.filter((key) => !isPlatformConnectTemporarilyDisabled(key));
       if (!queue.length) {
         setToast?.({ message: "No channels available to connect.", error: true });
         return;
@@ -282,18 +281,26 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
 
   const disconnectPlatform = async () => {
     const platform = disconnectDialog.platform;
+    const accountId = disconnectDialog.accountId;
     setProcessingPlatform(platform);
     const current = [...accounts];
-    setAccounts((prev) => prev.map((item) => (item.platform === platform ? { ...item, isConnected: false } : item)));
     try {
-      await disconnectSocial(platform);
-      setToast?.({ message: `${platform} disconnected.` });
+      if (accountId) {
+        await disconnectSocialAccount(platform, accountId);
+        setToast?.({ message: `${platform} account disconnected.` });
+      } else {
+        setAccounts((prev) =>
+          prev.map((item) => (item.platform === platform ? { ...item, isConnected: false } : item))
+        );
+        await disconnectSocial(platform);
+        setToast?.({ message: `${platform} disconnected.` });
+      }
       await loadAccounts();
     } catch (error) {
       setAccounts(current);
       setToast?.({ message: error.message || `Failed to disconnect ${platform}.`, error: true });
     } finally {
-      setDisconnectDialog({ open: false, platform: "" });
+      setDisconnectDialog({ open: false, platform: "", accountId: "" });
       setProcessingPlatform("");
     }
   };

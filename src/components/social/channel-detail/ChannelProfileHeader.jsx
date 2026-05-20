@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ExternalLink, PenSquare, RefreshCw } from "lucide-react";
+import { ExternalLink, PenSquare, Plus, RefreshCw } from "lucide-react";
 import PlatformBrandIcon from "../../channels/PlatformBrandIcon";
 import ConnectionStatusBadge from "../ConnectionStatusBadge";
 import { getPlatformCardTheme } from "../../../data/platformCardThemes";
@@ -20,6 +20,8 @@ export default function ChannelProfileHeader({
   platformKey,
   postCount = null,
   onRefresh,
+  onAddAccount,
+  addingAccount = false,
   syncing = false,
 }) {
   const info = getChannelDisplayInfo(account);
@@ -84,6 +86,17 @@ export default function ChannelProfileHeader({
                 <ExternalLink size={16} aria-hidden />
                 Open profile
               </a>
+            ) : null}
+            {typeof onAddAccount === "function" ? (
+              <button
+                type="button"
+                onClick={onAddAccount}
+                disabled={addingAccount || syncing}
+                className="channel-profile-btn channel-profile-btn--secondary"
+              >
+                <Plus size={16} className={addingAccount ? "animate-pulse" : ""} aria-hidden />
+                {addingAccount ? "Opening login\u2026" : "Add account"}
+              </button>
             ) : null}
             <button
               type="button"

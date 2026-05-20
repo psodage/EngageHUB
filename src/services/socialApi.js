@@ -149,6 +149,10 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
     const label = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "This social account";
     return `${label} is already connected to another EngageHub account. Sign in with that account and disconnect it under Channels, or connect a different account.`;
   }
+  if (normalized === "account_already_connected") {
+    const label = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "This account";
+    return `${label} is already connected here. Choose a different login when authorizing, or disconnect the existing account first.`;
+  }
   return reason;
 }
 
@@ -302,6 +306,15 @@ export async function disconnectSocial(platform) {
     return data.data.account;
   } catch (error) {
     throw parseApiError(error, `Unable to disconnect ${platform}.`);
+  }
+}
+
+export async function disconnectSocialAccount(platform, accountId) {
+  try {
+    const { data } = await socialClient.post(`/api/social/${platform}/disconnect-account`, { accountId });
+    return data.data;
+  } catch (error) {
+    throw parseApiError(error, `Unable to disconnect ${platform} account.`);
   }
 }
 

@@ -16,6 +16,8 @@ export default function ChannelProfilePageLayout({
   platformKey,
   postCount,
   onRefresh,
+  onAddAccount,
+  addingAccount,
   syncing,
   activeTab,
   onTabChange,
@@ -30,6 +32,8 @@ export default function ChannelProfilePageLayout({
           platformKey={platformKey}
           postCount={postCount}
           onRefresh={onRefresh}
+          onAddAccount={onAddAccount}
+          addingAccount={addingAccount}
           syncing={syncing}
         />
 

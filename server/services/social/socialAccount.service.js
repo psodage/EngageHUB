@@ -9,6 +9,13 @@ function normalizePlatform(platform) {
   return platform;
 }
 
+/** Entity types that represent a distinct OAuth login (not pages/orgs/locations on the same login). */
+const OAUTH_ROOT_ENTITY_TYPES = new Set(["profile", "bot", "business", "professional"]);
+
+function isOAuthRootEntityType(entityType) {
+  return OAUTH_ROOT_ENTITY_TYPES.has(entityType || "profile");
+}
+
 /**
  * Strip webhook secrets before returning Discord metadata to the client.
  * @param {Record<string, unknown>} metadata
@@ -114,6 +121,33 @@ export async function upsertConnectedAccount({ userId, platform, profile, tokenD
     }
   }
 
+  if (isOAuthRootEntityType(entityType)) {
+    const existingForUser = await SocialAccount.findOne({
+      userId,
+      platform: normalizedPlatform,
+      platformUserId,
+      entityType,
+    });
+    const updatingSame =
+      existingForUser &&
+      String(existingForUser.entityId || "").trim() === String(entityId || "").trim() &&
+      String(existingForUser.platformUserId || "").trim() === platformUserId;
+    if (existingForUser && !updatingSame) {
+      const err = new Error("This account is already connected to your EngageHub profile.");
+      err.code = "account_already_connected";
+      throw err;
+    }
+  }
+
+  const hasPrimary = await SocialAccount.exists({
+    userId,
+    platform: normalizedPlatform,
+    isPrimary: true,
+    isConnected: true,
+  });
+  const shouldBePrimary =
+    profile.isPrimary === true || (profile.isPrimary !== false && !hasPrimary);
+
   const now = new Date();
   const setDoc = {
     platformUserId,
@@ -127,7 +161,7 @@ export async function upsertConnectedAccount({ userId, platform, profile, tokenD
     expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000) : null,
     scopes: tokenData.scopes || [],
     isConnected: true,
-    isPrimary: profile.isPrimary !== false,
+    isPrimary: shouldBePrimary,
     capabilities: Array.isArray(profile.capabilities) ? profile.capabilities : profile?.metadata?.capabilities || [],
     metadata: profile.metadata || {},
     lastSyncedAt: now,
@@ -162,6 +196,49 @@ export async function disconnectAccount(userId, platform) {
   const normalizedPlatform = normalizePlatform(platform);
   await SocialAccount.deleteMany({ userId, platform: normalizedPlatform });
   return { platform: normalizedPlatform, isConnected: false };
+}
+
+/**
+ * Disconnect a single OAuth root account (or one non-root entity). Root disconnect removes all
+ * rows sharing the same platformUserId (e.g. LinkedIn orgs, Facebook pages for that Meta user).
+ */
+export async function disconnectAccountById(userId, accountId) {
+  const account = await SocialAccount.findOne({ _id: accountId, userId });
+  if (!account) {
+    const err = new Error("Connected account not found.");
+    err.status = 404;
+    err.code = "account_not_found";
+    throw err;
+  }
+
+  const normalizedPlatform = account.platform;
+  const platformUserId = String(account.platformUserId || "").trim();
+
+  if (isOAuthRootEntityType(account.entityType) && platformUserId) {
+    await SocialAccount.deleteMany({ userId, platform: normalizedPlatform, platformUserId });
+  } else {
+    await SocialAccount.deleteOne({ _id: accountId, userId });
+  }
+
+  const remaining = await SocialAccount.find({
+    userId,
+    platform: normalizedPlatform,
+    isConnected: true,
+  }).sort({ createdAt: -1 });
+  if (remaining.length && !remaining.some((row) => row.isPrimary)) {
+    const nextPrimary = remaining.find((row) => isOAuthRootEntityType(row.entityType)) || remaining[0];
+    if (nextPrimary) {
+      nextPrimary.isPrimary = true;
+      await nextPrimary.save();
+    }
+  }
+
+  return {
+    platform: normalizedPlatform,
+    isConnected: remaining.length > 0,
+    removedAccountId: accountId,
+    remainingCount: remaining.length,
+  };
 }
 
 export async function disconnectGoogleBusinessLocation(userId, locationIdRaw) {

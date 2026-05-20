@@ -15,6 +15,7 @@ import {
   facebookPagesSession,
   debugSocialEnvCheck,
   disconnectSocialPlatform,
+  disconnectSocialAccountEntity,
   instagramAccountsSession,
   instagramOauthCallback,
   listSocialAccounts,
@@ -109,6 +110,7 @@ export function createSocialRoutes(requireAuth) {
   router.get("/:platform/connect", requireAuth, connectSocialPlatform);
   router.post("/:platform/manual-connect", requireAuth, manualConnectSocialPlatform);
   router.get("/:platform/callback", oauthCallback);
+  router.post("/:platform/disconnect-account", requireAuth, disconnectSocialAccountEntity);
   router.post("/:platform/disconnect", requireAuth, disconnectSocialPlatform);
   router.post("/:platform/refresh", requireAuth, refreshSocialPlatform);
   router.get("/:platform/status", requireAuth, socialPlatformStatus);

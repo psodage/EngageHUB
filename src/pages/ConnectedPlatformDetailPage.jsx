@@ -1,6 +1,13 @@
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { disconnectGoogleBusinessLocation, getPostHistory, refreshSocial } from "../services/socialApi";
+import {
+  disconnectGoogleBusinessLocation,
+  disconnectSocialAccount,
+  getPostHistory,
+  refreshSocial,
+  startSocialConnect,
+} from "../services/socialApi";
+import { isPlatformConnectTemporarilyDisabled } from "../data/socialPlatforms";
 import { syncGitHubAccount } from "../services/githubApi";
 import GitHubDashboard from "../components/github/GitHubDashboard";
 import { AlertCircle, Building2, PenSquare, Sparkles, User, Video } from "lucide-react";
@@ -123,6 +130,8 @@ export default function ConnectedPlatformDetailPage() {
   const [googleBusinessModalOpen, setGoogleBusinessModalOpen] = useState(false);
   const [googleBusinessPreset, setGoogleBusinessPreset] = useState(null);
   const [disconnectingGoogleLocationId, setDisconnectingGoogleLocationId] = useState("");
+  const [disconnectingAccountId, setDisconnectingAccountId] = useState("");
+  const [connectingAnother, setConnectingAnother] = useState(false);
   const openGoogleBusinessComposer = (preset) => {
     setGoogleBusinessPreset(
       preset && typeof preset === "object" && preset.accountId && preset.locationId ? preset : null
@@ -219,6 +228,48 @@ export default function ConnectedPlatformDetailPage() {
     }
   };
 
+  const handleDisconnectOAuthConnection = async (entity) => {
+    const accountId = entity?.id ? String(entity.id).trim() : "";
+    if (!accountId || disconnectingAccountId) return;
+    setDisconnectingAccountId(accountId);
+    try {
+      const result = await disconnectSocialAccount(platformKey, accountId);
+      if (refreshConnectedAccounts) await refreshConnectedAccounts();
+      if (!result?.isConnected) {
+        navigate("/channels");
+        return;
+      }
+      setToast?.({ message: "Account disconnected." });
+    } catch (err) {
+      setToast?.({ message: err?.message || "Unable to disconnect account.", error: true });
+    } finally {
+      setDisconnectingAccountId("");
+    }
+  };
+
+  const handleDisconnectEntity = async (entity) => {
+    if (platformKey === "googleBusiness" && entity?.entityType === "location") {
+      await handleDisconnectGoogleBusinessLocation(entity);
+      return;
+    }
+    await handleDisconnectOAuthConnection(entity);
+  };
+
+  const handleAddAnotherAccount = async () => {
+    if (!platformKey || isPlatformConnectTemporarilyDisabled(platformKey)) {
+      setToast?.({ message: "Connecting is temporarily unavailable for this platform.", error: true });
+      return;
+    }
+    setConnectingAnother(true);
+    try {
+      const data = await startSocialConnect(platformKey, { flow: "channels" });
+      window.location.href = data.url;
+    } catch (err) {
+      setToast?.({ message: err?.message || `Failed to connect ${platformKey}.`, error: true });
+      setConnectingAnother(false);
+    }
+  };
+
   if (!platformConfig) {
     return (
       <div className="channel-page">
@@ -262,6 +313,8 @@ export default function ConnectedPlatformDetailPage() {
         platformKey={platformKey}
         postCount={feedPostCount}
         onRefresh={handleRefresh}
+        onAddAccount={handleAddAnotherAccount}
+        addingAccount={connectingAnother}
         syncing={syncing}
         activeTab={detailTab}
         onTabChange={setDetailTab}
@@ -272,8 +325,8 @@ export default function ConnectedPlatformDetailPage() {
             account={account}
             platformKey={platformKey}
             capabilities={capabilities}
-            onDisconnectEntity={handleDisconnectGoogleBusinessLocation}
-            disconnectingEntityId={disconnectingGoogleLocationId}
+            onDisconnectEntity={handleDisconnectEntity}
+            disconnectingEntityId={disconnectingGoogleLocationId || disconnectingAccountId}
           />
         ) : null}
 

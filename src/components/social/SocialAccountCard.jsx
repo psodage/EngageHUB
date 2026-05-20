@@ -11,6 +11,7 @@ export default function SocialAccountCard({
   isProcessing,
   onConnect,
   onReconnect,
+  onAddAccount,
   onDisconnect,
   onOpenDetails,
   connectTemporarilyDisabled = false,
@@ -204,6 +205,7 @@ export default function SocialAccountCard({
           isProcessing={isProcessing}
           onConnect={onConnect}
           onReconnect={onReconnect}
+          onAddAccount={onAddAccount}
           connectLabel={
             platformConfig.key === "instagram"
               ? "Connect Instagram"

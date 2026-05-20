@@ -5,6 +5,7 @@ import AccountSyncInfo from "./AccountSyncInfo";
 import LinkedAccountCard from "./channel-detail/LinkedAccountCard";
 import ChannelProfileSection from "./channel-detail/ChannelProfileSection";
 import { getChannelDisplayInfo } from "../../utils/channelDisplay";
+import { getDistinctOAuthConnections } from "../../utils/socialAccountEntities";
 
 function entityIcon(type) {
   if (type === "page" || type === "organization") return Building2;
@@ -21,6 +22,13 @@ export default function ChannelProfileView({
 }) {
   const info = getChannelDisplayInfo(account);
   const entities = Array.isArray(account?.entities) ? account.entities : [];
+  const oauthConnections = getDistinctOAuthConnections(account);
+  const managedEntities = entities.filter((entity) => {
+    const type = entity?.entityType || "profile";
+    return !["profile", "bot", "business", "professional"].includes(type);
+  });
+  const showOAuthConnections = oauthConnections.length > 0;
+  const showManagedEntities = managedEntities.length > 0;
 
   const detailRows = useMemo(
     () => [
@@ -58,13 +66,36 @@ export default function ChannelProfileView({
           ) : null}
         </ChannelProfileSection>
 
-        {entities.length > 0 ? (
+        {showOAuthConnections ? (
           <ChannelProfileSection
-            title="Linked accounts & pages"
-            description="Profiles, pages, and channels you can post to"
+            title="Connected accounts"
+            description="Each login is a separate connection. Use a different account when adding another."
           >
             <ul className="grid gap-3 sm:grid-cols-2">
-              {entities.map((entity) => (
+              {oauthConnections.map((entity) => (
+                <LinkedAccountCard
+                  key={entity.id || entity.entityId || entity.platformUserId || entity.accountName}
+                  entity={entity}
+                  platformKey={platformKey}
+                  fallbackImage={info.profileImage}
+                  entityIcon={entityIcon(entity.entityType)}
+                  onDisconnect={
+                    typeof onDisconnectEntity === "function" ? () => onDisconnectEntity(entity) : undefined
+                  }
+                  disconnecting={disconnectingEntityId === String(entity?.id || entity?.entityId || "")}
+                />
+              ))}
+            </ul>
+          </ChannelProfileSection>
+        ) : null}
+
+        {showManagedEntities ? (
+          <ChannelProfileSection
+            title="Linked pages & locations"
+            description="Pages, organizations, and locations tied to your connections"
+          >
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {managedEntities.map((entity) => (
                 <LinkedAccountCard
                   key={entity.entityId || entity.id || entity.accountName}
                   entity={entity}

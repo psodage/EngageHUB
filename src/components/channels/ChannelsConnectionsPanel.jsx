@@ -8,6 +8,7 @@ import ConnectChannelModal from "./ConnectChannelModal";
 import { useSocialConnections } from "../../hooks/useSocialConnections";
 import { useApp } from "../../context/AppContext";
 import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
+import { listConnectionCardsFromAccounts } from "../../utils/socialAccountEntities";
 
 export default function ChannelsConnectionsPanel({ variant = "channels", showHeader = true }) {
   const navigate = useNavigate();
@@ -30,17 +31,14 @@ export default function ChannelsConnectionsPanel({ variant = "channels", showHea
 
   const openDetails = (platformKey) => navigate(`/channels/${platformKey}`);
 
-  const connectedForGrid = useMemo(
-    () =>
-      accounts
-        .filter((item) => item.isConnected)
-        .map((account) => ({
-          account,
-          platformConfig: SOCIAL_PLATFORM_CONFIGS.find((p) => p.key === account.platform),
-        }))
-        .filter((item) => item.platformConfig),
-    [accounts]
-  );
+  const connectedForGrid = useMemo(() => {
+    return listConnectionCardsFromAccounts(accounts)
+      .map((card) => ({
+        ...card,
+        platformConfig: SOCIAL_PLATFORM_CONFIGS.find((p) => p.key === card.platform),
+      }))
+      .filter((item) => item.platformConfig);
+  }, [accounts]);
 
   const connectedKeys = useMemo(
     () => new Set(accounts.filter((a) => a.isConnected).map((a) => a.platform)),
@@ -136,13 +134,19 @@ export default function ChannelsConnectionsPanel({ variant = "channels", showHea
             </button>
           </div>
           <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {connectedForGrid.map(({ account, platformConfig }) => (
+            {connectedForGrid.map(({ cardKey, displayAccount, platformConfig }) => (
               <ConnectedChannelProfileCard
-                key={platformConfig.key}
+                key={cardKey}
                 platformConfig={platformConfig}
-                account={account}
+                account={displayAccount}
                 onOpen={() => openDetails(platformConfig.key)}
-                onDisconnect={() => setDisconnectDialog({ open: true, platform: platformConfig.key })}
+                onDisconnect={() =>
+                  setDisconnectDialog({
+                    open: true,
+                    platform: platformConfig.key,
+                    accountId: displayAccount.connectedAccountId || "",
+                  })
+                }
               />
             ))}
           </div>
@@ -171,8 +175,9 @@ export default function ChannelsConnectionsPanel({ variant = "channels", showHea
         <DisconnectConfirmationDialog
           open={disconnectDialog.open}
           platformLabel={disconnectDialog.platform}
+          singleAccount={Boolean(disconnectDialog.accountId)}
           loading={!!processingPlatform}
-          onCancel={() => setDisconnectDialog({ open: false, platform: "" })}
+          onCancel={() => setDisconnectDialog({ open: false, platform: "", accountId: "" })}
           onConfirm={disconnectPlatform}
         />
       </AnimatePresence>
