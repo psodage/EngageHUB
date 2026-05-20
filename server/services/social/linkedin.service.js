@@ -11,7 +11,9 @@ const configuredScopes = process.env.LINKEDIN_SCOPES
 const configuredOrgScopes = process.env.LINKEDIN_ORG_SCOPES
   ? process.env.LINKEDIN_ORG_SCOPES.split(/[,\s]+/).filter(Boolean)
   : [];
-const hasOpenIdScopes = configuredScopes.some((scope) => ["openid", "profile", "email"].includes(scope));
+/** OAuth must request org scopes; LINKEDIN_ORG_SCOPES alone is not enough unless also in LINKEDIN_SCOPES. */
+const oauthScopes = Array.from(new Set([...configuredScopes, ...configuredOrgScopes]));
+const hasOpenIdScopes = oauthScopes.some((scope) => ["openid", "profile", "email"].includes(scope));
 const linkedinProfileUrl = hasOpenIdScopes ? "https://api.linkedin.com/v2/userinfo" : "https://api.linkedin.com/v2/me";
 
 function extractOrganizationId(value) {
@@ -76,7 +78,7 @@ const linkedinService = createOAuthService({
   // OIDC (`openid profile email`) returns user info from /v2/userinfo.
   // Classic API scopes (`r_liteprofile`) return profile from /v2/me.
   profileUrl: linkedinProfileUrl,
-  scopes: configuredScopes,
+  scopes: oauthScopes,
 });
 
 const ACL_ROLES_FOR_PAGES = ["ADMINISTRATOR", "CONTENT_ADMINISTRATOR", "CURATOR", "ANALYST"];
@@ -199,7 +201,17 @@ linkedinService.getManagedEntities = async function getManagedEntities(accessTok
 };
 
 linkedinService.getConfiguredScopes = function getConfiguredScopes() {
-  return { scopes: configuredScopes, orgScopes: configuredOrgScopes };
+  return { scopes: oauthScopes, orgScopes: configuredOrgScopes };
+};
+
+linkedinService.hasOrganizationScopes = function hasOrganizationScopes() {
+  const orgScopeHints = [
+    "r_organization_admin",
+    "rw_organization_admin",
+    "w_organization_social",
+    "r_organization_social",
+  ];
+  return orgScopeHints.some((s) => oauthScopes.includes(s));
 };
 
 const FEEDSHARE_IMAGE_RECIPE = "urn:li:digitalmediaRecipe:feedshare-image";

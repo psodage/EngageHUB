@@ -666,51 +666,130 @@ export async function selectLinkedInAccount(req, res) {
     const metadataBase = {
       selectedAt: new Date().toISOString(),
     };
+    const organizationDiscoveryErrorCode =
+      typeof doc?.payload?.organizationDiscoveryErrorCode === "string"
+        ? doc.payload.organizationDiscoveryErrorCode
+        : "";
 
-    const linkedinAccount = await upsertConnectedAccount({
-      userId: new ObjectId(req.auth.userId),
-      platform: "linkedin",
-      profile: {
-        platformUserId,
-        entityType: accountType,
-        entityId: selected.id,
-        accountName: selected.name || "",
-        username: "",
-        email: selected.email || "",
-        profileImage: selected.avatar || "",
-        isPrimary: accountType === "profile",
-        capabilities: ["posting", "analytics"],
-        metadata:
-          accountType === "organization"
-            ? {
-                ...metadataBase,
-                organizationId: selected.id,
-                organizationUrn: `urn:li:organization:${selected.id}`,
-                role: selected.role || "",
-                canPost: selected.canPost !== false,
-              }
-            : {
-                ...metadataBase,
-                personUrn: `urn:li:person:${platformUserId}`,
-                canPost: true,
-              },
-      },
-      tokenData: {
-        accessToken,
-        refreshToken,
-        tokenType: doc.tokenType || "Bearer",
-        expiresIn: tokenExpiresIn,
-        scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
-      },
-    });
+    const tokenData = {
+      accessToken,
+      refreshToken,
+      tokenType: doc.tokenType || "Bearer",
+      expiresIn: tokenExpiresIn,
+      scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+    };
+
+    const userObjectId = new ObjectId(req.auth.userId);
+    const profileDest =
+      destinations.find((d) => d.type === "profile") ||
+      destinations.find((d) => d.id === platformUserId) ||
+      null;
+
+    let linkedinAccount = null;
+
+    if (profileDest) {
+      linkedinAccount = await upsertConnectedAccount({
+        userId: userObjectId,
+        platform: "linkedin",
+        profile: {
+          platformUserId,
+          entityType: "profile",
+          entityId: profileDest.id,
+          accountName: profileDest.name || "",
+          username: "",
+          email: profileDest.email || "",
+          profileImage: profileDest.avatar || "",
+          isPrimary: accountType === "profile",
+          capabilities: ["posting", "analytics"],
+          metadata: {
+            ...metadataBase,
+            personUrn: `urn:li:person:${platformUserId}`,
+            canPost: true,
+            ...(organizationDiscoveryErrorCode ? { organizationDiscoveryErrorCode } : {}),
+          },
+        },
+        tokenData,
+      });
+    }
+
+    for (const org of destinations.filter((d) => d.type === "organization")) {
+      const orgAccount = await upsertConnectedAccount({
+        userId: userObjectId,
+        platform: "linkedin",
+        profile: {
+          platformUserId,
+          entityType: "organization",
+          entityId: org.id,
+          accountName: org.name || "",
+          username: "",
+          email: "",
+          profileImage: org.avatar || "",
+          isPrimary: false,
+          capabilities: ["posting", "analytics"],
+          metadata: {
+            ...metadataBase,
+            organizationId: org.id,
+            organizationUrn: `urn:li:organization:${org.id}`,
+            role: org.role || "",
+            canPost: org.canPost !== false,
+          },
+        },
+        tokenData,
+      });
+      if (accountType === "organization" && org.id === selected.id) {
+        linkedinAccount = orgAccount;
+      }
+    }
+
+    if (!linkedinAccount) {
+      linkedinAccount = await upsertConnectedAccount({
+        userId: userObjectId,
+        platform: "linkedin",
+        profile: {
+          platformUserId,
+          entityType: accountType,
+          entityId: selected.id,
+          accountName: selected.name || "",
+          username: "",
+          email: selected.email || "",
+          profileImage: selected.avatar || "",
+          isPrimary: accountType === "profile",
+          capabilities: ["posting", "analytics"],
+          metadata:
+            accountType === "organization"
+              ? {
+                  ...metadataBase,
+                  organizationId: selected.id,
+                  organizationUrn: `urn:li:organization:${selected.id}`,
+                  role: selected.role || "",
+                  canPost: selected.canPost !== false,
+                }
+              : {
+                  ...metadataBase,
+                  personUrn: `urn:li:person:${platformUserId}`,
+                  canPost: true,
+                  ...(organizationDiscoveryErrorCode ? { organizationDiscoveryErrorCode } : {}),
+                },
+        },
+        tokenData,
+      });
+    }
 
     doc.status = "consumed";
     await doc.save();
 
+    const orgCount = destinations.filter((d) => d.type === "organization").length;
+
     return successResponse(
       res,
-      { account: linkedinAccount, flow: doc.flow || "settings" },
-      "LinkedIn connected successfully."
+      {
+        account: linkedinAccount,
+        flow: doc.flow || "settings",
+        syncedOrganizations: orgCount,
+      },
+      orgCount
+        ? "LinkedIn connected. Personal profile and company pages are available."
+        : "LinkedIn connected successfully."
     );
   } catch (error) {
     return errorResponse(res, error.message || "Unable to finish LinkedIn connection.", error?.status || 400, error?.code || "linkedin_select_failed");
