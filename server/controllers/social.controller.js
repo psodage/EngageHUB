@@ -53,6 +53,7 @@ import {
   getBusinessAccounts,
   getBusinessLocations,
   getGoogleBusinessLocationName,
+  listBusinessLocationsForAccounts,
 } from "../services/social/googleBusiness.service.js";
 import { listPostHistoryForUser, recordSuccessfulPublish } from "../services/social/postHistory.service.js";
 
@@ -1714,13 +1715,7 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
           throw noAccountsErr;
         }
 
-        const locations = [];
-        for (const account of accounts) {
-          const accountId = String(account.accountId || "").trim();
-          if (!accountId) continue;
-          const locs = await getBusinessLocations(accountId, tokenData.accessToken, account);
-          locations.push(...locs);
-        }
+        const locations = await listBusinessLocationsForAccounts(tokenData.accessToken, accounts);
         if (!locations.length) {
           const noLocationsErr = new Error("No Google Business Profiles found for this account.");
           noLocationsErr.code = "no_google_business_locations";

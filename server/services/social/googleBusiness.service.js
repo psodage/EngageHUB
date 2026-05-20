@@ -9,6 +9,8 @@ const BUSINESS_ACCOUNT_MGMT_V1 = "https://mybusinessaccountmanagement.googleapis
 const BUSINESS_INFO_READ_MASK =
   "name,title,storefrontAddress,primaryPhone,websiteUri,primaryCategory,metadata,openInfo";
 const BUSINESS_INFO_V1 = "https://mybusinessbusinessinformation.googleapis.com/v1";
+/** Pause between per-account location list calls to avoid GBP API per-minute limits. */
+const LOCATION_FETCH_DELAY_MS = 600;
 
 function maskClientId(value) {
   if (!value) return "missing";
@@ -64,35 +66,47 @@ const baseGoogleBusinessService = createOAuthService({
  */
 async function fetchManagedLocations(accessToken) {
   const accounts = await getBusinessAccounts(accessToken);
+  const locations = await listBusinessLocationsForAccounts(accessToken, accounts);
   const entities = [];
+  for (const loc of locations) {
+    const account = accounts.find((a) => String(a.accountId) === String(loc.accountId));
+    entities.push({
+      entityType: "location",
+      entityId: loc.locationId,
+      name: loc.title || `Location ${loc.locationId}`,
+      profileImage: "",
+      googleBusinessAccountId: loc.accountId,
+      googleBusinessAccountName:
+        loc.accountName || account?.accountDisplayName || account?.accountName || "",
+      googleBusinessLocationResourceName: loc.resourceName || "",
+      metadata: {
+        address: loc.address || "",
+        phone: loc.phone || "",
+        website: loc.website || "",
+        primaryCategory: loc.primaryCategory || "",
+        verificationStatus: loc.verificationStatus || "",
+        storefrontUrl: loc.storefrontUrl || "",
+      },
+    });
+  }
+  return entities;
+}
+
+/** Fetch locations for each account with a short delay between accounts (GBP API rate limits). */
+export async function listBusinessLocationsForAccounts(accessToken, accounts) {
+  const rows = [];
+  let index = 0;
   for (const account of accounts) {
     const accountId = String(account?.accountId || "").trim();
     if (!accountId) continue;
-    const locations = await getBusinessLocations(accountId, accessToken, {
-      accountName: account.accountName,
-      accountDisplayName: account.accountDisplayName,
-    });
-    for (const loc of locations) {
-      entities.push({
-        entityType: "location",
-        entityId: loc.locationId,
-        name: loc.title || `Location ${loc.locationId}`,
-        profileImage: "",
-        googleBusinessAccountId: loc.accountId,
-        googleBusinessAccountName: loc.accountName,
-        googleBusinessLocationResourceName: loc.resourceName || "",
-        metadata: {
-          address: loc.address || "",
-          phone: loc.phone || "",
-          website: loc.website || "",
-          primaryCategory: loc.primaryCategory || "",
-          verificationStatus: loc.verificationStatus || "",
-          storefrontUrl: loc.storefrontUrl || "",
-        },
-      });
+    if (index > 0) {
+      await sleep(LOCATION_FETCH_DELAY_MS);
     }
+    index += 1;
+    const locs = await getBusinessLocations(accountId, accessToken, account);
+    rows.push(...locs);
   }
-  return entities;
+  return rows;
 }
 
 function joinAddress(addr) {
@@ -109,10 +123,52 @@ function googleApiErrorReason(response) {
   return response?.data?.error?.errors?.[0]?.reason || response?.data?.error?.status || "";
 }
 
-function shouldTryBusinessV1Fallback(status) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isQuotaExceeded(response) {
+  const status = Number(response?.status || 0);
+  const combined = `${googleApiErrorMessage(response)} ${googleApiErrorReason(response)}`.toLowerCase();
+  return status === 429 || combined.includes("quota exceeded") || combined.includes("rate limit");
+}
+
+/** v4 is deprecated — only fall back when v1 is unavailable, not when rate-limited. */
+function shouldTryLegacyV4Fallback(status) {
   const code = Number(status || 0);
-  if (!code || code === 401) return false;
-  return code >= 400;
+  return [400, 404, 410, 501].includes(code);
+}
+
+function parseAccountsFromResponse(response) {
+  const accounts = Array.isArray(response.data?.accounts) ? response.data.accounts : [];
+  return accounts
+    .map((acc) => {
+      const accountName = typeof acc?.name === "string" ? acc.name : "";
+      const accountId = accountName.startsWith("accounts/") ? accountName.replace(/^accounts\//, "") : "";
+      if (!accountId) return null;
+      return {
+        accountName,
+        accountId,
+        type: acc?.type || "",
+        accountDisplayName: acc?.accountName || acc?.name || `Account ${accountId}`,
+      };
+    })
+    .filter(Boolean);
+}
+
+async function googleBusinessGet(url, { headers, params, maxAttempts = 4 } = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await axios.get(url, { headers, params, validateStatus: () => true });
+    if (!isQuotaExceeded(response) || attempt >= maxAttempts) {
+      return response;
+    }
+    const retryAfterSec = Number(response.headers?.["retry-after"] || 0);
+    const waitMs =
+      retryAfterSec > 0 ? retryAfterSec * 1000 : Math.min(1500 * 2 ** (attempt - 1), 20000);
+    console.warn("[googleBusiness:rate-limit:retry]", { url, attempt, waitMs });
+    await sleep(waitMs);
+  }
+  return axios.get(url, { headers, params, validateStatus: () => true });
 }
 
 function classifyGoogleBusinessError(response, fallbackCode) {
@@ -127,6 +183,10 @@ function classifyGoogleBusinessError(response, fallbackCode) {
     reason === "accessNotConfigured";
   const err = new Error(message);
   err.status = status || 502;
+  if (isQuotaExceeded(response)) {
+    err.code = "google_business_quota_exceeded";
+    return err;
+  }
   if (apiDisabled) {
     err.code = "google_business_api_disabled";
     return err;
@@ -150,42 +210,31 @@ function logGoogleBusinessApiWarning(tag, response, extra = {}) {
 
 export async function getBusinessAccounts(accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
-  let response;
   try {
-    response = await axios.get(`${MYBUSINESS_V4}/accounts`, { headers, validateStatus: () => true });
+    let response = await googleBusinessGet(`${BUSINESS_ACCOUNT_MGMT_V1}/accounts`, { headers });
+    if (response.status >= 200 && response.status < 300) {
+      return parseAccountsFromResponse(response);
+    }
+    if (isQuotaExceeded(response)) {
+      logGoogleBusinessApiWarning("[googleBusiness:accounts:v1:quota]", response);
+      throw classifyGoogleBusinessError(response, "google_business_accounts_failed");
+    }
+    if (shouldTryLegacyV4Fallback(response.status)) {
+      logGoogleBusinessApiWarning("[googleBusiness:accounts:v1:fallback-v4]", response);
+      response = await googleBusinessGet(`${MYBUSINESS_V4}/accounts`, { headers });
+      if (response.status >= 200 && response.status < 300) {
+        return parseAccountsFromResponse(response);
+      }
+    }
+    logGoogleBusinessApiWarning("[googleBusiness:accounts:error]", response);
+    throw classifyGoogleBusinessError(response, "google_business_accounts_failed");
   } catch (error) {
+    if (error?.code) throw error;
     const err = new Error("Failed to fetch Google Business accounts.");
     err.code = "google_business_accounts_failed";
     err.status = error?.response?.status || 502;
     throw err;
   }
-  if (response.status < 200 || response.status >= 300) {
-    const v4Response = response;
-    if (!shouldTryBusinessV1Fallback(v4Response.status)) {
-      logGoogleBusinessApiWarning("[googleBusiness:accounts:v4:error]", v4Response);
-      throw classifyGoogleBusinessError(v4Response, "google_business_accounts_failed");
-    }
-    logGoogleBusinessApiWarning("[googleBusiness:accounts:v4:fallback]", v4Response);
-    response = await axios.get(`${BUSINESS_ACCOUNT_MGMT_V1}/accounts`, { headers, validateStatus: () => true });
-    if (response.status < 200 || response.status >= 300) {
-      logGoogleBusinessApiWarning("[googleBusiness:accounts:v1:error]", response);
-      throw classifyGoogleBusinessError(response, "google_business_accounts_failed");
-    }
-  }
-  const accounts = Array.isArray(response.data?.accounts) ? response.data.accounts : [];
-  return accounts
-    .map((acc) => {
-      const accountName = typeof acc?.name === "string" ? acc.name : "";
-      const accountId = accountName.startsWith("accounts/") ? accountName.replace(/^accounts\//, "") : "";
-      if (!accountId) return null;
-      return {
-        accountName,
-        accountId,
-        type: acc?.type || "",
-        accountDisplayName: acc?.accountName || acc?.name || `Account ${accountId}`,
-      };
-    })
-    .filter(Boolean);
 }
 
 export async function getBusinessLocations(accountId, accessToken, accountInfo = {}) {
@@ -193,36 +242,35 @@ export async function getBusinessLocations(accountId, accessToken, accountInfo =
   const rows = [];
   let pageToken = "";
   for (;;) {
-    const params = pageToken ? { pageToken } : {};
+    const params = { ...(pageToken ? { pageToken } : {}), readMask: BUSINESS_INFO_READ_MASK };
     let response;
     try {
-      response = await axios.get(`${MYBUSINESS_V4}/accounts/${encodeURIComponent(accountId)}/locations`, {
-        headers,
-        params,
-        validateStatus: () => true,
-      });
+      const v1Url = `${BUSINESS_INFO_V1}/accounts/${encodeURIComponent(accountId)}/locations`;
+      response = await googleBusinessGet(v1Url, { headers, params });
+      if (response.status < 200 || response.status >= 300) {
+        if (isQuotaExceeded(response)) {
+          logGoogleBusinessApiWarning("[googleBusiness:locations:v1:quota]", response, { accountId });
+          throw classifyGoogleBusinessError(response, "google_business_locations_failed");
+        }
+        if (shouldTryLegacyV4Fallback(response.status)) {
+          logGoogleBusinessApiWarning("[googleBusiness:locations:v1:fallback-v4]", response, { accountId });
+          const v4Params = pageToken ? { pageToken } : {};
+          response = await googleBusinessGet(
+            `${MYBUSINESS_V4}/accounts/${encodeURIComponent(accountId)}/locations`,
+            { headers, params: v4Params }
+          );
+        }
+        if (response.status < 200 || response.status >= 300) {
+          logGoogleBusinessApiWarning("[googleBusiness:locations:error]", response, { accountId });
+          throw classifyGoogleBusinessError(response, "google_business_locations_failed");
+        }
+      }
     } catch (error) {
+      if (error?.code) throw error;
       const err = new Error("Failed to fetch Google Business locations.");
       err.code = "google_business_locations_failed";
       err.status = error?.response?.status || 502;
       throw err;
-    }
-    if (response.status < 200 || response.status >= 300) {
-      const v4Response = response;
-      if (!shouldTryBusinessV1Fallback(v4Response.status)) {
-        logGoogleBusinessApiWarning("[googleBusiness:locations:v4:error]", v4Response, { accountId });
-        throw classifyGoogleBusinessError(v4Response, "google_business_locations_failed");
-      }
-      logGoogleBusinessApiWarning("[googleBusiness:locations:v4:fallback]", v4Response, { accountId });
-      response = await axios.get(`${BUSINESS_INFO_V1}/accounts/${encodeURIComponent(accountId)}/locations`, {
-        headers,
-        params: { ...params, readMask: BUSINESS_INFO_READ_MASK },
-        validateStatus: () => true,
-      });
-      if (response.status < 200 || response.status >= 300) {
-        logGoogleBusinessApiWarning("[googleBusiness:locations:v1:error]", response, { accountId });
-        throw classifyGoogleBusinessError(response, "google_business_locations_failed");
-      }
     }
     const locations = Array.isArray(response.data?.locations) ? response.data.locations : [];
     for (const loc of locations) {

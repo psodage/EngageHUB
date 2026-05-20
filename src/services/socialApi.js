@@ -101,7 +101,15 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "", o
       "Google Business Profile APIs are not enabled for your Google Cloud project. In Google Cloud Console → APIs & Services → Library, enable “My Business Account Management API” and “My Business Business Information API” (same project as GOOGLE_CLIENT_ID). Add OAuth scope https://www.googleapis.com/auth/business.manage on the consent screen, then reconnect.";
     return detail ? `${base} Google says: ${detail}` : base;
   }
+  if (normalized.includes("google_business_quota_exceeded")) {
+    const base =
+      "Google Business Profile API rate limit reached. Wait 1–2 minutes, avoid clicking Connect repeatedly, then try again. If this keeps happening, request Business Profile API access/quota in Google Cloud Console (APIs & Services → Enabled APIs → My Business Account Management API → Quotas).";
+    return detail ? `${base} (${detail})` : base;
+  }
   if (normalized.includes("google_business_accounts_failed") || normalized.includes("google_business_locations_failed")) {
+    if (detail && /quota exceeded|rate limit/i.test(detail)) {
+      return getSocialOAuthErrorMessage("google_business_quota_exceeded", platform, detail);
+    }
     const base =
       "Could not load Google Business Profiles. Ensure Business Profile APIs are enabled in Google Cloud Console and try again.";
     return detail ? `${base} (${detail})` : base;
