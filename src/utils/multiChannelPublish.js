@@ -1,4 +1,4 @@
-import { uploadSocialPublicMediaFile } from "../services/socialApi";
+import { ingestRemoteSocialMediaUrl, uploadSocialPublicMediaFile } from "../services/socialApi";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import {
   getCreatePostChannelLabel,
@@ -89,6 +89,35 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
   const originalFile = shared.file || null;
   let preUploadedMediaUrl = (shared.mediaUrl || "").trim();
   const needsUpload = Boolean(originalFile && !preUploadedMediaUrl);
+  const needsLinkedInIngest =
+    !originalFile &&
+    Boolean(preUploadedMediaUrl) &&
+    publishable.some((k) => getPlatformKeyFromCreatePostChannelKey(k) === "linkedin");
+
+  if (needsLinkedInIngest) {
+    publishable.forEach((k) => {
+      statuses[k] = CHANNEL_PUBLISH_STATUS.uploading;
+    });
+    onStatusChange?.({ ...statuses }, { phase: "upload" });
+    try {
+      preUploadedMediaUrl = await ingestRemoteSocialMediaUrl(preUploadedMediaUrl);
+    } catch (err) {
+      const message = err?.message || "Could not import media for LinkedIn.";
+      publishable.forEach((k) => {
+        statuses[k] = CHANNEL_PUBLISH_STATUS.failed;
+      });
+      onStatusChange?.({ ...statuses }, { error: message });
+      return {
+        ok: [],
+        failed: publishable.map((k) => ({ platformKey: k, message })),
+        skipped: skippedKeys.map((k) => ({
+          platformKey: k,
+          reason: `Use ${platformLabel(k, channelOptions)} settings if this channel needs extra setup.`,
+        })),
+        statuses,
+      };
+    }
+  }
 
   if (needsUpload) {
     publishable.forEach((k) => {

@@ -8,6 +8,7 @@ import {
   postToX,
   postYouTubeVideo,
   publishInstagramPost,
+  ingestRemoteSocialMediaUrl,
   uploadSocialPublicMedia,
   uploadSocialPublicMediaFile,
 } from "../services/socialApi";
@@ -16,6 +17,7 @@ import {
   getPlatformKeyFromCreatePostChannelKey,
   parseCreatePostChannelKey,
 } from "./createPostChannels";
+import { fetchUrlAsMediaFile } from "./fetchMediaFile";
 import {
   resolveDiscordTarget,
   resolveGoogleBusinessLocation,
@@ -173,20 +175,37 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
 
   if (platformKey === "linkedin") {
     const mediaType = typeConfig?.mediaType || "TEXT";
-    const mediaFile = originalFile;
+    const { entityType: channelEntityType, entityId: channelEntityId } = parseCreatePostChannelKey(channelKey);
+    const isOrganization = channelEntityType === "organization" && Boolean(channelEntityId);
+    let mediaFile = originalFile;
+    if ((mediaType === "IMAGE" || mediaType === "VIDEO") && !mediaFile) {
+      const remoteUrl = (preUploadedMediaUrl || mediaUrl || "").trim();
+      if (!remoteUrl) {
+        throw new Error(
+          "LinkedIn requires a photo or video. Upload a file from your device or use media EngageHub has already hosted for this post."
+        );
+      }
+      try {
+        mediaFile = await fetchUrlAsMediaFile(remoteUrl);
+      } catch {
+        try {
+          const hosted = await ingestRemoteSocialMediaUrl(remoteUrl);
+          mediaFile = await fetchUrlAsMediaFile(hosted);
+        } catch {
+          throw new Error(
+            "LinkedIn could not use this image URL. Upload the file from your device instead of a link-preview image."
+          );
+        }
+      }
+    }
     const payload = {
       content: caption,
-      targetType: "profile",
-      organizationId: null,
+      targetType: isOrganization ? "organization" : "profile",
+      organizationId: isOrganization ? channelEntityId : null,
       mediaType,
       mediaUrl: "",
       linkUrl: "",
     };
-    if ((mediaType === "IMAGE" || mediaType === "VIDEO") && !mediaFile) {
-      throw new Error(
-        "LinkedIn requires the original uploaded file. Select a file from your device (not a link preview image) to include LinkedIn in this post."
-      );
-    }
     const result = await postToLinkedIn(payload, mediaFile);
     return result?.message || "Published to LinkedIn.";
   }

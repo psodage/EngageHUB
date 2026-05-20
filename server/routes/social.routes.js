@@ -58,6 +58,7 @@ import {
   handleLinkedInPostUpload,
   handleSocialPublicUpload,
   handleYouTubeVideoUpload,
+  ingestRemoteSocialMedia,
   uploadPublicSocialMedia,
 } from "../controllers/upload.controller.js";
 
@@ -99,6 +100,7 @@ export function createSocialRoutes(requireAuth) {
   router.get("/github/automation", requireAuth, getGithubAutomationCatalog);
   router.post("/github/automation/preview", requireAuth, previewGithubAutomation);
   router.post("/upload/public-media", requireAuth, handleSocialPublicUpload, uploadPublicSocialMedia);
+  router.post("/upload/remote-media", requireAuth, ingestRemoteSocialMedia);
   router.get("/meta/connect", requireAuth, connectMetaPlatform);
   router.get("/meta/upgrade/connect", requireAuth, connectMetaUpgradePlatform);
   router.get("/meta/callback", metaOauthCallback);

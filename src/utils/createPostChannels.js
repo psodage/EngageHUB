@@ -1,5 +1,5 @@
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
-import { getFacebookConnectionEntities } from "./socialAccountEntities";
+import { getFacebookConnectionEntities, getLinkedInConnectionEntities } from "./socialAccountEntities";
 
 /**
  * @param {string} channelKey
@@ -7,6 +7,20 @@ import { getFacebookConnectionEntities } from "./socialAccountEntities";
  */
 export function parseCreatePostChannelKey(channelKey) {
   const raw = String(channelKey || "").trim();
+  if (raw === "linkedin") {
+    return { platformKey: "linkedin", entityType: "profile", entityId: "" };
+  }
+  if (raw.startsWith("linkedin:")) {
+    const parts = raw.split(":");
+    if (parts.length >= 3) {
+      return {
+        platformKey: "linkedin",
+        entityType: parts[1] || "profile",
+        entityId: parts.slice(2).join(":"),
+      };
+    }
+    return { platformKey: "linkedin", entityType: parts[1] || "profile", entityId: "" };
+  }
   if (!raw.startsWith("facebook:")) {
     return { platformKey: raw, entityType: "", entityId: "" };
   }
@@ -31,6 +45,16 @@ export function buildFacebookCreatePostChannelKey(entity) {
   const entityType = entity.entityType || "profile";
   const entityId = String(entity.entityId || entity.platformUserId || "").trim();
   return entityId ? `facebook:${entityType}:${entityId}` : `facebook:${entityType}`;
+}
+
+/** @param {Record<string, unknown>} entity */
+export function buildLinkedInCreatePostChannelKey(entity) {
+  const entityType = entity.entityType === "organization" ? "organization" : "profile";
+  const entityId = String(entity.entityId || entity.platformUserId || "").trim();
+  if (entityType === "organization" && entityId) {
+    return `linkedin:organization:${entityId}`;
+  }
+  return entityId ? `linkedin:profile:${entityId}` : "linkedin";
 }
 
 /**
@@ -107,6 +131,32 @@ export function mapAccountsToCreatePostChannelOptions(connectedAccounts) {
           platformName: config.label,
           username: resolveChannelUsername(account, entity) || displayName,
           accountTypeLabel: isProfile ? "Facebook profile" : "Facebook page",
+          label: displayName,
+          profileImage: resolveAccountProfileImage(account, entity),
+          accountDisplayName: displayName,
+          entityId: String(entity.entityId || entity.platformUserId || "").trim(),
+          entityType,
+        });
+      }
+      continue;
+    }
+
+    if (config.key === "linkedin") {
+      const entities = getLinkedInConnectionEntities(account);
+      for (const entity of entities) {
+        const entityType = entity.entityType === "organization" ? "organization" : "profile";
+        const isOrg = entityType === "organization";
+        const displayName =
+          entity.accountName?.trim() ||
+          entity.username?.trim()?.replace(/^@/, "") ||
+          (isOrg ? "LinkedIn Page" : "LinkedIn Profile");
+        options.push({
+          ...config,
+          key: buildLinkedInCreatePostChannelKey(entity),
+          platformKey: "linkedin",
+          platformName: config.label,
+          username: resolveChannelUsername(account, entity) || displayName,
+          accountTypeLabel: isOrg ? "LinkedIn company page" : "LinkedIn profile",
           label: displayName,
           profileImage: resolveAccountProfileImage(account, entity),
           accountDisplayName: displayName,

@@ -86,8 +86,8 @@ export default function SharedPostComposer({
             role="status"
             className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100"
           >
-            LinkedIn needs the original file from your device. Upload a photo or video here (link preview images
-            only work for Instagram, Threads, and Facebook).
+            LinkedIn may not be able to load this image from an external link. Upload the photo or video from your
+            device for reliable posting to LinkedIn.
           </p>
         ) : null}
 

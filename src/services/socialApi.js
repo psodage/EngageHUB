@@ -469,6 +469,16 @@ export async function uploadSocialPublicMediaFile(file) {
   }
 }
 
+/** Host a remote image/video on the API server (for LinkedIn and other APIs that need a fetchable file). */
+export async function ingestRemoteSocialMediaUrl(remoteUrl) {
+  try {
+    const { data } = await socialClient.post("/api/social/upload/remote-media", { url: remoteUrl });
+    return data.data?.url || "";
+  } catch (error) {
+    throw parseApiError(error, "Unable to import media from URL.");
+  }
+}
+
 /**
  * Publishes to the connected Instagram professional account (server uses stored token; never returned here).
  */

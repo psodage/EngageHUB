@@ -129,13 +129,38 @@ export async function resolveFacebookPublishCredentials(userId, entityId) {
     const storedEnc = profileAccount?.pagePublishingTokens?.[pageId];
     const storedToken = storedEnc ? decryptToken(storedEnc) : "";
     const pageRowToken = accessToken;
-    const userToken = profileAccount?.getDecryptedAccessToken?.() || "";
+    let userToken = profileAccount?.getDecryptedAccessToken?.() || "";
+
+    if (
+      userToken &&
+      profileAccount?.expiresAt &&
+      new Date(profileAccount.expiresAt).getTime() <= Date.now()
+    ) {
+      try {
+        const facebookService = (await import("./meta.service.js")).default;
+        const refreshed = await facebookService.refreshTokenIfNeeded(profileAccount);
+        if (refreshed?.accessToken) {
+          profileAccount.setEncryptedAccessToken(refreshed.accessToken);
+          if (refreshed.expiresIn) {
+            profileAccount.expiresAt = new Date(Date.now() + refreshed.expiresIn * 1000);
+          }
+          profileAccount.lastSyncedAt = new Date();
+          await profileAccount.save();
+          userToken = refreshed.accessToken;
+        }
+      } catch {
+        /* fall through to graph fetch with existing token */
+      }
+    }
 
     let graphToken = "";
     if (userToken) {
       try {
         graphToken = await fetchPageAccessTokenFromGraph(userToken, pageId);
       } catch {
+        /* try bulk list next */
+      }
+      if (!graphToken) {
         try {
           const all = await listPageAccessTokensFromGraph(userToken);
           graphToken = all[pageId] || "";

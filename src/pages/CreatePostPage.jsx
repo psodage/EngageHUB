@@ -25,7 +25,10 @@ export default function CreatePostPage() {
     return SOCIAL_PLATFORM_CONFIGS.some((c) => c.key === raw) ? raw : null;
   }, [searchParams]);
 
-  const scopedEntityId = useMemo(() => searchParams.get("entity")?.trim() || "", [searchParams]);
+  const scopedEntityId = useMemo(
+    () => searchParams.get("entity")?.trim() || searchParams.get("entityId")?.trim() || "",
+    [searchParams]
+  );
 
   useEffect(() => {
     getSocialAccounts()
@@ -54,16 +57,24 @@ export default function CreatePostPage() {
 
     let keys = [scopedPlatformKey];
 
-    if (scopedPlatformKey === "facebook") {
-      if (!scopedEntityId) return;
+    if (scopedPlatformKey === "facebook" || scopedPlatformKey === "linkedin") {
       const platformChannelKeys = channelOptions
-        .filter((o) => o.platformKey === "facebook")
+        .filter((o) => o.platformKey === scopedPlatformKey)
         .map((o) => o.key);
-      const match = platformChannelKeys.find(
-        (key) => parseCreatePostChannelKey(key).entityId === scopedEntityId
-      );
-      if (!match) return;
-      keys = [match];
+      if (scopedEntityId) {
+        const match = platformChannelKeys.find(
+          (key) => parseCreatePostChannelKey(key).entityId === scopedEntityId
+        );
+        if (!match) return;
+        keys = [match];
+      } else if (scopedPlatformKey === "linkedin") {
+        const profileKey = platformChannelKeys.find(
+          (key) => parseCreatePostChannelKey(key).entityType === "profile"
+        );
+        keys = profileKey ? [profileKey] : platformChannelKeys.slice(0, 1);
+      } else {
+        return;
+      }
     }
 
     setSelectedChannelKeys(keys);

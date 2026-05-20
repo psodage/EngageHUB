@@ -1,7 +1,7 @@
 import { getPlatformKeyFromCreatePostChannelKey } from "./createPostChannels";
 import { inferMediaKind } from "./sharedPostSync";
 
-/** True when LinkedIn is selected, post has image/video media, but only a URL (no original File). */
+/** True when LinkedIn is selected with URL-only media that may fail CORS (external link previews). */
 export function shouldWarnLinkedInMissingOriginalFile(channelKeys, shared) {
   const hasLinkedIn = channelKeys.some(
     (k) => getPlatformKeyFromCreatePostChannelKey(k) === "linkedin"
@@ -12,5 +12,15 @@ export function shouldWarnLinkedInMissingOriginalFile(channelKeys, shared) {
   if (!mediaUrl) return false;
 
   const kind = inferMediaKind(null, mediaUrl);
-  return kind === "image" || kind === "video";
+  if (kind !== "image" && kind !== "video") return false;
+
+  try {
+    const origin = window.location.origin;
+    const host = new URL(mediaUrl).host;
+    const appHost = new URL(origin).host;
+    if (host === appHost) return false;
+  } catch {
+    return true;
+  }
+  return true;
 }

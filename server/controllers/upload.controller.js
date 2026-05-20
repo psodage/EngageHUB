@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
+import axios from "axios";
 import multer from "multer";
 import { getAppConfig } from "../config/social.config.js";
 import { errorResponse, successResponse } from "../utils/apiResponse.js";
@@ -159,5 +160,57 @@ export async function uploadPublicSocialMedia(req, res) {
   } catch (error) {
     console.error("[upload:social-public:error]", { message: error?.message });
     return errorResponse(res, error.message || "Upload failed.", 500, error.code || "upload_error");
+  }
+}
+
+function extFromContentType(contentType, remoteUrl) {
+  const mime = (contentType || "").split(";")[0].trim().toLowerCase();
+  if (mimeToExt[mime]) return mimeToExt[mime];
+  try {
+    const ext = path.extname(new URL(remoteUrl).pathname);
+    if (ext && ext.length <= 8) return ext;
+  } catch {
+    /* ignore */
+  }
+  return ".jpg";
+}
+
+/** Download a remote image/video URL and host it under /uploads for platform APIs. */
+export async function ingestRemoteSocialMedia(req, res) {
+  const remoteUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  if (!remoteUrl || !/^https?:\/\//i.test(remoteUrl)) {
+    return errorResponse(res, "A valid http(s) media URL is required.", 400, "validation_error");
+  }
+
+  try {
+    const response = await axios.get(remoteUrl, {
+      responseType: "arraybuffer",
+      timeout: 45000,
+      maxContentLength: 100 * 1024 * 1024,
+      maxBodyLength: 100 * 1024 * 1024,
+      headers: { Accept: "image/*,video/*,*/*" },
+      validateStatus: (s) => s >= 200 && s < 300,
+    });
+
+    const contentType = (response.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    const mime =
+      contentType && (contentType.startsWith("image/") || contentType.startsWith("video/"))
+        ? contentType
+        : contentType || "image/jpeg";
+    if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
+      return errorResponse(res, "Remote URL must point to an image or video file.", 400, "validation_error");
+    }
+
+    ensureUploadDir();
+    const filename = `${randomUUID()}${extFromContentType(mime, remoteUrl)}`;
+    const dest = path.join(UPLOAD_ROOT, filename);
+    fs.writeFileSync(dest, Buffer.from(response.data));
+
+    const base = getAppConfig().appBaseUrl;
+    const url = `${base}/uploads/${filename}`;
+    return successResponse(res, { url }, "Remote media ingested.");
+  } catch (error) {
+    console.error("[upload:remote-media:error]", { message: error?.message, url: remoteUrl });
+    return errorResponse(res, "Could not download media from that URL.", 502, "remote_ingest_failed");
   }
 }

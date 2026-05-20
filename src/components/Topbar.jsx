@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Bell, ChevronRight, Menu, Moon, Plus, Sun, User } from "lucide-react";
+import { Bell, ChevronRight, Menu, Moon, Sun, User } from "lucide-react";
 import { getPageTitle } from "../data/constants";
 import { CHANNEL_PROFILE_TABS } from "../data/channelNav";
 import { getChannelDisplayInfo } from "../utils/channelDisplay";
@@ -13,7 +13,6 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
   const { toggleTheme, theme, connectedAccounts } = useApp();
   const location = useLocation();
   const title = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
-  const showCreate = !location.pathname.startsWith("/create-post");
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   const channelBreadcrumb = useMemo(() => {
@@ -81,15 +80,6 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
         </div>
 
         <div className="dashboard-topbar-actions">
-          {showCreate ? (
-            <Link
-              to="/create-post"
-              className="hidden items-center gap-1.5 rounded-lg bg-buffer-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-buffer-700 sm:inline-flex"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              New post
-            </Link>
-          ) : null}
           <button
             type="button"
             className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"

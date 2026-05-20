@@ -51,6 +51,51 @@ export function getFacebookConnectionEntities(groupedAccount) {
 }
 
 /**
+ * LinkedIn profile + company pages from grouped account entities.
+ * @param {Record<string, unknown> | null | undefined} groupedAccount
+ */
+export function getLinkedInConnectionEntities(groupedAccount) {
+  if (!groupedAccount?.isConnected) return [];
+
+  const entities = Array.isArray(groupedAccount.entities) ? groupedAccount.entities : [];
+  const seen = new Set();
+  /** @type {Array<Record<string, unknown>>} */
+  const rows = [];
+
+  for (const entity of entities) {
+    if (!entity || entity.isConnected === false) continue;
+    const entityType = entity.entityType || "profile";
+    if (entityType !== "profile" && entityType !== "organization") continue;
+    const entityId = String(entity.entityId || entity.platformUserId || "").trim();
+    if (!entityId && entityType === "organization") continue;
+    const key = `${entityType}:${entityId || "profile"}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(entity);
+  }
+
+  if (!rows.length && groupedAccount.platformUserId) {
+    rows.push({
+      id: groupedAccount.id,
+      platformUserId: groupedAccount.platformUserId,
+      entityType: groupedAccount.entityType === "organization" ? "organization" : "profile",
+      entityId: groupedAccount.entityId || groupedAccount.platformUserId,
+      accountName: groupedAccount.accountName,
+      username: groupedAccount.username,
+      profileImage: groupedAccount.profileImage,
+      isConnected: true,
+      isPrimary: groupedAccount.isPrimary,
+    });
+  }
+
+  return rows.sort((a, b) => {
+    if (a.entityType === "profile" && b.entityType !== "profile") return -1;
+    if (b.entityType === "profile" && a.entityType !== "profile") return 1;
+    return String(a.accountName || "").localeCompare(String(b.accountName || ""));
+  });
+}
+
+/**
  * @param {Record<string, unknown> | null | undefined} groupedAccount
  * @returns {Array<Record<string, unknown>>}
  */
