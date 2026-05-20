@@ -4,7 +4,7 @@ export function resolveProviderRedirectUri(platform) {
   const config = getAppConfig();
 
   const map = {
-    instagram: process.env.META_REDIRECT_URI || `${config.appBaseUrl}/api/social/instagram/callback`,
+    instagram: process.env.INSTAGRAM_REDIRECT_URI || `${config.appBaseUrl}/api/social/instagram/callback`,
     googleBusiness: process.env.GOOGLE_BUSINESS_REDIRECT_URI || `${config.appBaseUrl}/api/social/google-business/callback`,
     youtube:
       process.env.GOOGLE_YOUTUBE_REDIRECT_URI ||

@@ -109,7 +109,7 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   }
   if (normalized.includes("invalid_client")) {
     if (platformKey === "instagram") {
-      return "Instagram Meta OAuth client configuration is invalid. Verify META_APP_ID, META_APP_SECRET, and META_REDIRECT_URI.";
+      return "Instagram OAuth client configuration is invalid. Verify INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, and INSTAGRAM_REDIRECT_URI in your Meta Instagram app (Business login settings).";
     }
     if (platformKey === "github") {
       return "GitHub OAuth client configuration is invalid. Verify GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_REDIRECT_URI.";

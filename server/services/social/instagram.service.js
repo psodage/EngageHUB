@@ -1,13 +1,24 @@
 import axios from "axios";
-import { createMetaOAuthService, INSTAGRAM_META_DISCOVERY_SCOPES } from "./meta.service.js";
+import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
 
-const INSTAGRAM_GRAPH_BASE_URL = "https://graph.facebook.com";
-const INSTAGRAM_GRAPH_API_VERSION = "v20.0";
-const INSTAGRAM_DEFAULT_SCOPES = INSTAGRAM_META_DISCOVERY_SCOPES;
+const INSTAGRAM_AUTH_URL = "https://www.instagram.com/oauth/authorize";
+const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
+const INSTAGRAM_GRAPH_BASE_URL = "https://graph.instagram.com";
+const INSTAGRAM_GRAPH_API_VERSION = "v21.0";
 
 export const INSTAGRAM_CAPTION_MAX_LENGTH = 2200;
 
+const INSTAGRAM_DEFAULT_SCOPES = [
+  "instagram_business_basic",
+  "instagram_business_content_publish",
+];
+
 const SUPPORTED_PUBLISH_MEDIA_TYPES = new Set(["IMAGE", "VIDEO", "REEL", "CAROUSEL"]);
+
+function maskAppId(value) {
+  if (!value) return "missing";
+  return `***${value.slice(-8)}`;
+}
 
 function createInstagramError(message, code, status = 400, details = null) {
   const error = new Error(message);
@@ -17,8 +28,43 @@ function createInstagramError(message, code, status = 400, details = null) {
   return error;
 }
 
+function ensureInstagramConfig() {
+  const appId = (process.env.INSTAGRAM_CLIENT_ID || "").trim();
+  const appSecret = (process.env.INSTAGRAM_CLIENT_SECRET || "").trim();
+  const redirectUri = resolveProviderRedirectUri("instagram");
+  if (!appId || !appSecret || !redirectUri) {
+    throw createInstagramError(
+      "Instagram OAuth is not configured.",
+      "instagram_config_missing",
+      400,
+      ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET", "INSTAGRAM_REDIRECT_URI"]
+    );
+  }
+  return { appId, appSecret, redirectUri };
+}
+
 function instagramVersionedRoot() {
   return `${INSTAGRAM_GRAPH_BASE_URL}/${INSTAGRAM_GRAPH_API_VERSION}`;
+}
+
+function parseInstagramTokenPayload(data) {
+  if (Array.isArray(data?.data) && data.data[0]) {
+    const row = data.data[0];
+    const permissions = row.permissions;
+    return {
+      accessToken: row.access_token || "",
+      platformUserId: row.user_id != null ? String(row.user_id) : "",
+      scopes:
+        typeof permissions === "string"
+          ? permissions.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
+          : [],
+    };
+  }
+  return {
+    accessToken: data?.access_token || "",
+    platformUserId: data?.user_id != null ? String(data.user_id) : "",
+    scopes: [],
+  };
 }
 
 async function instagramGraphGet(path, accessToken, params = {}) {
@@ -190,16 +236,145 @@ export async function publishInstagramContent({
 const instagramService = {
   platform: "instagram",
   defaultScopes: INSTAGRAM_DEFAULT_SCOPES,
-  ...createMetaOAuthService({
-    platform: "instagram",
-    profileFields: "id,name,email,picture",
-    scopes: INSTAGRAM_DEFAULT_SCOPES,
-  }),
+
+  validateConfig() {
+    try {
+      ensureInstagramConfig();
+      return { valid: true, missing: [] };
+    } catch (error) {
+      return {
+        valid: false,
+        missing: error?.details || ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET", "INSTAGRAM_REDIRECT_URI"],
+      };
+    }
+  },
+
+  getAuthUrl(input) {
+    const state = typeof input === "string" ? input : input?.state;
+    const { appId, redirectUri } = ensureInstagramConfig();
+    const params = new URLSearchParams({
+      client_id: appId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: INSTAGRAM_DEFAULT_SCOPES.join(","),
+      state,
+      enable_fb_login: "false",
+    });
+    console.info("[oauth:instagram:auth-url]", {
+      platform: "instagram",
+      appId: maskAppId(appId),
+      redirectUri,
+      authEndpoint: INSTAGRAM_AUTH_URL,
+      scopeCount: INSTAGRAM_DEFAULT_SCOPES.length,
+      scopes: INSTAGRAM_DEFAULT_SCOPES,
+    });
+    return `${INSTAGRAM_AUTH_URL}?${params.toString()}`;
+  },
+
+  getAdvancedAuthUrl(input, additionalScopes = []) {
+    const state = typeof input === "string" ? input : input?.state;
+    const { appId, redirectUri } = ensureInstagramConfig();
+    const mergedScopes = Array.from(new Set([...INSTAGRAM_DEFAULT_SCOPES, ...additionalScopes]));
+    const params = new URLSearchParams({
+      client_id: appId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: mergedScopes.join(","),
+      state,
+      enable_fb_login: "false",
+    });
+    return `${INSTAGRAM_AUTH_URL}?${params.toString()}`;
+  },
+
+  async exchangeShortLivedForLongLived(shortLivedToken) {
+    const { appSecret } = ensureInstagramConfig();
+    if (!shortLivedToken) {
+      throw createInstagramError("Missing short-lived Instagram access token.", "instagram_token_missing", 400);
+    }
+    try {
+      const response = await axios.get(`${INSTAGRAM_GRAPH_BASE_URL}/access_token`, {
+        params: {
+          grant_type: "ig_exchange_token",
+          client_secret: appSecret,
+          access_token: shortLivedToken,
+        },
+      });
+      const data = response.data || {};
+      return {
+        accessToken: data.access_token || shortLivedToken,
+        tokenType: data.token_type || "Bearer",
+        expiresIn: data.expires_in || 60 * 60 * 24 * 60,
+      };
+    } catch (error) {
+      const msg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.error_message ||
+        error?.message ||
+        "Failed to exchange Instagram token for a long-lived token.";
+      throw createInstagramError(msg, "instagram_long_lived_exchange_failed", error?.response?.status || 400, error?.response?.data);
+    }
+  },
+
+  async exchangeCodeForToken(code) {
+    const { appId, appSecret, redirectUri } = ensureInstagramConfig();
+    try {
+      const response = await axios.post(
+        INSTAGRAM_TOKEN_URL,
+        new URLSearchParams({
+          client_id: appId,
+          client_secret: appSecret,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+          code,
+        }),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+      const parsed = parseInstagramTokenPayload(response.data || {});
+      let accessToken = parsed.accessToken;
+      let expiresIn = 60 * 60;
+      let tokenType = "Bearer";
+
+      if (accessToken) {
+        try {
+          const longLived = await this.exchangeShortLivedForLongLived(accessToken);
+          accessToken = longLived.accessToken || accessToken;
+          expiresIn = longLived.expiresIn || expiresIn;
+          tokenType = longLived.tokenType || tokenType;
+        } catch (longLivedError) {
+          console.warn("[oauth:instagram:long-lived:fallback]", {
+            message: longLivedError?.message,
+            code: longLivedError?.code,
+          });
+        }
+      }
+
+      return {
+        accessToken,
+        refreshToken: "",
+        tokenType,
+        expiresIn,
+        platformUserId: parsed.platformUserId,
+        scopes: parsed.scopes.length ? parsed.scopes : INSTAGRAM_DEFAULT_SCOPES,
+      };
+    } catch (error) {
+      console.error("[oauth:instagram:token:error]", {
+        platform: "instagram",
+        appId: maskAppId(appId),
+        redirectUri,
+        error: error?.response?.data || error?.message,
+      });
+      const msg =
+        error?.response?.data?.error_message ||
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Instagram token exchange failed.";
+      throw createInstagramError(msg, "instagram_token_exchange_failed", error?.response?.status || 400, error?.response?.data);
+    }
+  },
 
   async getProfile(accessToken) {
-    // Minimal fields for Instagram Login — extra fields can trigger (#100) errors if scopes/app config differ.
     const profile = await instagramGraphGet("/me", accessToken, {
-      fields: "user_id,username,account_type",
+      fields: "user_id,username,account_type,profile_picture_url",
     });
     const accountType = (profile?.account_type || "").toString().trim();
     if (accountType && /^personal$/i.test(accountType)) {
@@ -218,7 +393,7 @@ const instagramService = {
       accountName: profile?.username || "",
       username: profile?.username || "",
       email: "",
-      profileImage: "",
+      profileImage: profile?.profile_picture_url || "",
       entityType: "professional",
       entityId: igId,
       capabilities: ["posting", "analytics"],
@@ -231,6 +406,44 @@ const instagramService = {
     };
   },
 
+  async refreshTokenIfNeeded(account) {
+    const isExpired = account?.expiresAt && new Date(account.expiresAt).getTime() <= Date.now();
+    if (!isExpired) {
+      return null;
+    }
+
+    const accessToken = account?.getDecryptedAccessToken?.();
+    if (!accessToken) {
+      throw createInstagramError("Instagram access token is unavailable.", "instagram_token_missing", 400);
+    }
+
+    try {
+      const response = await axios.get(`${INSTAGRAM_GRAPH_BASE_URL}/refresh_access_token`, {
+        params: {
+          grant_type: "ig_refresh_token",
+          access_token: accessToken,
+        },
+      });
+      const data = response.data || {};
+      return {
+        accessToken: data.access_token || "",
+        refreshToken: "",
+        tokenType: data.token_type || "Bearer",
+        expiresIn: data.expires_in || 60 * 60 * 24 * 60,
+      };
+    } catch (error) {
+      const msg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.error_message ||
+        error?.message ||
+        "Instagram token refresh failed.";
+      throw createInstagramError(msg, "instagram_token_refresh_failed", error?.response?.status || 400, error?.response?.data);
+    }
+  },
+
+  async disconnectAccount() {
+    return { disconnected: true };
+  },
 };
 
 export default instagramService;

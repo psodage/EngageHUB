@@ -55,7 +55,7 @@ import {
 } from "../services/social/googleBusiness.service.js";
 import { listPostHistoryForUser, recordSuccessfulPublish } from "../services/social/postHistory.service.js";
 
-const META_PLATFORMS = new Set(["facebook", "instagram"]);
+const META_PLATFORMS = new Set(["facebook"]);
 const META_UPGRADE_SCOPE_SETS = {
   pages_show_list: [...META_SCOPE_SETS.pages, ...META_SCOPE_SETS.pagePosting],
   instagram_basic: [...META_SCOPE_SETS.pages, ...META_SCOPE_SETS.pagePosting, ...META_SCOPE_SETS.instagramBasic],
@@ -1209,24 +1209,27 @@ export async function connectInstagramPlatform(req, res) {
     if (!providerConfig.valid) {
       return errorResponse(res, "instagram OAuth config is missing required environment variables.", 400, providerConfig.missing);
     }
-    const configId = req.query?.config_id != null ? String(req.query.config_id).trim() : "";
     const state = createOAuthState({ userId: req.auth.userId, platform: "instagram", flow });
-    const authUrl = provider.getAuthUrl({ state, configId });
-    return successResponse(res, { url: authUrl, state }, "Meta OAuth URL generated.");
+    const authUrl = provider.getAuthUrl({ state });
+    return successResponse(res, { url: authUrl, state }, "Instagram OAuth URL generated.");
   } catch (error) {
     console.error("[oauth:instagram:connect:error]", {
       userId: req.auth?.userId,
       message: error?.message,
       code: error?.code,
     });
-    return errorResponse(res, error.message || "Unable to start Meta OAuth flow.", error?.status || 400, error?.code || error.message);
+    return errorResponse(res, error.message || "Unable to start Instagram OAuth flow.", error?.status || 400, error?.code || error.message);
   }
 }
 
 export async function connectMetaPlatform(req, res) {
   const requestedMetaPlatform = (req.query?.platform || "facebook").toString().toLowerCase();
-  if (!["facebook", "instagram"].includes(requestedMetaPlatform)) {
-    return errorResponse(res, "Invalid Meta platform. Use facebook or instagram.", 400);
+  if (requestedMetaPlatform !== "facebook") {
+    return errorResponse(
+      res,
+      "Facebook uses /api/social/meta/connect. Instagram uses its own app credentials via /api/social/instagram/login.",
+      400
+    );
   }
   const flow = normalizeOAuthFlow(req.query?.flow);
   try {
@@ -1264,8 +1267,8 @@ export async function connectMetaPlatform(req, res) {
 
 export async function connectMetaUpgradePlatform(req, res) {
   const requestedMetaPlatform = (req.query?.platform || "facebook").toString().toLowerCase();
-  if (!["facebook", "instagram"].includes(requestedMetaPlatform)) {
-    return errorResponse(res, "Invalid Meta platform. Use facebook or instagram.", 400);
+  if (requestedMetaPlatform !== "facebook") {
+    return errorResponse(res, "Permission upgrade is only supported for Facebook.", 400);
   }
 
   try {
@@ -3995,6 +3998,7 @@ export async function debugSocialEnvCheck(req, res) {
         metaRedirectUri: appConfig.metaRedirectUri || "missing",
         instagramRedirectUri: appConfig.instagramRedirectUri || "missing",
         hasMetaAppId: Boolean(process.env.META_APP_ID),
+        hasInstagramClientId: Boolean(process.env.INSTAGRAM_CLIENT_ID),
       },
     },
     "Environment diagnostics loaded."

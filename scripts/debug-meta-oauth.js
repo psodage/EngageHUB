@@ -116,9 +116,9 @@ async function run() {
     }),
     buildOAuthUrl({
       platform: "instagram",
-      clientId: metaAppId,
+      clientId: process.env.INSTAGRAM_CLIENT_ID || "",
       redirectUri: redirects.instagram,
-      scopes: ["instagram_business_basic", "instagram_business_content_publish", "instagram_manage_insights"],
+      scopes: ["instagram_business_basic", "instagram_business_content_publish"],
     }),
     buildOAuthUrl({
       platform: "threads",
