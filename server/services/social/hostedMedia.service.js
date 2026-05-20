@@ -23,6 +23,20 @@ function ensureUploadDir() {
   fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 }
 
+/** Public base URL for /uploads — must match the server that wrote the file. */
+export function getUploadPublicBaseUrl() {
+  const explicit = (process.env.PUBLIC_MEDIA_BASE_URL || "").trim().replace(/\/+$/, "");
+  if (explicit) return explicit;
+
+  const configured = getAppConfig().appBaseUrl.replace(/\/+$/, "");
+  const onRender = Boolean(process.env.RENDER);
+  if (!onRender && /onrender\.com|render\.com/i.test(configured)) {
+    const port = process.env.PORT || 4000;
+    return `http://127.0.0.1:${port}`;
+  }
+  return configured;
+}
+
 function extFromMime(mime, remoteUrl) {
   if (mimeToExt[mime]) return mimeToExt[mime];
   try {
@@ -39,9 +53,13 @@ export function isAppHostedUploadUrl(mediaUrl) {
   const trimmed = String(mediaUrl || "").trim();
   if (!trimmed) return false;
   try {
-    const base = new URL(getAppConfig().appBaseUrl);
     const u = new URL(trimmed);
-    return u.host === base.host && /\/uploads\//i.test(u.pathname);
+    if (!/\/uploads\//i.test(u.pathname)) return false;
+    const hosts = new Set([
+      new URL(getUploadPublicBaseUrl()).host,
+      new URL(getAppConfig().appBaseUrl).host,
+    ]);
+    return hosts.has(u.host);
   } catch {
     return false;
   }
@@ -71,7 +89,7 @@ export async function ingestRemoteUrlToUploads(remoteUrl) {
   const filename = `${randomUUID()}${extFromMime(mime, remoteUrl)}`;
   const dest = path.join(UPLOAD_ROOT, filename);
   fs.writeFileSync(dest, buffer);
-  const base = getAppConfig().appBaseUrl;
+  const base = getUploadPublicBaseUrl();
   return `${base}/uploads/${filename}`;
 }
 

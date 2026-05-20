@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import multer from "multer";
 import { getAppConfig } from "../config/social.config.js";
 import { errorResponse, successResponse } from "../utils/apiResponse.js";
-import { ingestRemoteUrlToUploads } from "../services/social/hostedMedia.service.js";
+import { getUploadPublicBaseUrl, ingestRemoteUrlToUploads } from "../services/social/hostedMedia.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_ROOT = path.join(__dirname, "../public/uploads");
@@ -154,7 +154,7 @@ export async function uploadPublicSocialMedia(req, res) {
     if (!req.file) {
       return errorResponse(res, "No file uploaded.", 400, "no_file");
     }
-    const base = getAppConfig().appBaseUrl;
+    const base = getUploadPublicBaseUrl();
     const url = `${base}/uploads/${req.file.filename}`;
     return successResponse(res, { url }, "File uploaded.");
   } catch (error) {

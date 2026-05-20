@@ -86,7 +86,7 @@ export default function SharedPostComposer({
             role="status"
             className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300"
           >
-            Importing image for LinkedIn…
+            Importing image for posting…
           </p>
         ) : null}
 

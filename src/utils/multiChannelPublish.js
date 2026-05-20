@@ -123,6 +123,16 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
   const failed = [];
 
   const runOne = async (channelKey) => {
+    if (
+      remoteIngestError &&
+      channelNeedsRemoteMediaIngest(channelKey, { file: originalFile, mediaUrl: shared.mediaUrl })
+    ) {
+      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.failed;
+      onStatusChange?.({ ...statuses }, { platformKey: channelKey, error: remoteIngestError });
+      failed.push({ platformKey: channelKey, message: remoteIngestError });
+      return;
+    }
+
     statuses[channelKey] = CHANNEL_PUBLISH_STATUS.publishing;
     onStatusChange?.({ ...statuses }, { platformKey: channelKey, phase: "publish" });
 
