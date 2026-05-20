@@ -39,7 +39,26 @@ function parseApiError(error, fallbackMessage) {
   return formatHttpApiError(error, fallbackMessage);
 }
 
-export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
+function isLowValueOAuthDetail(detail) {
+  const normalized = String(detail || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return true;
+  if (normalized === "bad request" || normalized === "forbidden") return true;
+  if (normalized.startsWith("request failed")) return true;
+  if (normalized.includes("token exchange failed")) return true;
+  return !normalized.includes("http") && normalized.length < 12;
+}
+
+function pickGoogleRedirectUri(platformKey, oauthRedirectUri, oauthDetail) {
+  const explicit = String(oauthRedirectUri || "").trim();
+  if (explicit.startsWith("http")) return explicit;
+  const detail = String(oauthDetail || "").trim();
+  if (detail.startsWith("http") && !isLowValueOAuthDetail(detail)) return detail;
+  return "";
+}
+
+export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "", oauthRedirectUri = "") {
   const normalized = (reason || "").toLowerCase();
   const platformKey = (platform || "").toLowerCase();
   const detail = (oauthDetail || "").trim();
@@ -129,15 +148,25 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
     normalized.includes("redirect_uri_mismatch")
   ) {
     if (platformKey === "googlebusiness") {
-      const uri = detail || "https://engagehub.onrender.com/api/social/google-business/callback";
+      const uri = pickGoogleRedirectUri(platformKey, oauthRedirectUri, detail);
+      if (uri) {
+        return (
+          `Google OAuth redirect URI mismatch for Business Profile. In Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs, add this exact URL (must match GOOGLE_BUSINESS_REDIRECT_URI in .env): ${uri}`
+        );
+      }
       return (
-        `Google OAuth redirect URI mismatch for Business Profile. In Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs, add this exact URL (must match GOOGLE_BUSINESS_REDIRECT_URI in .env): ${uri}`
+        "Google OAuth redirect URI mismatch for Business Profile. Add GOOGLE_BUSINESS_REDIRECT_URI from your .env to Google Cloud Console → Credentials → Authorized redirect URIs (check server startup log: googleOAuth.googleBusinessRedirectUri)."
       );
     }
     if (platformKey === "youtube") {
-      const uri = detail || "https://engagehub.onrender.com/api/social/youtube/callback";
+      const uri = pickGoogleRedirectUri(platformKey, oauthRedirectUri, detail);
+      if (uri) {
+        return (
+          `Google OAuth redirect URI mismatch for YouTube. In Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs, add this exact URL (must match GOOGLE_YOUTUBE_REDIRECT_URI or GOOGLE_REDIRECT_URI in .env): ${uri}`
+        );
+      }
       return (
-        `Google OAuth redirect URI mismatch for YouTube. In Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs, add this exact URL (must match GOOGLE_YOUTUBE_REDIRECT_URI or GOOGLE_REDIRECT_URI in .env): ${uri}`
+        "Google OAuth redirect URI mismatch for YouTube. Add your YouTube callback URL from .env to Google Cloud Console → Credentials → Authorized redirect URIs (check server startup log: googleOAuth.youtubeRedirectUri)."
       );
     }
     return "Google OAuth redirect URI mismatch. Add the exact callback URL from your .env to Google Cloud Console → Credentials → Authorized redirect URIs.";
@@ -165,7 +194,18 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   if (normalized.includes("oauth_code_invalid")) {
     return "Authorization code expired or was already used. Start Connect again and do not refresh the callback page.";
   }
+  if (
+    normalized.includes("used_authorization_code") ||
+    detail.toLowerCase().includes("used_authorization_code")
+  ) {
+    return "Threads authorization code was already used. Click Connect again (do not refresh or bookmark the callback URL).";
+  }
   if (normalized.includes("token_exchange_failed") || normalized.includes("token_exchange_forbidden")) {
+    if (platformKey === "threads") {
+      return detail
+        ? `Threads token exchange failed. Click Connect again without refreshing the callback page. (${detail})`
+        : "Threads token exchange failed. Click Connect again without refreshing the callback page.";
+    }
     if (platformKey === "googlebusiness" || platformKey === "youtube") {
       const base =
         "Google token exchange failed. Ensure GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET match your OAuth client, redirect URIs in .env match Google Cloud Console exactly, and the same API host handles both connect and callback (local vs Render).";

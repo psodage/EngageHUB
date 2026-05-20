@@ -41,6 +41,16 @@ function extractThreadsOAuthErrorMessage(data) {
   return null;
 }
 
+/** Meta returns used_authorization_code when the OAuth code was already exchanged (refresh, double callback, etc.). */
+function isUsedAuthorizationCodeError(message, data = null) {
+  const reason = String(data?.error_reason || data?.error?.error_reason || "").toLowerCase();
+  const haystack = `${String(message || "").toLowerCase()} ${reason}`;
+  return (
+    haystack.includes("used_authorization_code") ||
+    (haystack.includes("authorization code") && /\bused\b/.test(haystack))
+  );
+}
+
 function createThreadsError(message, code, status = 400, details = null) {
   const error = new Error(message);
   error.code = code;
@@ -378,7 +388,9 @@ const threadsService = {
       const providerMessage = extractThreadsOAuthErrorMessage(responseData);
       const normalizedMessage = (providerMessage || "").toLowerCase();
       let code = "threads_token_exchange_failed";
-      if (normalizedMessage.includes("redirect_uri") || normalizedMessage.includes("redirect uri")) {
+      if (isUsedAuthorizationCodeError(providerMessage, responseData)) {
+        code = "threads_invalid_auth_code";
+      } else if (normalizedMessage.includes("redirect_uri") || normalizedMessage.includes("redirect uri")) {
         code = "threads_redirect_uri_mismatch";
       } else if (normalizedMessage.includes("invalid verification code") || normalizedMessage.includes("authorization code")) {
         code = "threads_invalid_auth_code";

@@ -123,6 +123,56 @@ function mapProviderErrorReason(error, errorDescription = "") {
   return errorDescription || error || "oauth_error";
 }
 
+function isGooglePlatform(platform) {
+  const key = String(platform || "").toLowerCase();
+  return key === "googlebusiness" || key === "youtube";
+}
+
+function resolveGoogleRedirectUriForPlatform(platform) {
+  const key = String(platform || "").toLowerCase();
+  if (key === "googlebusiness") return resolveProviderRedirectUri("googleBusiness") || "";
+  if (key === "youtube") return resolveProviderRedirectUri("youtube") || "";
+  return "";
+}
+
+function isLowValueOAuthDetail(detail) {
+  const normalized = String(detail || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return true;
+  if (normalized === "bad request" || normalized === "forbidden") return true;
+  if (normalized.startsWith("request failed")) return true;
+  if (normalized.includes("token exchange failed")) return true;
+  return !normalized.includes("http") && normalized.length < 12;
+}
+
+/** Prefer configured redirect URI for mismatch errors; avoid generic HTTP text like "Bad Request". */
+function buildOAuthRedirectParams(platform, reason, callbackError = null) {
+  const normalizedReason = String(reason || "").toLowerCase();
+  const isRedirectMismatch =
+    normalizedReason.includes("google_redirect_uri_mismatch") ||
+    normalizedReason.includes("redirect_uri_mismatch");
+
+  if (isRedirectMismatch && isGooglePlatform(platform)) {
+    return {
+      detail: "",
+      redirectUri: resolveGoogleRedirectUriForPlatform(platform),
+    };
+  }
+
+  const rawDetail =
+    callbackError?.details?.error_description ||
+    callbackError?.details?.error?.message ||
+    callbackError?.details?.error_message ||
+    (typeof callbackError?.message === "string" ? callbackError.message : "") ||
+    "";
+
+  return {
+    detail: isLowValueOAuthDetail(rawDetail) ? "" : String(rawDetail).trim(),
+    redirectUri: "",
+  };
+}
+
 function mapCallbackReason(callbackError) {
   if (!callbackError?.message) return "oauth_callback_failed";
   const normalized = callbackError.message.toLowerCase();
@@ -1312,11 +1362,21 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
   const { code, state, error, error_description: errorDescription } = req.query;
   const clientBaseUrl = getClientUrl();
 
-  const makeRedirectUrl = (flow, status, reason = "", platform = normalizedPlatform, detail = "") => {
+  const makeRedirectUrl = (
+    flow,
+    status,
+    reason = "",
+    platform = normalizedPlatform,
+    detail = "",
+    redirectUri = ""
+  ) => {
     const path = getOAuthReturnPath(flow);
     const reasonParam = reason ? `&reason=${encodeURIComponent(reason)}` : "";
     const detailParam = detail ? `&oauth_detail=${encodeURIComponent(detail)}` : "";
-    return `${clientBaseUrl}${path}?social_platform=${platform}&social_status=${status}${reasonParam}${detailParam}`;
+    const redirectUriParam = redirectUri
+      ? `&oauth_redirect_uri=${encodeURIComponent(redirectUri)}`
+      : "";
+    return `${clientBaseUrl}${path}?social_platform=${platform}&social_status=${status}${reasonParam}${detailParam}${redirectUriParam}`;
   };
 
   let flowForRedirect = "settings";
@@ -1336,7 +1396,11 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
         providerError: error,
         providerErrorDescription: errorDescription,
       });
-      return res.redirect(makeRedirectUrl(flow, "error", mapProviderErrorReason(error, errorDescription)));
+      const providerReason = mapProviderErrorReason(error, errorDescription);
+      const { detail, redirectUri } = buildOAuthRedirectParams(platform, providerReason, {
+        details: { error_description: errorDescription },
+      });
+      return res.redirect(makeRedirectUrl(flow, "error", providerReason, platform, detail, redirectUri));
     }
     if (!code) {
       throw new Error("Missing authorization code.");
@@ -1760,19 +1824,20 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
     });
     return res.redirect(makeRedirectUrl(flow, "connected", "", platform));
   } catch (callbackError) {
-    const graphDetail =
-      callbackError?.details?.error_description ||
-      callbackError?.details?.error?.message ||
-      callbackError?.details?.error_message ||
-      (typeof callbackError?.message === "string" ? callbackError.message : "") ||
-      "";
+    const callbackReason = mapCallbackReason(callbackError);
+    const { detail, redirectUri } = buildOAuthRedirectParams(
+      platformForRedirect,
+      callbackReason,
+      callbackError
+    );
     console.error("[oauth:callback:error]", {
       platform: platformForRedirect,
       message: callbackError?.message,
       code: callbackError?.code,
-      graphDetail: graphDetail || undefined,
-      graphCode: callbackError?.details?.error?.code,
-      graphType: callbackError?.details?.error?.type,
+      oauthRedirectUri: redirectUri || undefined,
+      oauthDetail: detail || undefined,
+      graphCode: callbackError?.details?.error,
+      graphDescription: callbackError?.details?.error_description,
     });
     console.info("[oauth:callback:result]", {
       platform: platformForRedirect,
@@ -1781,13 +1846,7 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
       code: callbackError?.code || "oauth_callback_failed",
     });
     return res.redirect(
-      makeRedirectUrl(
-        flowForRedirect,
-        "error",
-        mapCallbackReason(callbackError),
-        platformForRedirect,
-        graphDetail || callbackError?.message || ""
-      )
+      makeRedirectUrl(flowForRedirect, "error", callbackReason, platformForRedirect, detail, redirectUri)
     );
   }
 }

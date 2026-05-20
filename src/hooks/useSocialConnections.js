@@ -214,6 +214,7 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
     const status = params.get("social_status");
     const reason = params.get("reason");
     const oauthDetail = params.get("oauth_detail");
+    const oauthRedirectUri = params.get("oauth_redirect_uri");
     if (!platform || !status) return;
 
     const { queue, statusMap, flow } = loadConnectQueue();
@@ -238,7 +239,7 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
         }
       })();
     } else {
-      const message = getSocialOAuthErrorMessage(reason, platform, oauthDetail);
+      const message = getSocialOAuthErrorMessage(reason, platform, oauthDetail, oauthRedirectUri);
       setToast?.({ message, error: true });
       setOauthBanner({ type: "error", message });
       if (inQueue) {
@@ -251,6 +252,7 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
     params.delete("social_status");
     params.delete("reason");
     params.delete("oauth_detail");
+    params.delete("oauth_redirect_uri");
     window.history.replaceState(
       {},
       "",

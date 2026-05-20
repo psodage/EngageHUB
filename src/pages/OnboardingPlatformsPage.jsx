@@ -128,6 +128,7 @@ export default function OnboardingPlatformsPage() {
     const socialStatus = params.get("social_status");
     const reason = params.get("reason");
     const oauthDetail = params.get("oauth_detail");
+    const oauthRedirectUri = params.get("oauth_redirect_uri");
     if (!platform || !socialStatus) return;
 
     const { queue: persistedQueue, statusMap: persistedStatusMap } = loadPersistedFlow();
@@ -149,7 +150,7 @@ export default function OnboardingPlatformsPage() {
         setToast({ message: `${platform} connected successfully.` });
         goToNext(persistedQueue, nextStatusMap);
       } else {
-        const message = getSocialOAuthErrorMessage(reason, platform, oauthDetail);
+        const message = getSocialOAuthErrorMessage(reason, platform, oauthDetail, oauthRedirectUri);
         setToast({ message, error: true });
       }
     };
@@ -161,6 +162,7 @@ export default function OnboardingPlatformsPage() {
     params.delete("social_status");
     params.delete("reason");
     params.delete("oauth_detail");
+    params.delete("oauth_redirect_uri");
     const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
     window.history.replaceState({}, "", nextUrl);
   }, [started, setToast, setConnectionStatus, refreshConnectedAccounts]);

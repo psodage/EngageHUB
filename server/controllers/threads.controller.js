@@ -31,6 +31,14 @@ function mapProviderErrorReason(error, errorDescription = "") {
 function mapCallbackReason(callbackError) {
   if (!callbackError?.message) return "oauth_callback_failed";
   const normalized = callbackError.message.toLowerCase();
+  const detailsBlob = JSON.stringify(callbackError?.details || "").toLowerCase();
+  if (
+    normalized.includes("used_authorization_code") ||
+    detailsBlob.includes("used_authorization_code") ||
+    callbackError?.code === "threads_invalid_auth_code"
+  ) {
+    return "threads_invalid_auth_code";
+  }
   if (callbackError?.code) return callbackError.code;
   if (normalized.includes("missing authorization code")) return "missing_code";
   if (normalized.includes("missing oauth state") || normalized.includes("invalid oauth state")) return "invalid_state";
