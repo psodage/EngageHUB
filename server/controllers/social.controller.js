@@ -11,6 +11,7 @@ import { decryptToken, encryptToken } from "../utils/crypto.js";
 import { publishFacebookPagePost, publishFacebookProfilePost } from "../services/social/facebookPublish.service.js";
 import facebookService from "../services/social/facebook.service.js";
 import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/providerConfig.util.js";
+import { resolveProviderRedirectUri } from "../utils/redirectUri.util.js";
 import { getPlatformCapabilities } from "../config/platformCapabilities.js";
 import {
   disconnectAccount,
@@ -113,6 +114,12 @@ function mapProviderErrorReason(error, errorDescription = "") {
   if (error === "access_denied") return "login_canceled";
   if (error === "invalid_scope") return "invalid_scope";
   if (normalizedDescription.includes("invalid scopes")) return "invalid_scope";
+  if (
+    error === "redirect_uri_mismatch" ||
+    normalizedDescription.includes("redirect_uri_mismatch")
+  ) {
+    return "google_redirect_uri_mismatch";
+  }
   return errorDescription || error || "oauth_error";
 }
 
@@ -3992,8 +3999,8 @@ export async function debugSocialEnvCheck(req, res) {
       appConfig: {
         appBaseUrl: appConfig.appBaseUrl,
         clientBaseUrl: appConfig.clientBaseUrl,
-        googleRedirectUri: appConfig.googleRedirectUri || "missing",
-        googleBusinessRedirectUri: appConfig.googleBusinessRedirectUri || "missing",
+        googleRedirectUri: resolveProviderRedirectUri("youtube") || "missing",
+        googleBusinessRedirectUri: resolveProviderRedirectUri("googleBusiness") || "missing",
         linkedinRedirectUri: appConfig.linkedinRedirectUri || "missing",
         metaRedirectUri: appConfig.metaRedirectUri || "missing",
         instagramRedirectUri: appConfig.instagramRedirectUri || "missing",

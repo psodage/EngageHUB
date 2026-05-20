@@ -9,8 +9,8 @@ const requiredEnvKeys = [
 ];
 
 const providerEnvMap = {
-  youtube: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_YOUTUBE_REDIRECT_URI"],
-  googleBusiness: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_BUSINESS_REDIRECT_URI"],
+  youtube: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+  googleBusiness: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
   facebook: ["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI"],
   instagram: ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET", "INSTAGRAM_REDIRECT_URI"],
   threads: ["THREADS_APP_ID", "THREADS_APP_SECRET", "THREADS_REDIRECT_URI"],
@@ -59,6 +59,14 @@ export function getProviderEnvStatus() {
       keyAcc[key] = Boolean(process.env[key]);
       return keyAcc;
     }, {});
+    if (platform === "youtube") {
+      acc[platform].GOOGLE_YOUTUBE_REDIRECT_URI = Boolean(
+        process.env.GOOGLE_YOUTUBE_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI
+      );
+    }
+    if (platform === "googleBusiness") {
+      acc[platform].GOOGLE_BUSINESS_REDIRECT_URI = Boolean(process.env.GOOGLE_BUSINESS_REDIRECT_URI);
+    }
     return acc;
   }, {});
 }

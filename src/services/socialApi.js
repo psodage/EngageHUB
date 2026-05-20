@@ -124,6 +124,24 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
     }
     return "OAuth client configuration is invalid. Verify provider credentials and redirect URI.";
   }
+  if (
+    normalized.includes("google_redirect_uri_mismatch") ||
+    normalized.includes("redirect_uri_mismatch")
+  ) {
+    if (platformKey === "googlebusiness") {
+      const uri = detail || "https://engagehub.onrender.com/api/social/google-business/callback";
+      return (
+        `Google OAuth redirect URI mismatch for Business Profile. In Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs, add this exact URL (must match GOOGLE_BUSINESS_REDIRECT_URI in .env): ${uri}`
+      );
+    }
+    if (platformKey === "youtube") {
+      const uri = detail || "https://engagehub.onrender.com/api/social/youtube/callback";
+      return (
+        `Google OAuth redirect URI mismatch for YouTube. In Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs, add this exact URL (must match GOOGLE_YOUTUBE_REDIRECT_URI or GOOGLE_REDIRECT_URI in .env): ${uri}`
+      );
+    }
+    return "Google OAuth redirect URI mismatch. Add the exact callback URL from your .env to Google Cloud Console → Credentials → Authorized redirect URIs.";
+  }
   if (normalized.includes("threads_redirect_uri_mismatch") || normalized.includes("callback_mismatch")) {
     return "Threads redirect URI mismatch. In Meta Developer Console, add the exact callback URL from THREADS_REDIRECT_URI, and use the same URL when connecting (local vs production).";
   }

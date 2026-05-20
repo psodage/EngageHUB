@@ -1,5 +1,6 @@
 import { Readable } from "stream";
 import { google } from "googleapis";
+import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
 
 const YOUTUBE_SCOPES = [
   "openid",
@@ -17,7 +18,7 @@ function maskClientId(value) {
 function createClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  const redirectUri = resolveProviderRedirectUri("youtube");
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error("Google OAuth is not configured.");
   }
@@ -37,7 +38,7 @@ const youtubeService = {
     });
     console.info("[oauth:youtube:auth-url]", {
       platform: "youtube",
-      redirectUri: process.env.GOOGLE_REDIRECT_URI,
+      redirectUri: resolveProviderRedirectUri("youtube"),
       clientId: maskClientId(process.env.GOOGLE_CLIENT_ID),
     });
     return authUrl;
@@ -56,7 +57,7 @@ const youtubeService = {
     } catch (error) {
       console.error("[oauth:youtube:token:error]", {
         message: error?.message,
-        redirectUri: process.env.GOOGLE_REDIRECT_URI,
+        redirectUri: resolveProviderRedirectUri("youtube"),
         clientId: maskClientId(process.env.GOOGLE_CLIENT_ID),
       });
       throw new Error("Google token exchange failed. Verify client credentials and redirect URI.");

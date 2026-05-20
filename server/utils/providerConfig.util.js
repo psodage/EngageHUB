@@ -1,4 +1,5 @@
 import { getProviderRequiredEnvKeys } from "../config/social.config.js";
+import { resolveProviderRedirectUri } from "./redirectUri.util.js";
 
 function maskIdentifier(value) {
   if (!value) return "missing";
@@ -7,6 +8,24 @@ function maskIdentifier(value) {
 }
 
 export function validateProviderConfig(platform) {
+  if (platform === "youtube") {
+    const missing = [];
+    if (!process.env.GOOGLE_CLIENT_ID) missing.push("GOOGLE_CLIENT_ID");
+    if (!process.env.GOOGLE_CLIENT_SECRET) missing.push("GOOGLE_CLIENT_SECRET");
+    if (!resolveProviderRedirectUri("youtube")) {
+      missing.push("GOOGLE_YOUTUBE_REDIRECT_URI or GOOGLE_REDIRECT_URI or APP_BASE_URL");
+    }
+    return { valid: missing.length === 0, missing };
+  }
+  if (platform === "googleBusiness") {
+    const missing = [];
+    if (!process.env.GOOGLE_CLIENT_ID) missing.push("GOOGLE_CLIENT_ID");
+    if (!process.env.GOOGLE_CLIENT_SECRET) missing.push("GOOGLE_CLIENT_SECRET");
+    if (!resolveProviderRedirectUri("googleBusiness")) {
+      missing.push("GOOGLE_BUSINESS_REDIRECT_URI or APP_BASE_URL");
+    }
+    return { valid: missing.length === 0, missing };
+  }
   const requiredKeys = getProviderRequiredEnvKeys(platform);
   const missing = requiredKeys.filter((key) => !process.env[key]);
   return {
@@ -20,14 +39,14 @@ export function getSafeProviderDebugInfo(platform) {
     return {
       platform,
       clientId: maskIdentifier(process.env.GOOGLE_CLIENT_ID),
-      redirectUri: process.env.GOOGLE_REDIRECT_URI || "missing",
+      redirectUri: resolveProviderRedirectUri("youtube") || "missing",
     };
   }
   if (platform === "googleBusiness") {
     return {
       platform,
       clientId: maskIdentifier(process.env.GOOGLE_CLIENT_ID),
-      redirectUri: process.env.GOOGLE_BUSINESS_REDIRECT_URI || "missing",
+      redirectUri: resolveProviderRedirectUri("googleBusiness") || "missing",
     };
   }
   if (platform === "linkedin") {

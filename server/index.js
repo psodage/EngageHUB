@@ -11,7 +11,8 @@ import { createAiRoutes } from "./routes/ai.routes.js";
 import { createScheduleRoutes } from "./routes/schedule.routes.js";
 import { createLinkPreviewRoutes } from "./routes/linkPreview.routes.js";
 import { startScheduledPostWorker } from "./jobs/scheduledPostWorker.js";
-import { getProviderEnvStatus, getRequiredEnvStatus } from "./config/social.config.js";
+import { getProviderEnvStatus, getRequiredEnvStatus, getAppConfig } from "./config/social.config.js";
+import { getGoogleOAuthRedirectWarnings, resolveProviderRedirectUri } from "./utils/redirectUri.util.js";
 import { registerGoogleAuthRoutes } from "./routes/authGoogle.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,10 +32,19 @@ if (!jwtSecret) {
   throw new Error("JWT_SECRET is required. Add it to your .env file.");
 }
 
+const appConfig = getAppConfig();
 console.info("[startup:env]", {
   required: getRequiredEnvStatus(),
   providers: getProviderEnvStatus(),
+  googleOAuth: {
+    youtubeRedirectUri: resolveProviderRedirectUri("youtube") || "missing",
+    googleBusinessRedirectUri: resolveProviderRedirectUri("googleBusiness") || "missing",
+    appBaseUrl: appConfig.appBaseUrl,
+  },
 });
+for (const warning of getGoogleOAuthRedirectWarnings()) {
+  console.warn("[startup:google-oauth]", warning);
+}
 
 const client = new MongoClient(mongoUri);
 await client.connect();
