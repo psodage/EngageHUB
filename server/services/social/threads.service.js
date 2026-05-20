@@ -29,7 +29,11 @@ function summarizeAxiosError(error) {
 }
 
 function extractThreadsOAuthErrorMessage(data) {
-  const err = data?.error;
+  if (!data || typeof data !== "object") return null;
+  if (typeof data.error_message === "string" && data.error_message.trim()) {
+    return data.error_message.trim();
+  }
+  const err = data.error;
   if (typeof err === "string") return err;
   if (err && typeof err === "object") {
     return err.error_user_msg || err.message || err.type || null;
@@ -94,12 +98,14 @@ async function threadsGraphGet(path, accessToken, params = {}) {
     });
     return response.data;
   } catch (error) {
-    throw createThreadsError(
-      "Threads API request failed.",
-      "threads_graph_error",
-      error?.response?.status || 500,
-      error?.response?.data || null
-    );
+    const status = error?.response?.status || 500;
+    const data = error?.response?.data || null;
+    const message =
+      extractThreadsGraphErrorMessage(data) ||
+      extractThreadsOAuthErrorMessage(data) ||
+      error?.message ||
+      "Threads API request failed.";
+    throw createThreadsError(message, "threads_graph_error", status, data);
   }
 }
 
@@ -165,6 +171,41 @@ const threadsService = {
     return this.getAuthUrl(state, scopes);
   },
 
+  async exchangeShortLivedForLongLived(shortLivedToken) {
+    const { appSecret } = ensureThreadsConfig();
+    if (!shortLivedToken) {
+      throw createThreadsError("Missing short-lived Threads access token.", "threads_token_missing", 400);
+    }
+    try {
+      const response = await axios.get("https://graph.threads.net/access_token", {
+        params: {
+          grant_type: "th_exchange_token",
+          client_secret: appSecret,
+          access_token: shortLivedToken,
+        },
+      });
+      const data = response.data || {};
+      return {
+        accessToken: data.access_token || shortLivedToken,
+        tokenType: data.token_type || "Bearer",
+        expiresIn: data.expires_in || 60 * 60 * 24 * 60,
+      };
+    } catch (error) {
+      console.error("[oauth:threads:long-lived:error]", {
+        platform: "threads",
+        error: summarizeAxiosError(error),
+      });
+      const responseData = error?.response?.data || null;
+      const providerMessage = extractThreadsOAuthErrorMessage(responseData) || extractThreadsGraphErrorMessage(responseData);
+      throw createThreadsError(
+        providerMessage || "Failed to exchange Threads token for a long-lived token.",
+        "threads_long_lived_exchange_failed",
+        error?.response?.status || 400,
+        responseData
+      );
+    }
+  },
+
   async exchangeCodeForToken(code) {
     const { appId, appSecret, redirectUri } = ensureThreadsConfig();
     try {
@@ -180,11 +221,32 @@ const threadsService = {
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
       const data = response.data || {};
+      const shortLivedToken = data.access_token || "";
+      let accessToken = shortLivedToken;
+      let expiresIn = data.expires_in || 60 * 60;
+      let tokenType = data.token_type || "Bearer";
+
+      if (shortLivedToken) {
+        try {
+          const longLived = await this.exchangeShortLivedForLongLived(shortLivedToken);
+          accessToken = longLived.accessToken || shortLivedToken;
+          expiresIn = longLived.expiresIn || expiresIn;
+          tokenType = longLived.tokenType || tokenType;
+        } catch (longLivedError) {
+          console.warn("[oauth:threads:long-lived:fallback]", {
+            platform: "threads",
+            message: longLivedError?.message,
+            code: longLivedError?.code,
+          });
+        }
+      }
+
       return {
-        accessToken: data.access_token || "",
+        accessToken,
         refreshToken: "",
-        tokenType: data.token_type || "Bearer",
-        expiresIn: data.expires_in || 60 * 60,
+        tokenType,
+        expiresIn,
+        platformUserId: data.user_id ? String(data.user_id) : "",
         scopes: Array.isArray(data?.scope) ? data.scope : data.scope ? data.scope.split(/[,\s]+/).filter(Boolean) : this.defaultScopes,
       };
     } catch (error) {
@@ -243,9 +305,29 @@ const threadsService = {
     };
   },
 
-  async refreshTokenIfNeeded() {
-    // Threads long-lived token exchange can be added later (th_exchange_token).
-    return null;
+  async refreshTokenIfNeeded(accessToken) {
+    if (!accessToken) return null;
+    try {
+      const response = await axios.get("https://graph.threads.net/refresh_access_token", {
+        params: {
+          grant_type: "th_refresh_token",
+          access_token: accessToken,
+        },
+      });
+      const data = response.data || {};
+      if (!data.access_token) return null;
+      return {
+        accessToken: data.access_token,
+        tokenType: data.token_type || "Bearer",
+        expiresIn: data.expires_in || 60 * 60 * 24 * 60,
+      };
+    } catch (error) {
+      console.warn("[oauth:threads:refresh:error]", {
+        platform: "threads",
+        error: summarizeAxiosError(error),
+      });
+      return null;
+    }
   },
 
   async disconnectAccount() {

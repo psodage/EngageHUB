@@ -145,6 +145,11 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
       "Instagram’s API returned an error while finishing login. Confirm the account is a professional or creator profile, that your Meta app has Instagram Login with the right scopes, and try connecting again.";
     return detail ? `${base} (${detail})` : base;
   }
+  if (normalized === "threads_graph_error" || normalized === "threads_long_lived_exchange_failed") {
+    const base =
+      "Threads API returned an error while finishing login. In Meta Developer Console, confirm you use the Threads App ID and Threads App Secret (not the Facebook app ID), add your account as a Threads Tester, and that THREADS_REDIRECT_URI matches the OAuth redirect URL exactly.";
+    return detail ? `${base} (${detail})` : base;
+  }
   if (normalized === "account_already_linked" || normalized.includes("already linked to another engagehub user")) {
     const label = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "This social account";
     return `${label} is already connected to another EngageHub account. Sign in with that account and disconnect it under Channels, or connect a different account.`;
@@ -202,9 +207,13 @@ export async function getFacebookPagesSession(sessionId) {
   }
 }
 
-export async function selectFacebookPage(sessionId, pageId) {
+export async function selectFacebookPage(sessionId, pageIds) {
   try {
-    const { data } = await socialClient.post("/api/social/facebook/select-page", { sessionId, pageId });
+    const ids = Array.isArray(pageIds) ? pageIds : [pageIds];
+    const { data } = await socialClient.post("/api/social/facebook/select-page", {
+      sessionId,
+      pageIds: ids.map((id) => String(id || "").trim()).filter(Boolean),
+    });
     return data.data;
   } catch (error) {
     throw parseApiError(error, "Unable to finish Facebook connection.");

@@ -214,7 +214,12 @@ export async function disconnectAccountById(userId, accountId) {
   const normalizedPlatform = account.platform;
   const platformUserId = String(account.platformUserId || "").trim();
 
-  if (isOAuthRootEntityType(account.entityType) && platformUserId) {
+  // Facebook profile + pages are separate rows (different entityIds); never cascade-delete by platformUserId.
+  if (
+    normalizedPlatform !== "facebook" &&
+    isOAuthRootEntityType(account.entityType) &&
+    platformUserId
+  ) {
     await SocialAccount.deleteMany({ userId, platform: normalizedPlatform, platformUserId });
   } else {
     await SocialAccount.deleteOne({ _id: accountId, userId });

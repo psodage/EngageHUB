@@ -96,10 +96,11 @@ export async function connectThreads(req, res) {
 export async function threadsOauthCallback(req, res) {
   const { code, state, error, error_description: errorDescription } = req.query;
   const clientBaseUrl = getClientUrl();
-  const makeRedirectUrl = (flow, status, reason = "") => {
+  const makeRedirectUrl = (flow, status, reason = "", detail = "") => {
     const path = getOAuthReturnPath(flow);
     const reasonParam = reason ? `&reason=${encodeURIComponent(reason)}` : "";
-    return `${clientBaseUrl}${path}?social_platform=threads&social_status=${status}${reasonParam}`;
+    const detailParam = detail ? `&oauth_detail=${encodeURIComponent(detail)}` : "";
+    return `${clientBaseUrl}${path}?social_platform=threads&social_status=${status}${reasonParam}${detailParam}`;
   };
 
   let flowForRedirect = "settings";
@@ -166,7 +167,9 @@ export async function threadsOauthCallback(req, res) {
       code: callbackError?.code,
       providerError: callbackError?.details || null,
     });
-    return res.redirect(makeRedirectUrl(flowForRedirect, "error", mapCallbackReason(callbackError)));
+    const detail =
+      callbackError?.message && typeof callbackError.message === "string" ? callbackError.message : "";
+    return res.redirect(makeRedirectUrl(flowForRedirect, "error", mapCallbackReason(callbackError), detail));
   }
 }
 

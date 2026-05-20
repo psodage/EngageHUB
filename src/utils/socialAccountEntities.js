@@ -2,6 +2,55 @@
 const OAUTH_ROOT_ENTITY_TYPES = new Set(["profile", "bot", "business", "professional"]);
 
 /**
+ * Facebook stores profile + each Page as separate rows; both should appear as connections.
+ * @param {Record<string, unknown> | null | undefined} groupedAccount
+ */
+export function getFacebookConnectionEntities(groupedAccount) {
+  if (!groupedAccount?.isConnected) return [];
+
+  const entities = Array.isArray(groupedAccount.entities) ? groupedAccount.entities : [];
+  const seen = new Set();
+  /** @type {Array<Record<string, unknown>>} */
+  const rows = [];
+
+  for (const entity of entities) {
+    if (!entity || entity.isConnected === false) continue;
+    const entityType = entity.entityType || "profile";
+    if (entityType !== "profile" && entityType !== "page") continue;
+    const entityId = String(entity.entityId || entity.platformUserId || "").trim();
+    if (!entityId) continue;
+    const key = `${entityType}:${entityId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(entity);
+  }
+
+  if (!rows.length && groupedAccount.platformUserId) {
+    const entityType = groupedAccount.entityType || "profile";
+    if (entityType === "profile" || entityType === "page") {
+      rows.push({
+        id: groupedAccount.id,
+        platformUserId: groupedAccount.platformUserId,
+        entityType,
+        entityId: groupedAccount.entityId || groupedAccount.platformUserId,
+        accountName: groupedAccount.accountName,
+        username: groupedAccount.username,
+        profileImage: groupedAccount.profileImage,
+        isConnected: true,
+        isPrimary: groupedAccount.isPrimary,
+        isTokenExpired: groupedAccount.isTokenExpired,
+      });
+    }
+  }
+
+  return rows.sort((a, b) => {
+    if (a.entityType === "profile" && b.entityType !== "profile") return -1;
+    if (b.entityType === "profile" && a.entityType !== "profile") return 1;
+    return String(a.accountName || "").localeCompare(String(b.accountName || ""));
+  });
+}
+
+/**
  * @param {Record<string, unknown> | null | undefined} groupedAccount
  * @returns {Array<Record<string, unknown>>}
  */
@@ -54,7 +103,8 @@ export function listConnectionCardsFromAccounts(accounts) {
   for (const grouped of accounts) {
     if (!grouped?.isConnected) continue;
     const platform = String(grouped.platform || "");
-    const roots = getDistinctOAuthConnections(grouped);
+    const roots =
+      platform === "facebook" ? getFacebookConnectionEntities(grouped) : getDistinctOAuthConnections(grouped);
 
     if (!roots.length) {
       cards.push({

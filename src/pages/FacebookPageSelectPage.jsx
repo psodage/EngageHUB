@@ -21,17 +21,22 @@ function InstagramChip({ ig }) {
   );
 }
 
-function AccountCard({ account, selected, onSelect }) {
+function AccountCard({ account, selected, disabled, onSelect }) {
   const ig = account?.instagram_business_account;
   const isProfile = account?.entityType === "profile";
   return (
     <button
       type="button"
-      onClick={() => onSelect(account.id)}
+      disabled={disabled}
+      onClick={() => !disabled && onSelect(account.id)}
       className={[
         "group relative flex w-full items-start gap-4 rounded-2xl border p-4 text-left shadow-card transition",
         "bg-white hover:border-buffer-300 dark:bg-slate-900 dark:hover:border-buffer-500",
-        selected ? "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15" : "border-slate-200/90 dark:border-slate-800",
+        disabled
+          ? "cursor-not-allowed opacity-55 border-slate-200/90 dark:border-slate-800"
+          : selected
+            ? "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15"
+            : "border-slate-200/90 dark:border-slate-800",
       ].join(" ")}
     >
       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
@@ -80,7 +85,8 @@ export default function FacebookPageSelectPage() {
   const [profile, setProfile] = useState(null);
   const [pages, setPages] = useState([]);
   const [flow, setFlow] = useState("settings");
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [alreadyConnectedKeys, setAlreadyConnectedKeys] = useState(() => new Set());
 
   const destinations = useMemo(() => {
     const list = [];
@@ -106,8 +112,28 @@ export default function FacebookPageSelectPage() {
       setProfile(nextProfile);
       setPages(nextPages);
       setFlow(data?.flow || "settings");
-      const defaultId = nextProfile?.id || nextPages[0]?.id || "";
-      setSelectedId((prev) => prev || (defaultId ? String(defaultId) : ""));
+      const fbAccount = (await refreshConnectedAccounts?.().catch(() => null))?.find?.(
+        (item) => item.platform === "facebook"
+      );
+      const connected = new Set();
+      if (fbAccount?.entities) {
+        for (const entity of fbAccount.entities) {
+          if (entity?.isConnected === false) continue;
+          const type = entity.entityType || "profile";
+          const id = String(entity.entityId || entity.platformUserId || "").trim();
+          if (id && (type === "profile" || type === "page")) connected.add(`${type}:${id}`);
+        }
+      }
+      setAlreadyConnectedKeys(connected);
+
+      const defaultSelectable = [];
+      if (nextProfile?.id && !connected.has(`profile:${nextProfile.id}`)) {
+        defaultSelectable.push(String(nextProfile.id));
+      }
+      for (const page of nextPages) {
+        if (page?.id && !connected.has(`page:${page.id}`)) defaultSelectable.push(String(page.id));
+      }
+      setSelectedIds((prev) => (prev.size ? prev : new Set(defaultSelectable)));
       if (!nextProfile?.id && !nextPages.length) {
         setError("No Facebook Profile or Pages were found for this account.");
       }
@@ -132,18 +158,35 @@ export default function FacebookPageSelectPage() {
     }
   };
 
+  const toggleSelection = (id) => {
+    const key = String(id || "").trim();
+    if (!key) return;
+    const account = destinations.find((d) => String(d.id) === key);
+    const entityType = account?.entityType === "profile" ? "profile" : "page";
+    if (alreadyConnectedKeys.has(`${entityType}:${key}`)) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const handleFinish = async () => {
-    if (!selectedId || finishing) return;
+    if (!selectedIds.size || finishing) return;
     setFinishing(true);
     try {
-      const result = await selectFacebookPage(sessionId, selectedId);
+      const result = await selectFacebookPage(sessionId, [...selectedIds]);
       await refreshConnectedAccounts?.().catch(() => {});
-      const isProfile = profile?.id && selectedId === profile.id;
       if (result?.warning) {
         setToast?.({ message: result.warning, error: false });
       } else {
+        const count = result?.connectedCount || selectedIds.size;
         setToast?.({
-          message: isProfile ? "Facebook Profile connected successfully." : "Facebook Page connected successfully.",
+          message:
+            count === 1
+              ? "Facebook destination connected successfully."
+              : `${count} Facebook destinations connected successfully.`,
         });
       }
       const returnPath = flowReturnPath(result?.flow || flow);
@@ -182,7 +225,7 @@ export default function FacebookPageSelectPage() {
           <div className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800 dark:bg-slate-950/30">
             <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Confirm your Account</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Choose your Facebook Profile or Page to connect.
+              Select your Facebook Profile, one or more Pages, or both. Existing connections stay linked.
             </p>
           </div>
 
@@ -217,25 +260,30 @@ export default function FacebookPageSelectPage() {
               </div>
             ) : (
               <div className="grid gap-3">
-                {destinations.map((account) => (
-                  <AccountCard
-                    key={`${account.entityType || "page"}-${account.id}`}
-                    account={account}
-                    selected={selectedId === account.id}
-                    onSelect={(id) => setSelectedId(String(id))}
-                  />
-                ))}
+                {destinations.map((account) => {
+                  const entityType = account?.entityType === "profile" ? "profile" : "page";
+                  const alreadyConnected = alreadyConnectedKeys.has(`${entityType}:${account.id}`);
+                  return (
+                    <AccountCard
+                      key={`${account.entityType || "page"}-${account.id}`}
+                      account={account}
+                      selected={selectedIds.has(String(account.id))}
+                      disabled={alreadyConnected}
+                      onSelect={toggleSelection}
+                    />
+                  );
+                })}
               </div>
             )}
 
             <div className="flex items-center justify-end pt-2">
               <button
                 type="button"
-                disabled={loading || Boolean(error) || !selectedId || finishing}
+                disabled={loading || Boolean(error) || selectedIds.size === 0 || finishing}
                 onClick={handleFinish}
                 className={[
                   "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition",
-                  loading || error || !selectedId || finishing
+                  loading || error || selectedIds.size === 0 || finishing
                     ? "bg-slate-400 dark:bg-slate-700"
                     : "bg-buffer-600 hover:bg-buffer-700 dark:bg-buffer-500 dark:hover:bg-buffer-600",
                 ].join(" ")}

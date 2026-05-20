@@ -232,13 +232,156 @@ export async function facebookPagesSession(req, res) {
   }
 }
 
+async function connectFacebookDestinationFromSession({
+  userId,
+  doc,
+  sessionProfile,
+  pages,
+  destinationId,
+  assignPrimary,
+}) {
+  const profileId = sessionProfile?.id ? String(sessionProfile.id).trim() : "";
+  const pageId = String(destinationId || "").trim();
+  const isProfileSelection = profileId && pageId === profileId;
+
+  const tokenExpiresIn = doc.expiresAt
+    ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
+    : null;
+
+  let accessToken = "";
+  let selected = null;
+  let entityType = "page";
+
+  if (isProfileSelection) {
+    entityType = "profile";
+    selected = sessionProfile;
+    accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
+    if (!accessToken) {
+      const err = new Error("Facebook access token is unavailable. Please reconnect.");
+      err.status = 400;
+      err.code = "token_missing";
+      throw err;
+    }
+  } else {
+    selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
+    if (!selected) {
+      const err = new Error("Selected Facebook account not found.");
+      err.status = 404;
+      err.code = "selected_page_not_found";
+      throw err;
+    }
+    const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
+    accessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : "";
+    if (!accessToken) {
+      const err = new Error("Page access token is unavailable. Please reconnect.");
+      err.status = 400;
+      err.code = "token_missing";
+      throw err;
+    }
+  }
+
+  const facebookAccount = await upsertConnectedAccount({
+    userId,
+    platform: "facebook",
+    profile: {
+      platformUserId: String(selected.id || "").trim(),
+      entityType,
+      entityId: String(selected.id || "").trim(),
+      accountName: selected.name || "",
+      username: "",
+      email: selected.email || "",
+      profileImage: selected.pictureUrl || "",
+      isPrimary: assignPrimary,
+      capabilities: ["posting", "analytics"],
+      metadata: {
+        metaUserId: profileId,
+        category: selected.category || (entityType === "profile" ? "Personal profile" : ""),
+        pageId: entityType === "page" ? String(selected.id || "").trim() : "",
+        pageName: entityType === "page" ? selected.name || "" : "",
+        pictureUrl: selected.pictureUrl || "",
+        selectedAt: new Date().toISOString(),
+      },
+    },
+    tokenData: {
+      accessToken,
+      refreshToken: "",
+      tokenType: doc.tokenType || "Bearer",
+      expiresIn: tokenExpiresIn,
+      scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+    },
+  });
+
+  let instagramAccount = null;
+  let instagramWarning = "";
+  const ig = entityType === "page" ? selected?.instagram_business_account : null;
+  if (ig?.id) {
+    const pageAccessToken = accessToken;
+    instagramAccount = await upsertConnectedAccount({
+      userId,
+      platform: "instagram",
+      profile: {
+        platformUserId: String(ig.id || "").trim(),
+        entityType: "business",
+        entityId: String(ig.id || "").trim(),
+        accountName: ig.username || "",
+        username: ig.username || "",
+        email: "",
+        profileImage: ig.profile_picture_url || "",
+        isPrimary: false,
+        capabilities: ["posting", "analytics"],
+        metadata: {
+          metaUserId: profileId,
+          parentPageId: String(selected.id || "").trim(),
+        },
+      },
+      tokenData: {
+        accessToken: pageAccessToken,
+        refreshToken: "",
+        tokenType: doc.tokenType || "Bearer",
+        expiresIn: tokenExpiresIn,
+        scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+      },
+    });
+
+    if (instagramAccount?.id) {
+      await SocialAccount.updateOne(
+        { _id: instagramAccount.id, userId },
+        { $set: { parentAccountId: facebookAccount?.id || null } }
+      );
+    }
+
+    if (facebookAccount?.id) {
+      await SocialAccount.updateOne(
+        { _id: facebookAccount.id, userId },
+        {
+          $set: {
+            "metadata.linkedInstagramAccount": {
+              id: String(ig.id || "").trim(),
+              username: ig.username || "",
+              profile_picture_url: ig.profile_picture_url || "",
+            },
+          },
+        }
+      );
+    }
+  } else if (entityType === "page") {
+    instagramWarning = "No Instagram professional account linked to this Facebook Page.";
+  }
+
+  return { facebookAccount, instagramAccount, instagramWarning, entityType };
+}
+
 export async function selectFacebookPage(req, res) {
   try {
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : null;
     const sessionId = body?.sessionId != null ? String(body.sessionId).trim() : "";
-    const pageId = body?.pageId != null ? String(body.pageId).trim() : "";
-    if (!sessionId || !pageId) {
-      return errorResponse(res, "sessionId and pageId are required.", 400, "validation_error");
+    const pageIds = Array.isArray(body?.pageIds)
+      ? body.pageIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : body?.pageId != null
+        ? [String(body.pageId).trim()]
+        : [];
+    if (!sessionId || !pageIds.length) {
+      return errorResponse(res, "sessionId and pageId (or pageIds) are required.", 400, "validation_error");
     }
 
     const doc = await SocialOAuthSession.findById(sessionId);
@@ -255,135 +398,59 @@ export async function selectFacebookPage(req, res) {
       return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
     }
 
+    const userId = new ObjectId(req.auth.userId);
     const sessionProfile = doc?.payload?.profile;
     const pages = Array.isArray(doc?.payload?.pages) ? doc.payload.pages : [];
-    const profileId = sessionProfile?.id ? String(sessionProfile.id).trim() : "";
-    const isProfileSelection = profileId && pageId === profileId;
 
-    const tokenExpiresIn = doc.expiresAt
-      ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
-      : null;
-
-    let accessToken = "";
-    let selected = null;
-    let entityType = "page";
-
-    if (isProfileSelection) {
-      entityType = "profile";
-      selected = sessionProfile;
-      accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
-      if (!accessToken) {
-        return errorResponse(res, "Facebook access token is unavailable. Please reconnect.", 400, "token_missing");
-      }
-    } else {
-      selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
-      if (!selected) {
-        return errorResponse(res, "Selected Facebook account not found.", 404, "selected_page_not_found");
-      }
-      const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
-      accessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : "";
-      if (!accessToken) {
-        return errorResponse(res, "Page access token is unavailable. Please reconnect.", 400, "token_missing");
-      }
-    }
-
-    const facebookAccount = await upsertConnectedAccount({
-      userId: new ObjectId(req.auth.userId),
+    let assignPrimary = !(await SocialAccount.exists({
+      userId,
       platform: "facebook",
-      profile: {
-        platformUserId: String(selected.id || "").trim(),
-        entityType,
-        entityId: String(selected.id || "").trim(),
-        accountName: selected.name || "",
-        username: "",
-        email: selected.email || "",
-        profileImage: selected.pictureUrl || "",
-        isPrimary: true,
-        capabilities: ["posting", "analytics"],
-        metadata: {
-          category: selected.category || (entityType === "profile" ? "Personal profile" : ""),
-          pageId: entityType === "page" ? String(selected.id || "").trim() : "",
-          pageName: entityType === "page" ? selected.name || "" : "",
-          pictureUrl: selected.pictureUrl || "",
-          selectedAt: new Date().toISOString(),
-        },
-      },
-      tokenData: {
-        accessToken,
-        refreshToken: "",
-        tokenType: doc.tokenType || "Bearer",
-        expiresIn: tokenExpiresIn,
-        scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
-      },
-    });
+      isPrimary: true,
+      isConnected: true,
+    }));
 
-    let instagramAccount = null;
-    let instagramWarning = "";
-    const ig = entityType === "page" ? selected?.instagram_business_account : null;
-    if (ig?.id) {
-      instagramAccount = await upsertConnectedAccount({
-        userId: new ObjectId(req.auth.userId),
-        platform: "instagram",
-        profile: {
-          platformUserId: String(ig.id || "").trim(),
-          entityType: "business",
-          entityId: String(ig.id || "").trim(),
-          accountName: ig.username || "",
-          username: ig.username || "",
-          email: "",
-          profileImage: ig.profile_picture_url || "",
-          isPrimary: true,
-          capabilities: ["posting", "analytics"],
-          metadata: {
-            parentPageId: String(selected.id || "").trim(),
-          },
-        },
-        tokenData: {
-          accessToken: pageAccessToken,
-          refreshToken: "",
-          tokenType: doc.tokenType || "Bearer",
-          expiresIn: tokenExpiresIn,
-          scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
-        },
+    /** @type {object[]} */
+    const connectedFacebook = [];
+    /** @type {object[]} */
+    const connectedInstagram = [];
+    const warnings = [];
+
+    for (const destinationId of pageIds) {
+      const result = await connectFacebookDestinationFromSession({
+        userId,
+        doc,
+        sessionProfile,
+        pages,
+        destinationId,
+        assignPrimary,
       });
-
-      if (instagramAccount?.id) {
-        await SocialAccount.updateOne(
-          { _id: instagramAccount.id, userId: new ObjectId(req.auth.userId) },
-          { $set: { parentAccountId: facebookAccount?.id || null } }
-        );
-      }
-
-      if (facebookAccount?.id) {
-        await SocialAccount.updateOne(
-          { _id: facebookAccount.id, userId: new ObjectId(req.auth.userId) },
-          {
-            $set: {
-              "metadata.linkedInstagramAccount": {
-                id: String(ig.id || "").trim(),
-                username: ig.username || "",
-                profile_picture_url: ig.profile_picture_url || "",
-              },
-            },
-          }
-        );
-      }
-    } else {
-      instagramWarning = "No Instagram professional account linked to this Facebook Page.";
+      connectedFacebook.push(result.facebookAccount);
+      if (result.instagramAccount) connectedInstagram.push(result.instagramAccount);
+      if (result.instagramWarning) warnings.push(result.instagramWarning);
+      if (assignPrimary) assignPrimary = false;
     }
 
     doc.status = "consumed";
     await doc.save();
 
+    const connectedCount = connectedFacebook.length;
+    const message =
+      connectedCount === 1
+        ? connectedFacebook[0]?.entityType === "profile"
+          ? "Facebook Profile connected successfully."
+          : "Facebook Page connected successfully."
+        : `${connectedCount} Facebook destinations connected successfully.`;
+
     return successResponse(
       res,
       {
-        facebook: facebookAccount,
-        instagram: instagramAccount,
-        warning: instagramWarning || null,
+        facebook: connectedFacebook.length === 1 ? connectedFacebook[0] : connectedFacebook,
+        instagram: connectedInstagram.length === 1 ? connectedInstagram[0] : connectedInstagram,
+        warning: warnings.length ? warnings.join(" ") : null,
         flow: doc.flow || "settings",
+        connectedCount,
       },
-      "Facebook Page connected successfully."
+      message
     );
   } catch (error) {
     const message = error?.message || "Unable to finish Facebook connection.";

@@ -64,23 +64,52 @@ export function buildPostingTargetsConfig(platformKey, account) {
   });
 
   if (platformKey === "facebook") {
-    const row = primaryRow();
-    const pid = row.entityId || account.platformUserId || "";
+    const profileRow =
+      entities.find((e) => e.entityType === "profile" && e.isConnected !== false) || null;
+    const pageRows = entities
+      .filter((e) => e.entityType === "page" && e.isConnected !== false)
+      .sort((a, b) => entityDisplayName(a).localeCompare(entityDisplayName(b)));
+
     /** @type {PostingTargetCard[]} */
-    const cards = [
-      {
+    const cards = [];
+    if (profileRow) {
+      const pid = profileRow.entityId || profileRow.platformUserId || "";
+      cards.push({
         key: `profile-${pid}`,
         badge: "profile",
-        title: row.accountName || row.username || "Your Facebook profile",
+        title: entityDisplayName(profileRow),
         sublabel: pid ? `Facebook profile · ID ${pid}` : "Facebook profile",
+        imageUrl: profileRow.profileImage || placeholderImage("facebook"),
+        path: `/channels/facebook`,
+      });
+    }
+    for (const page of pageRows) {
+      const pageId = page.entityId || page.platformUserId || "";
+      cards.push({
+        key: `page-${pageId}`,
+        badge: "page",
+        title: entityDisplayName(page),
+        sublabel: pageId ? `Facebook Page · ID ${pageId}` : "Facebook Page",
+        imageUrl: page.profileImage || placeholderImage("facebook"),
+        path: `/channels/facebook`,
+      });
+    }
+    if (!cards.length) {
+      const row = primaryRow();
+      const pid = row.entityId || account.platformUserId || "";
+      cards.push({
+        key: `fallback-${pid}`,
+        badge: account.entityType === "page" ? "page" : "profile",
+        title: row.accountName || row.username || "Facebook",
+        sublabel: pid ? `ID ${pid}` : "Facebook",
         imageUrl: row.profileImage || placeholderImage("facebook"),
         path: `/channels/facebook`,
-      },
-    ];
+      });
+    }
 
     return {
-      title: "Facebook profile",
-      description: "Publish to your personal Facebook timeline using your Meta login token. Page publishing is not used here.",
+      title: "Facebook destinations",
+      description: "Publish to your personal profile or any connected Facebook Page.",
       primaryCtaLabel: "Create post",
       primaryCtaPath: "/channels/facebook",
       cards,

@@ -5,7 +5,7 @@ import AccountSyncInfo from "./AccountSyncInfo";
 import LinkedAccountCard from "./channel-detail/LinkedAccountCard";
 import ChannelProfileSection from "./channel-detail/ChannelProfileSection";
 import { getChannelDisplayInfo } from "../../utils/channelDisplay";
-import { getDistinctOAuthConnections } from "../../utils/socialAccountEntities";
+import { getDistinctOAuthConnections, getFacebookConnectionEntities } from "../../utils/socialAccountEntities";
 
 function entityIcon(type) {
   if (type === "page" || type === "organization") return Building2;
@@ -22,9 +22,13 @@ export default function ChannelProfileView({
 }) {
   const info = getChannelDisplayInfo(account);
   const entities = Array.isArray(account?.entities) ? account.entities : [];
-  const oauthConnections = getDistinctOAuthConnections(account);
+  const oauthConnections =
+    platformKey === "facebook" ? getFacebookConnectionEntities(account) : getDistinctOAuthConnections(account);
   const managedEntities = entities.filter((entity) => {
     const type = entity?.entityType || "profile";
+    if (platformKey === "facebook") {
+      return type !== "profile" && type !== "page";
+    }
     return !["profile", "bot", "business", "professional"].includes(type);
   });
   const showOAuthConnections = oauthConnections.length > 0;
@@ -69,7 +73,11 @@ export default function ChannelProfileView({
         {showOAuthConnections ? (
           <ChannelProfileSection
             title="Connected accounts"
-            description="Each login is a separate connection. Use a different account when adding another."
+            description={
+              platformKey === "facebook"
+                ? "Your Facebook profile and Pages stay connected together. Add more via Connect channels."
+                : "Each login is a separate connection. Use a different account when adding another."
+            }
           >
             <ul className="grid gap-3 sm:grid-cols-2">
               {oauthConnections.map((entity) => (
