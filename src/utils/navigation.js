@@ -27,7 +27,7 @@ export function isChannelDetailActive(pathname, platformKey) {
 /** @param {string} search */
 export function getChannelTabFromSearch(search) {
   const tab = new URLSearchParams(search).get("tab");
-  if (tab === "profile" || tab === "feed" || tab === "create" || tab === "history") return tab;
+  if (tab === "profile" || tab === "create" || tab === "history") return tab;
   return "profile";
 }
 

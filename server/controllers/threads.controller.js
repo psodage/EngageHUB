@@ -98,7 +98,12 @@ export async function connectThreads(req, res) {
       debug: getSafeProviderDebugInfo("threads"),
     });
 
-    return successResponse(res, { url: authUrl, state, scopeSet, scopes }, "Threads OAuth URL generated.");
+    const redirectUri = getAppConfig().threadsRedirectUri || "";
+    return successResponse(
+      res,
+      { url: authUrl, state, scopeSet, scopes, redirectUri },
+      "Threads OAuth URL generated. Add redirectUri in Meta → Threads use case → Customize → Settings if connect fails."
+    );
   } catch (error) {
     console.error("[oauth:threads:connect:error]", {
       platform: "threads",

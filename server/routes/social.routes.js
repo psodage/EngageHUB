@@ -72,6 +72,8 @@ export function createSocialRoutes(requireAuth) {
   router.post("/google-business/select-locations", requireAuth, selectGoogleBusinessLocations);
   router.post("/google-business/disconnect-location", requireAuth, disconnectGoogleBusinessLocationAccount);
   router.get("/google-business/callback", googleBusinessOauthCallback);
+  // Legacy camelCase path — keep in sync with GOOGLE_BUSINESS_REDIRECT_URI if used in Google Cloud Console
+  router.get("/googleBusiness/callback", googleBusinessOauthCallback);
   router.post("/facebook/post", requireAuth, createFacebookPost);
   router.get("/facebook/pages-session", requireAuth, facebookPagesSession);
   router.post("/facebook/select-page", requireAuth, selectFacebookPage);

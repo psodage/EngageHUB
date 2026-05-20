@@ -27,7 +27,6 @@ import GoogleBusinessCreatePostModal from "../components/social/GoogleBusinessCr
 import { normalizeChannelTab } from "../data/channelNav";
 import PostHistoryPanel from "../components/social/PostHistoryPanel";
 import ChannelProfileView from "../components/social/ChannelProfileView";
-import ChannelFeedPanel from "../components/social/ChannelFeedPanel";
 import ChannelProfilePageLayout from "../components/social/channel-detail/ChannelProfilePageLayout";
 import ChannelCreatePanel from "../components/social/channel-detail/ChannelCreatePanel";
 
@@ -116,7 +115,7 @@ export default function ConnectedPlatformDetailPage() {
     );
   };
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const [feedPostCount, setFeedPostCount] = useState(null);
+  const [postCount, setPostCount] = useState(null);
   const bumpHistory = () => setHistoryRefreshKey((n) => n + 1);
   const openLinkedInComposer = (action) => {
     setLinkedinPreset(
@@ -161,8 +160,8 @@ export default function ConnectedPlatformDetailPage() {
   useEffect(() => {
     if (!platformKey || !account?.isConnected) return;
     getPostHistory({ platform: platformKey, page: 1, limit: 1 })
-      .then(({ pagination }) => setFeedPostCount(pagination.total ?? 0))
-      .catch(() => setFeedPostCount(0));
+      .then(({ pagination }) => setPostCount(pagination.total ?? 0))
+      .catch(() => setPostCount(0));
   }, [platformKey, account?.isConnected, historyRefreshKey]);
 
   const handleRefresh = async () => {
@@ -304,21 +303,18 @@ export default function ConnectedPlatformDetailPage() {
     );
   }
 
-  const panelClass = detailTab === "feed" ? "channel-page-content--feed" : "";
-
   return (
     <>
       <ChannelProfilePageLayout
         account={account}
         platformKey={platformKey}
-        postCount={feedPostCount}
+        postCount={postCount}
         onRefresh={handleRefresh}
         onAddAccount={handleAddAnotherAccount}
         addingAccount={connectingAnother}
         syncing={syncing}
         activeTab={detailTab}
         onTabChange={setDetailTab}
-        panelClassName={panelClass}
       >
         {detailTab === "profile" ? (
           <ChannelProfileView
@@ -338,15 +334,6 @@ export default function ConnectedPlatformDetailPage() {
               if (refreshConnectedAccounts) await refreshConnectedAccounts();
               bumpHistory();
             }}
-          />
-        ) : null}
-
-        {detailTab === "feed" ? (
-          <ChannelFeedPanel
-            platformKey={platformKey}
-            account={account}
-            refreshKey={historyRefreshKey}
-            onPostCount={setFeedPostCount}
           />
         ) : null}
 

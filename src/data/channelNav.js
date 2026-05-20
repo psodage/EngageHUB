@@ -1,9 +1,8 @@
-import { BarChart3, History, LayoutGrid, PenSquare, User } from "lucide-react";
+import { BarChart3, History, PenSquare, User } from "lucide-react";
 
 /** Profile sections shown under an active channel in the sidebar. */
 export const CHANNEL_PROFILE_TABS = [
   { id: "profile", label: "Profile", icon: User },
-  { id: "feed", label: "Feed", icon: LayoutGrid },
   { id: "create", label: "Create post", icon: PenSquare },
   { id: "history", label: "History", icon: History },
 ];

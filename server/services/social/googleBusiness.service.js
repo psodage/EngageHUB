@@ -4,7 +4,10 @@ import { createOAuthService } from "./sharedOAuth.js";
 import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
 
 const MYBUSINESS_V4 = "https://mybusiness.googleapis.com/v4";
-const BUSINESS_ACCOUNT_MGMT_V1 = "https://businessaccountmanagement.googleapis.com/v1";
+const BUSINESS_ACCOUNT_MGMT_V1 = "https://mybusinessaccountmanagement.googleapis.com/v1";
+/** Required on Business Information API v1 locations.list */
+const BUSINESS_INFO_READ_MASK =
+  "name,title,storefrontAddress,primaryPhone,websiteUri,primaryCategory,metadata,openInfo";
 const BUSINESS_INFO_V1 = "https://mybusinessbusinessinformation.googleapis.com/v1";
 
 function maskClientId(value) {
@@ -98,6 +101,53 @@ function joinAddress(addr) {
   return [...lines, ...extras].join(", ");
 }
 
+function googleApiErrorMessage(response) {
+  return response?.data?.error?.message || "Google Business Profile API request failed.";
+}
+
+function googleApiErrorReason(response) {
+  return response?.data?.error?.errors?.[0]?.reason || response?.data?.error?.status || "";
+}
+
+function shouldTryBusinessV1Fallback(status) {
+  const code = Number(status || 0);
+  if (!code || code === 401) return false;
+  return code >= 400;
+}
+
+function classifyGoogleBusinessError(response, fallbackCode) {
+  const message = googleApiErrorMessage(response);
+  const reason = googleApiErrorReason(response);
+  const status = Number(response?.status || 0);
+  const combined = `${message} ${reason}`.toLowerCase();
+  const apiDisabled =
+    combined.includes("has not been used") ||
+    combined.includes("is disabled") ||
+    combined.includes("accessnotconfigured") ||
+    reason === "accessNotConfigured";
+  const err = new Error(message);
+  err.status = status || 502;
+  if (apiDisabled) {
+    err.code = "google_business_api_disabled";
+    return err;
+  }
+  if (status === 403) {
+    err.code = "google_business_scope_missing";
+    return err;
+  }
+  err.code = fallbackCode;
+  return err;
+}
+
+function logGoogleBusinessApiWarning(tag, response, extra = {}) {
+  console.warn(tag, {
+    ...extra,
+    status: response?.status,
+    message: googleApiErrorMessage(response),
+    reason: googleApiErrorReason(response),
+  });
+}
+
 export async function getBusinessAccounts(accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   let response;
@@ -110,22 +160,16 @@ export async function getBusinessAccounts(accessToken) {
     throw err;
   }
   if (response.status < 200 || response.status >= 300) {
-    // Some Google projects only have Business Profile APIs enabled on the v1 endpoints.
-    const useV1Fallback = [400, 404, 410, 501].includes(Number(response.status || 0));
-    if (!useV1Fallback) {
-      const message = response?.data?.error?.message || "Failed to fetch Google Business accounts.";
-      const err = new Error(message);
-      err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_accounts_failed";
-      err.status = response.status || 502;
-      throw err;
+    const v4Response = response;
+    if (!shouldTryBusinessV1Fallback(v4Response.status)) {
+      logGoogleBusinessApiWarning("[googleBusiness:accounts:v4:error]", v4Response);
+      throw classifyGoogleBusinessError(v4Response, "google_business_accounts_failed");
     }
+    logGoogleBusinessApiWarning("[googleBusiness:accounts:v4:fallback]", v4Response);
     response = await axios.get(`${BUSINESS_ACCOUNT_MGMT_V1}/accounts`, { headers, validateStatus: () => true });
     if (response.status < 200 || response.status >= 300) {
-      const message = response?.data?.error?.message || "Failed to fetch Google Business accounts.";
-      const err = new Error(message);
-      err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_accounts_failed";
-      err.status = response.status || 502;
-      throw err;
+      logGoogleBusinessApiWarning("[googleBusiness:accounts:v1:error]", response);
+      throw classifyGoogleBusinessError(response, "google_business_accounts_failed");
     }
   }
   const accounts = Array.isArray(response.data?.accounts) ? response.data.accounts : [];
@@ -164,25 +208,20 @@ export async function getBusinessLocations(accountId, accessToken, accountInfo =
       throw err;
     }
     if (response.status < 200 || response.status >= 300) {
-      const useV1Fallback = [400, 404, 410, 501].includes(Number(response.status || 0));
-      if (!useV1Fallback) {
-        const message = response?.data?.error?.message || "Failed to fetch Google Business locations.";
-        const err = new Error(message);
-        err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_locations_failed";
-        err.status = response.status || 502;
-        throw err;
+      const v4Response = response;
+      if (!shouldTryBusinessV1Fallback(v4Response.status)) {
+        logGoogleBusinessApiWarning("[googleBusiness:locations:v4:error]", v4Response, { accountId });
+        throw classifyGoogleBusinessError(v4Response, "google_business_locations_failed");
       }
+      logGoogleBusinessApiWarning("[googleBusiness:locations:v4:fallback]", v4Response, { accountId });
       response = await axios.get(`${BUSINESS_INFO_V1}/accounts/${encodeURIComponent(accountId)}/locations`, {
         headers,
-        params,
+        params: { ...params, readMask: BUSINESS_INFO_READ_MASK },
         validateStatus: () => true,
       });
       if (response.status < 200 || response.status >= 300) {
-        const message = response?.data?.error?.message || "Failed to fetch Google Business locations.";
-        const err = new Error(message);
-        err.code = response.status === 403 ? "google_business_scope_missing" : "google_business_locations_failed";
-        err.status = response.status || 502;
-        throw err;
+        logGoogleBusinessApiWarning("[googleBusiness:locations:v1:error]", response, { accountId });
+        throw classifyGoogleBusinessError(response, "google_business_locations_failed");
       }
     }
     const locations = Array.isArray(response.data?.locations) ? response.data.locations : [];

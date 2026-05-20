@@ -77,11 +77,19 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   if (normalized.includes("no_google_business_accounts") || normalized.includes("no_google_business_locations")) {
     return "No Google Business Profiles found for this account.";
   }
-  if (normalized.includes("google_business_accounts_failed")) {
-    return "Could not load Google Business Profiles. Ensure Business Profile APIs are enabled and try again.";
+  if (normalized.includes("google_business_api_disabled")) {
+    const base =
+      "Google Business Profile APIs are not enabled for your Google Cloud project. In Google Cloud Console → APIs & Services → Library, enable “My Business Account Management API” and “My Business Business Information API” (same project as GOOGLE_CLIENT_ID). Add OAuth scope https://www.googleapis.com/auth/business.manage on the consent screen, then reconnect.";
+    return detail ? `${base} Google says: ${detail}` : base;
+  }
+  if (normalized.includes("google_business_accounts_failed") || normalized.includes("google_business_locations_failed")) {
+    const base =
+      "Could not load Google Business Profiles. Ensure Business Profile APIs are enabled in Google Cloud Console and try again.";
+    return detail ? `${base} (${detail})` : base;
   }
   if (normalized.includes("google_business_scope_missing")) {
-    return "Google Business permission is required.";
+    const base = "Google Business permission is required. Reconnect and approve the business.manage scope.";
+    return detail ? `${base} (${detail})` : base;
   }
   if (normalized.includes("no_locations_selected")) {
     return "Select at least one business profile.";
@@ -119,6 +127,17 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   if (normalized.includes("threads_redirect_uri_mismatch") || normalized.includes("callback_mismatch")) {
     return "Threads redirect URI mismatch. In Meta Developer Console, add the exact callback URL from THREADS_REDIRECT_URI, and use the same URL when connecting (local vs production).";
   }
+  if (
+    normalized.includes("redirect") &&
+    (normalized.includes("white-list") ||
+      normalized.includes("whitelist") ||
+      normalized.includes("not white") ||
+      normalized.includes("1349168") ||
+      normalized.includes("oauth settings"))
+  ) {
+    const uri = detail || "https://engagehub.onrender.com/api/social/threads/callback";
+    return `Threads redirect URL is not allowed in your Meta app. In the Threads app (not AntiSocial V2): Use cases → Access the Threads API → Customize → Settings, add this exact Redirect URI: ${uri} — also enable Client OAuth Login and Web OAuth Login under Facebook Login → Settings if that product is on the app.`;
+  }
   if (normalized.includes("threads_invalid_client")) {
     return "Threads app credentials are invalid. Use the Threads App ID and Threads App Secret from Meta → App settings → Basic (not the Facebook app ID).";
   }
@@ -130,7 +149,9 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
       return "Could not complete GitHub authorization. Reconnect your GitHub account.";
     }
     if (platformKey === "threads") {
-      return "Could not complete Threads authorization. Confirm your Meta app has a Threads Tester role for your account, redirect URLs match THREADS_REDIRECT_URI, and you are using the Threads app credentials.";
+      const base =
+        "Could not complete Threads authorization. Confirm your Meta app has a Threads Tester role for your account, redirect URLs match THREADS_REDIRECT_URI, and you are using the Threads app credentials.";
+      return detail ? `${base} (${detail})` : base;
     }
     return "Could not complete token exchange with provider. Please reconnect.";
   }
