@@ -57,8 +57,12 @@ export function buildDraftFromShared(channelKey, shared, preUploadedMediaUrl = "
       draft.postType = "text";
     } else if (kind === "video") {
       draft.postType = "video";
+    } else if (kind === "image") {
+      draft.postType = "image";
     } else {
       draft.postType = "image";
+      draft.error =
+        "Could not detect media type from the file URL. Use a URL ending in .jpg, .png, .mp4, etc., or upload the file again.";
     }
     return draft;
   }

@@ -7,6 +7,10 @@ const PUBLISH_ERROR_CODE_HINTS = {
   x_token_missing: "X is not connected. Connect X under Channels.",
   not_connected: "This platform is not connected. Connect it under Channels.",
   validation_error: "Check the post content and media for this platform’s requirements.",
+  facebook_profile_text_unsupported:
+    "Facebook personal profiles only support photo or video posts through the API. Use a Facebook Page or attach media.",
+  media_not_public:
+    "Media must be hosted on a public URL Facebook can download. Set APP_BASE_URL to your public HTTPS domain (not localhost).",
   organization_not_allowed: "You cannot post as that LinkedIn company page. Pick a page you manage or reconnect LinkedIn.",
   google_business_quota_exceeded:
     "Google Business Profile API rate limit reached. Wait 1–2 minutes, then use Retry on the location page (do not click Connect repeatedly). Request higher quota in Google Cloud Console if this persists.",

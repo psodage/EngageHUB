@@ -71,6 +71,7 @@ export async function publishFacebookProfilePost(opts) {
       const body = formBody({
         url: mediaUrl,
         caption: message || undefined,
+        published: true,
         access_token: token,
       });
       const { data } = await axios.post(`${META_GRAPH_BASE_URL}/me/photos`, body, { headers: formHeaders });
@@ -144,6 +145,7 @@ export async function publishFacebookPagePost(opts) {
       const body = formBody({
         url: mediaUrl,
         caption: message || undefined,
+        published: true,
         access_token: token,
       });
       const { data } = await axios.post(`${META_GRAPH_BASE_URL}/${encodeURIComponent(pid)}/photos`, body, {

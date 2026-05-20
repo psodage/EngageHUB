@@ -9,6 +9,12 @@ import instagramService, { publishInstagramContent, INSTAGRAM_CAPTION_MAX_LENGTH
 import { META_SCOPE_SETS } from "../services/social/meta.service.js";
 import { decryptToken, encryptToken } from "../utils/crypto.js";
 import { publishFacebookPagePost, publishFacebookProfilePost } from "../services/social/facebookPublish.service.js";
+import {
+  isMetaTokenAuthError,
+  persistPagePublishingToken,
+  refreshFacebookPageAccessToken,
+  resolveFacebookPublishCredentials,
+} from "../services/social/facebookPublishCredentials.service.js";
 import facebookService from "../services/social/facebook.service.js";
 import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/providerConfig.util.js";
 import { resolveProviderRedirectUri } from "../utils/redirectUri.util.js";
@@ -368,6 +374,10 @@ async function connectFacebookDestinationFromSession({
       scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
     },
   });
+
+  if (entityType === "page" && accessToken) {
+    await persistPagePublishingToken(userId, String(selected.id || "").trim(), accessToken);
+  }
 
   let instagramAccount = null;
   let instagramWarning = "";
@@ -2341,6 +2351,43 @@ function parseLinkedInPostBody(body, file = null) {
 
 const FACEBOOK_MESSAGE_MAX = 63206;
 
+function inferFacebookMediaTypeFromUrl(mediaUrl) {
+  const u = String(mediaUrl || "").toLowerCase();
+  if (/\.(mp4|mov|webm|m4v|avi)(\?|#|$)/i.test(u)) return "VIDEO";
+  if (/\.(jpe?g|png|gif|webp|bmp|heic)(\?|#|$)/i.test(u)) return "IMAGE";
+  return null;
+}
+
+function normalizeFacebookMediaType(mediaType, mediaUrl) {
+  if (!mediaUrl || mediaType === "TEXT" || mediaType === "LINK") return mediaType;
+  const inferred = inferFacebookMediaTypeFromUrl(mediaUrl);
+  if (!inferred) return mediaType;
+  if (mediaType === "IMAGE" && inferred === "VIDEO") return "VIDEO";
+  if (mediaType === "VIDEO" && inferred === "IMAGE") return "IMAGE";
+  return mediaType;
+}
+
+function assertFacebookMediaUrlReachable(mediaUrl) {
+  if (!mediaUrl) return;
+  let host = "";
+  try {
+    host = new URL(mediaUrl).hostname.toLowerCase();
+  } catch {
+    const err = new Error("mediaUrl must be a valid http(s) URL.");
+    err.status = 400;
+    err.code = "validation_error";
+    throw err;
+  }
+  if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) {
+    const err = new Error(
+      "Media URL must be publicly reachable by Facebook. Set APP_BASE_URL (or VITE_APP_URL) to your public HTTPS domain—not localhost—and upload again."
+    );
+    err.status = 400;
+    err.code = "media_not_public";
+    throw err;
+  }
+}
+
 function parseFacebookPostBody(body) {
   if (body === null || body === undefined || typeof body !== "object" || Array.isArray(body)) {
     const err = new Error("Invalid request body.");
@@ -2480,46 +2527,64 @@ export async function createFacebookPost(req, res) {
   const userId = new ObjectId(req.auth.userId);
   const reconnectMessage = "Facebook is not connected or token expired. Please reconnect Facebook.";
 
+  parsed.mediaType = normalizeFacebookMediaType(parsed.mediaType, parsed.mediaUrl);
+  if (parsed.mediaUrl) {
+    try {
+      assertFacebookMediaUrlReachable(parsed.mediaUrl);
+    } catch (validationError) {
+      return errorResponse(res, validationError.message, validationError.status || 400, validationError.code || "validation_error");
+    }
+  }
+
   try {
-    let account = await getFacebookAccountForPublish(userId, parsed.entityId);
-    if (!account || !account.isConnected) {
-      return errorResponse(res, reconnectMessage, 401, "not_connected");
-    }
-
-    let accessToken = account.getDecryptedAccessToken?.();
-    if (!accessToken) {
-      return errorResponse(res, reconnectMessage, 401, "token_missing");
-    }
-
-    if (account.expiresAt && new Date(account.expiresAt).getTime() <= Date.now()) {
-      try {
-        const refreshed = await facebookService.refreshTokenIfNeeded(account);
-        if (refreshed?.accessToken) {
-          await refreshAccountToken(userId, "facebook", refreshed);
-          account = await getFacebookAccountForPublish(userId, parsed.entityId);
-          accessToken = account.getDecryptedAccessToken?.();
-        } else {
-          return errorResponse(res, reconnectMessage, 401, "token_expired");
-        }
-      } catch (refreshErr) {
-        console.warn("[facebook:post:refresh-failed]", { message: refreshErr?.message });
-        return errorResponse(res, reconnectMessage, 401, "token_expired");
+    let ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId);
+    if (!ctx.ok) {
+      if (ctx.code === "not_connected" || ctx.code === "token_missing") {
+        return errorResponse(res, reconnectMessage, 401, ctx.code);
       }
+      return errorResponse(res, "Invalid Facebook Page destination. Reconnect the Page under Channels.", 400, ctx.code);
     }
 
-    if (!accessToken) {
-      return errorResponse(res, reconnectMessage, 401, "token_missing");
+    if (ctx.targetType === "profile" && parsed.mediaType === "TEXT") {
+      return errorResponse(
+        res,
+        "Facebook personal profiles only support photo or video posts through the API. Choose a Facebook Page or attach media.",
+        400,
+        "facebook_profile_text_unsupported"
+      );
     }
 
-    const platformUserId = String(account.platformUserId || account.entityId || "").trim();
-    const entityType = String(account.entityType || "profile").trim().toLowerCase();
-    const targetName = account.accountName || account.username || platformUserId || "Facebook";
-    const targetType = entityType === "page" ? "page" : "profile";
+    let { account, accessToken, targetType, pageId, platformAccountId, targetName } = ctx;
+
+    const refreshProfileTokenIfNeeded = async () => {
+      const profileDoc = ctx.profileAccount;
+      if (!profileDoc?.expiresAt || new Date(profileDoc.expiresAt).getTime() > Date.now()) return;
+      const refreshed = await facebookService.refreshTokenIfNeeded(profileDoc);
+      if (!refreshed?.accessToken) {
+        throw new Error("token_expired");
+      }
+      await refreshAccountTokenById(ctx.profileAccount._id, refreshed);
+      ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId);
+      if (!ctx.ok) throw new Error("token_missing");
+      account = ctx.account;
+      accessToken = ctx.accessToken;
+      targetType = ctx.targetType;
+      pageId = ctx.pageId;
+      platformAccountId = ctx.platformAccountId;
+      targetName = ctx.targetName;
+    };
+
+    try {
+      await refreshProfileTokenIfNeeded();
+    } catch (refreshErr) {
+      console.warn("[facebook:post:refresh-failed]", { message: refreshErr?.message });
+      return errorResponse(res, reconnectMessage, 401, "token_expired");
+    }
 
     const runPublish = async (token) => {
       if (targetType === "page") {
         return publishFacebookPagePost({
-          pageId: platformUserId,
+          pageId,
           pageAccessToken: token,
           mediaType: parsed.mediaType,
           message: parsed.message,
@@ -2544,34 +2609,35 @@ export async function createFacebookPost(req, res) {
         message: apiError?.message,
         code: apiError?.code,
         status: apiError?.status,
+        targetType,
+        pageId: pageId || undefined,
       });
-      const code = apiError?.details?.error?.code;
-      const sub = apiError?.details?.error?.error_subcode;
-      const expiredOrAuth =
-        apiError?.status === 401 ||
-        apiError?.status === 403 ||
-        code === 190 ||
-        code === 102 ||
-        sub === 463 ||
-        sub === 467;
-      if (expiredOrAuth) {
+
+      if (isMetaTokenAuthError(apiError)) {
         try {
-          const refreshed = await facebookService.refreshTokenIfNeeded({
-            ...account,
-            // Try refresh once even if expiresAt drifted or provider revoked early.
-            expiresAt: new Date(Date.now() - 1),
-          });
-          if (refreshed?.accessToken) {
-            await refreshAccountToken(userId, "facebook", refreshed);
-            account = await getFacebookAccountForPublish(userId, parsed.entityId);
-            accessToken = account?.getDecryptedAccessToken?.();
-            if (accessToken) {
-              result = await runPublish(accessToken);
+          if (targetType === "page" && pageId) {
+            const pageToken = await refreshFacebookPageAccessToken(userId, pageId, facebookService);
+            if (pageToken) {
+              result = await runPublish(pageToken);
             } else {
-              return errorResponse(res, reconnectMessage, 401, "token_missing");
+              return errorResponse(res, reconnectMessage, 401, "token_expired");
             }
           } else {
-            return errorResponse(res, reconnectMessage, 401, "token_expired");
+            const profileDoc = ctx.profileAccount;
+            const refreshed = await facebookService.refreshTokenIfNeeded({
+              ...profileDoc,
+              expiresAt: new Date(Date.now() - 1),
+            });
+            if (refreshed?.accessToken) {
+              await refreshAccountTokenById(ctx.profileAccount._id, refreshed);
+              ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId);
+              if (!ctx.ok || !ctx.accessToken) {
+                return errorResponse(res, reconnectMessage, 401, "token_missing");
+              }
+              result = await runPublish(ctx.accessToken);
+            } else {
+              return errorResponse(res, reconnectMessage, 401, "token_expired");
+            }
           }
         } catch (retryErr) {
           console.warn("[facebook:post:retry-refresh-failed]", { message: retryErr?.message });
@@ -2593,11 +2659,11 @@ export async function createFacebookPost(req, res) {
     await recordSuccessfulPublish({
       userId,
       platform: "facebook",
-      platformAccountId: platformUserId,
+      platformAccountId,
       platformAccountName: account.accountName || account.username || "",
       targetType,
-      targetId: platformUserId,
-      targetName: targetName,
+      targetId: platformAccountId,
+      targetName,
       content: parsed.message || "",
       mediaType: parsed.mediaType,
       mediaUrl: parsed.mediaUrl || "",

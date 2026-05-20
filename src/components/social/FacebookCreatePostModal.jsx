@@ -131,11 +131,13 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
       }
     }
 
+    const entityId = String(account?.entityId || "").trim();
     const payload = {
       message: trimmedMessage,
       mediaType,
       mediaUrl: mediaType === "IMAGE" || mediaType === "VIDEO" ? resolvedMediaUrl : "",
       linkUrl: mediaType === "LINK" ? trimmedLink : "",
+      ...(entityId ? { entityId } : {}),
     };
 
     setPosting(true);
