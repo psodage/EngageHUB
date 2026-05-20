@@ -4,7 +4,8 @@ import { Bell, ChevronRight, Menu, Moon, Plus, Sun, User } from "lucide-react";
 import { getPageTitle } from "../data/constants";
 import { CHANNEL_PROFILE_TABS } from "../data/channelNav";
 import { getChannelDisplayInfo } from "../utils/channelDisplay";
-import { getChannelTabFromSearch } from "../utils/navigation";
+import { getChannelEntityIdFromSearch, getChannelTabFromSearch } from "../utils/navigation";
+import { getFacebookConnectionEntities } from "../utils/socialAccountEntities";
 import { getDashboardContentMaxClass } from "../utils/pageLayout";
 import { useApp } from "../context/AppContext";
 
@@ -21,10 +22,25 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
     const platformKey = match[1];
     const account = connectedAccounts.find((a) => a.platform === platformKey);
     const info = getChannelDisplayInfo(account || { platform: platformKey });
+    let label = info.displayName;
+    if (platformKey === "facebook" && account) {
+      const entityId = getChannelEntityIdFromSearch(location.search);
+      const entities = getFacebookConnectionEntities(account);
+      const entity = entityId
+        ? entities.find((e) => String(e.entityId || e.platformUserId || "") === entityId)
+        : entities[0];
+      if (entity) {
+        const isProfile = (entity.entityType || "profile") === "profile";
+        label =
+          entity.accountName?.trim() ||
+          entity.username?.trim()?.replace(/^@/, "") ||
+          (isProfile ? "Facebook Profile" : "Facebook Page");
+      }
+    }
     const tabId = getChannelTabFromSearch(location.search);
     const tabLabel = CHANNEL_PROFILE_TABS.find((t) => t.id === tabId)?.label;
     return {
-      label: info.displayName,
+      label,
       tabLabel: tabId !== "profile" ? tabLabel : null,
     };
   }, [location.pathname, location.search, connectedAccounts]);

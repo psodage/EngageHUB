@@ -25,21 +25,64 @@ export function isChannelDetailActive(pathname, platformKey) {
 }
 
 /** @param {string} search */
+export function getChannelEntityIdFromSearch(search) {
+  return new URLSearchParams(search).get("entity")?.trim() || "";
+}
+
+/** @param {string} search */
 export function getChannelTabFromSearch(search) {
   const tab = new URLSearchParams(search).get("tab");
   if (tab === "profile" || tab === "create" || tab === "history") return tab;
   return "profile";
 }
 
-/** @param {string} pathname @param {string} search @param {string} platformKey @param {string} tabId */
-export function isChannelTabActive(pathname, search, platformKey, tabId) {
-  return pathname === `/channels/${platformKey}` && getChannelTabFromSearch(search) === tabId;
+/**
+ * @param {string} pathname
+ * @param {string} search
+ * @param {{ platformKey: string, entityId?: string, entityType?: string }} channel
+ */
+export function isChannelSidebarItemActive(pathname, search, channel) {
+  if (!isChannelDetailActive(pathname, channel.platformKey)) return false;
+  if (!channel.entityId) return true;
+
+  const entityId = getChannelEntityIdFromSearch(search);
+  if (entityId) return channel.entityId === entityId;
+  return Boolean(channel.isDefaultEntity);
 }
 
-/** @param {string} pathname */
-export function getActiveChannelPlatformKey(pathname) {
+/**
+ * @param {string} pathname
+ * @param {string} search
+ * @param {string} platformKey
+ * @param {string} tabId
+ * @param {{ entityId?: string, isDefaultEntity?: boolean }} [options]
+ */
+export function isChannelTabActive(pathname, search, platformKey, tabId, options = {}) {
+  if (tabId === "create" && isCreatePostActive(pathname)) {
+    const platform = new URLSearchParams(search).get("platform")?.trim() || "";
+    return platform === platformKey;
+  }
+  if (pathname !== `/channels/${platformKey}`) return false;
+
+  const entityId = options.entityId || "";
+  if (entityId) {
+    const searchEntity = getChannelEntityIdFromSearch(search);
+    if (searchEntity && searchEntity !== entityId) return false;
+    if (!searchEntity && !options.isDefaultEntity) return false;
+  }
+
+  return getChannelTabFromSearch(search) === tabId;
+}
+
+/** @param {string} pathname @param {string} [search] */
+export function getActiveChannelPlatformKey(pathname, search = "") {
   const match = pathname.match(/^\/channels\/([^/]+)$/);
-  return match?.[1] || null;
+  if (match?.[1]) return match[1];
+  if (isCreatePostActive(pathname)) {
+    const platform = new URLSearchParams(search).get("platform")?.trim() || "";
+    return platform || null;
+  }
+  return null;
 }
 
 /** @param {string} pathname */

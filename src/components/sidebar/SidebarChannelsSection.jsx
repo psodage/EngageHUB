@@ -3,10 +3,9 @@ import { NavLink, useLocation } from "react-router-dom";
 import { Plus } from "lucide-react";
 import PlatformBrandIcon from "../channels/PlatformBrandIcon";
 import { CHANNEL_PROFILE_TABS } from "../../data/channelNav";
-import { mapConnectedChannelsForSidebar } from "../../utils/channelDisplay";
+import { buildChannelTabPath, mapConnectedChannelsForSidebar } from "../../utils/channelDisplay";
 import {
-  getActiveChannelPlatformKey,
-  isChannelDetailActive,
+  isChannelSidebarItemActive,
   isChannelTabActive,
   isChannelsListActive,
 } from "../../utils/navigation";
@@ -14,7 +13,6 @@ import {
 export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
   const location = useLocation();
   const channels = useMemo(() => mapConnectedChannelsForSidebar(connectedAccounts), [connectedAccounts]);
-  const activePlatformKey = getActiveChannelPlatformKey(location.pathname);
 
   if (channels.length === 0) {
     return (
@@ -47,13 +45,13 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
 
       <ul className="sidebar-channels-list">
         {channels.map((channel) => {
-          const channelOpen = activePlatformKey === channel.key;
-          const channelActive = isChannelDetailActive(location.pathname, channel.key);
+          const channelOpen = isChannelSidebarItemActive(location.pathname, location.search, channel);
+          const channelActive = channelOpen;
 
           return (
-            <li key={channel.key} className="sidebar-channel-item">
+            <li key={channel.sidebarKey} className="sidebar-channel-item">
               <NavLink
-                to={`${channel.path}?tab=profile`}
+                to={buildChannelTabPath(channel, "profile")}
                 onClick={onClose}
                 className={() =>
                   `sidebar-channel-card ${channelActive ? "sidebar-channel-card--active" : ""}`
@@ -63,7 +61,7 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
                   <img src={channel.profileImage} alt="" className="sidebar-channel-avatar-img" />
                   <span className="sidebar-channel-platform-badge">
                     <PlatformBrandIcon
-                      platformKey={channel.key}
+                      platformKey={channel.platformKey}
                       size="sm"
                       className="!h-[18px] !w-[18px] !rounded-md [&_svg]:!h-2.5 [&_svg]:!w-2.5"
                     />
@@ -82,13 +80,18 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
                     const tabActive = isChannelTabActive(
                       location.pathname,
                       location.search,
-                      channel.key,
-                      tab.id
+                      channel.platformKey,
+                      tab.id,
+                      { entityId: channel.entityId, isDefaultEntity: channel.isDefaultEntity }
                     );
+                    const tabTo =
+                      tab.id === "create"
+                        ? `/create-post?platform=${encodeURIComponent(channel.platformKey)}`
+                        : buildChannelTabPath(channel, tab.id);
                     return (
                       <li key={tab.id}>
                         <NavLink
-                          to={`${channel.path}?tab=${tab.id}`}
+                          to={tabTo}
                           onClick={onClose}
                           className={() =>
                             `sidebar-channel-subnav-link ${tabActive ? "sidebar-channel-subnav-link--active" : ""}`

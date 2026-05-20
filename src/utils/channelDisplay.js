@@ -1,4 +1,5 @@
 import { SOCIAL_PLATFORM_CONFIGS, isHiddenConnectPlatform } from "../data/socialPlatforms";
+import { getFacebookConnectionEntities } from "./socialAccountEntities";
 
 /** @param {import("../data/socialPlatforms").SocialAccount | Record<string, unknown>} account */
 export function getChannelDisplayInfo(account) {
@@ -26,18 +27,81 @@ export function getChannelDisplayInfo(account) {
   };
 }
 
+/**
+ * @param {Record<string, unknown>} account
+ * @param {Record<string, unknown>} entity
+ */
+function buildFacebookSidebarChannel(account, entity) {
+  const entityType = entity.entityType || "profile";
+  const entityId = String(entity.entityId || entity.platformUserId || "").trim();
+  const isProfile = entityType === "profile";
+  const displayName =
+    entity.accountName?.trim() ||
+    entity.username?.trim()?.replace(/^@/, "") ||
+    (isProfile ? "Facebook Profile" : "Facebook Page");
+  const profileImage =
+    entity.profileImage ||
+    `https://placehold.co/80x80/e2e8f0/64748b?text=${encodeURIComponent((displayName[0] || "?").toUpperCase())}`;
+  const search = entityId ? `?entity=${encodeURIComponent(entityId)}` : "";
+
+  return {
+    account,
+    entity,
+    sidebarKey: entityId ? `facebook:${entityType}:${entityId}` : `facebook:${entityType}`,
+    platformKey: "facebook",
+    entityId,
+    entityType,
+    platformLabel: "Facebook",
+    displayName,
+    handle: isProfile ? "Profile" : "Page",
+    profileImage,
+    path: `/channels/facebook${search}`,
+    sortKey: `${isProfile ? "0" : "1"}:${displayName.toLowerCase()}`,
+  };
+}
+
 /** @param {Array<Record<string, unknown>>} accounts */
 export function mapConnectedChannelsForSidebar(accounts) {
-  return accounts
-    .filter((account) => account.isConnected && !isHiddenConnectPlatform(account.platform))
-    .map((account) => {
-      const info = getChannelDisplayInfo(account);
-      return {
-        account,
-        key: info.platformKey,
-        path: `/channels/${info.platformKey}`,
-        ...info,
-      };
-    })
-    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  /** @type {Array<Record<string, unknown>>} */
+  const channels = [];
+
+  for (const account of accounts) {
+    if (!account.isConnected || isHiddenConnectPlatform(account.platform)) continue;
+
+    if (account.platform === "facebook") {
+      const entities = getFacebookConnectionEntities(account);
+      if (entities.length) {
+        entities.forEach((entity, index) => {
+          channels.push({
+            ...buildFacebookSidebarChannel(account, entity),
+            isDefaultEntity: index === 0,
+          });
+        });
+        continue;
+      }
+    }
+
+    const info = getChannelDisplayInfo(account);
+    channels.push({
+      account,
+      entity: null,
+      sidebarKey: info.platformKey,
+      platformKey: info.platformKey,
+      entityId: "",
+      entityType: "",
+      path: `/channels/${info.platformKey}`,
+      ...info,
+    });
+  }
+
+  return channels.sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey)));
+}
+
+/** @param {{ platformKey: string, entityId?: string, entityType?: string }} channel @param {string} tabId */
+export function buildChannelTabPath(channel, tabId) {
+  const params = new URLSearchParams();
+  if (channel.entityId) params.set("entity", channel.entityId);
+  if (tabId && tabId !== "profile") params.set("tab", tabId);
+  const qs = params.toString();
+  return `/channels/${channel.platformKey}${qs ? `?${qs}` : ""}`;
 }

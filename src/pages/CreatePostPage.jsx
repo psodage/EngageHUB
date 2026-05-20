@@ -85,8 +85,11 @@ export default function CreatePostPage() {
     }
   }, [step, selectedChannelKeys.length]);
 
+  const isComposeStep = step === "compose" && selectedChannelKeys.length > 0;
+
+  let content;
   if (!connectedPlatformConfigs.length) {
-    return (
+    content = (
       <section className="buffer-card mx-auto w-full max-w-lg p-6">
         <p className="font-semibold text-slate-900 dark:text-white">No connected platforms</p>
         <p className="mt-1 text-sm text-slate-500">Connect at least one channel to create posts.</p>
@@ -99,10 +102,8 @@ export default function CreatePostPage() {
         </button>
       </section>
     );
-  }
-
-  if (step === "compose" && selectedChannelKeys.length > 0) {
-    return (
+  } else if (isComposeStep) {
+    content = (
       <CreatePostWorkspace
         selectedChannelKeys={selectedChannelKeys}
         connectedByPlatform={connectedByPlatform}
@@ -111,19 +112,31 @@ export default function CreatePostPage() {
         onBack={handleBack}
       />
     );
+  } else {
+    content = (
+      <ChannelPickerStep
+        title="Create post"
+        subtitle="Select channels, write your post, and publish to all at once."
+        connectedPlatformConfigs={connectedPlatformConfigs}
+        connectedByPlatform={connectedByPlatform}
+        selectedKeys={selectedChannelKeys}
+        onToggle={toggleChannel}
+        onSelectAll={selectAllChannels}
+        onClearAll={clearAllChannels}
+        onContinue={startCompose}
+      />
+    );
   }
 
   return (
-    <ChannelPickerStep
-      title="Create post"
-      subtitle="Select channels, write your post, and publish to all at once."
-      connectedPlatformConfigs={connectedPlatformConfigs}
-      connectedByPlatform={connectedByPlatform}
-      selectedKeys={selectedChannelKeys}
-      onToggle={toggleChannel}
-      onSelectAll={selectAllChannels}
-      onClearAll={clearAllChannels}
-      onContinue={startCompose}
-    />
+    <div
+      className={
+        isComposeStep
+          ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+          : "min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+      }
+    >
+      {content}
+    </div>
   );
 }
