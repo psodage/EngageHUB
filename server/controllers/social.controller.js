@@ -143,6 +143,7 @@ function mapCallbackReason(callbackError) {
   if (normalized.includes("no google business profiles")) return "no_google_business_locations";
   if (normalized.includes("selected location not found")) return "selected_location_not_found";
   if (normalized.includes("connection session expired")) return "expired_session";
+  if (callbackError?.code === "oauth_code_invalid") return "oauth_code_invalid";
   if (normalized.includes("token")) return "token_error";
   return "oauth_callback_failed";
 }
@@ -1341,6 +1342,15 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
       throw new Error("Missing authorization code.");
     }
 
+    if (platform === "googleBusiness" || platform === "youtube") {
+      console.info("[oauth:callback:google:exchange]", {
+        platform,
+        flow,
+        userId: decodedState.userId,
+        redirectUri: resolveProviderRedirectUri(platform),
+        callbackHost: req.get("host"),
+      });
+    }
     const tokenData = await provider.exchangeCodeForToken(code, {
       ...(platform === "x" && decodedState?.pkceVerifier ? { codeVerifier: decodedState.pkceVerifier } : {}),
       ...(platform === "x" ? { useBasicClientAuth: true } : {}),
@@ -1751,8 +1761,10 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
     return res.redirect(makeRedirectUrl(flow, "connected", "", platform));
   } catch (callbackError) {
     const graphDetail =
+      callbackError?.details?.error_description ||
       callbackError?.details?.error?.message ||
       callbackError?.details?.error_message ||
+      (typeof callbackError?.message === "string" ? callbackError.message : "") ||
       "";
     console.error("[oauth:callback:error]", {
       platform: platformForRedirect,

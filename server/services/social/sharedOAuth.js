@@ -58,7 +58,8 @@ export function createOAuthService({
   platform,
   clientId,
   clientSecret,
-  redirectUri,
+  redirectUri: redirectUriInput,
+  resolveRedirectUri,
   authUrl,
   tokenUrl,
   profileUrl,
@@ -67,7 +68,15 @@ export function createOAuthService({
   mapProfile,
   scopeSeparator = " ",
 }) {
+  const getRedirectUri = () => {
+    if (typeof resolveRedirectUri === "function") {
+      return resolveRedirectUri() || redirectUriInput || "";
+    }
+    return redirectUriInput || "";
+  };
+
   function validateConfig() {
+    const redirectUri = getRedirectUri();
     return {
       valid: Boolean(clientId && clientSecret && redirectUri),
       missing: [
@@ -78,6 +87,42 @@ export function createOAuthService({
     };
   }
 
+  function classifyTokenExchangeError(error) {
+    const status = error?.response?.status;
+    const providerCode = String(
+      error?.response?.data?.error ||
+        error?.response?.data?.errorCode ||
+        error?.response?.data?.code ||
+        ""
+    ).toLowerCase();
+    const providerMessage = String(
+      error?.response?.data?.error_description ||
+        error?.response?.data?.message ||
+        error?.message ||
+        ""
+    );
+    const normalizedMessage = providerMessage.toLowerCase();
+    if (providerCode === "invalid_scope" || normalizedMessage.includes("scope")) {
+      return "invalid_scope";
+    }
+    if (
+      providerCode === "redirect_uri_mismatch" ||
+      normalizedMessage.includes("redirect_uri_mismatch")
+    ) {
+      return "google_redirect_uri_mismatch";
+    }
+    if (providerCode === "invalid_grant") {
+      return "oauth_code_invalid";
+    }
+    if (providerCode === "invalid_client") {
+      return "invalid_client";
+    }
+    if (status === 401 || status === 403) {
+      return "token_exchange_forbidden";
+    }
+    return "token_exchange_failed";
+  }
+
   return {
     platform,
     validateConfig,
@@ -85,6 +130,7 @@ export function createOAuthService({
       if (!validateConfig().valid) {
         throw new Error(`${platform} OAuth is not configured.`);
       }
+      const redirectUri = getRedirectUri();
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -100,6 +146,7 @@ export function createOAuthService({
       if (!validateConfig().valid) {
         throw new Error(`${platform} OAuth is not configured.`);
       }
+      const redirectUri = getRedirectUri();
 
       let data;
       try {
@@ -123,32 +170,23 @@ export function createOAuthService({
         );
         data = response.data;
       } catch (error) {
+        const providerData = error?.response?.data || null;
         console.error("[oauth:token:error]", {
           platform,
           tokenUrl,
           redirectUri,
           clientId: maskClientId(clientId),
+          providerError: providerData?.error,
+          providerErrorDescription: providerData?.error_description,
           error: summarizeAxiosError(error),
         });
-        const status = error?.response?.status;
-        const providerCode =
-          error?.response?.data?.error ||
-          error?.response?.data?.errorCode ||
-          error?.response?.data?.code ||
-          null;
-        const providerMessage =
-          error?.response?.data?.error_description ||
-          error?.response?.data?.message ||
+        const errCode = classifyTokenExchangeError(error);
+        const description =
+          providerData?.error_description ||
+          providerData?.message ||
           error?.message ||
-          "";
-        const normalizedMessage = String(providerMessage).toLowerCase();
-        const code =
-          providerCode === "invalid_scope" || normalizedMessage.includes("scope")
-            ? "invalid_scope"
-            : status === 401 || status === 403
-              ? "token_exchange_forbidden"
-              : "token_exchange_failed";
-        throw buildOAuthError(`Token exchange failed for ${platform}.`, code, error?.response?.data || null);
+          `Token exchange failed for ${platform}.`;
+        throw buildOAuthError(description, errCode, providerData);
       }
 
       return {

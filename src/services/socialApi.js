@@ -162,6 +162,22 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "") {
   if (normalized.includes("threads_invalid_auth_code")) {
     return "Threads authorization expired or was already used. Start Connect again without refreshing the callback page.";
   }
+  if (normalized.includes("oauth_code_invalid")) {
+    return "Authorization code expired or was already used. Start Connect again and do not refresh the callback page.";
+  }
+  if (normalized.includes("token_exchange_failed") || normalized.includes("token_exchange_forbidden")) {
+    if (platformKey === "googlebusiness" || platformKey === "youtube") {
+      const base =
+        "Google token exchange failed. Ensure GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET match your OAuth client, redirect URIs in .env match Google Cloud Console exactly, and the same API host handles both connect and callback (local vs Render).";
+      return detail ? `${base} Google says: ${detail}` : base;
+    }
+    if (platformKey === "github") {
+      return "Could not complete GitHub authorization. Reconnect your GitHub account.";
+    }
+    return detail
+      ? `Could not complete token exchange with provider. ${detail}`
+      : "Could not complete token exchange with provider. Please reconnect.";
+  }
   if (normalized.includes("threads_token_exchange_failed") || normalized.includes("token_error")) {
     if (platformKey === "github") {
       return "Could not complete GitHub authorization. Reconnect your GitHub account.";

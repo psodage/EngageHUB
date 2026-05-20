@@ -55,12 +55,30 @@ const youtubeService = {
         scopes: tokens.scope ? tokens.scope.split(" ").filter(Boolean) : YOUTUBE_SCOPES,
       };
     } catch (error) {
+      const providerData = error?.response?.data || null;
       console.error("[oauth:youtube:token:error]", {
         message: error?.message,
         redirectUri: resolveProviderRedirectUri("youtube"),
         clientId: maskClientId(process.env.GOOGLE_CLIENT_ID),
+        providerError: providerData?.error,
+        providerErrorDescription: providerData?.error_description,
       });
-      throw new Error("Google token exchange failed. Verify client credentials and redirect URI.");
+      const err = new Error(
+        providerData?.error_description ||
+          "Google token exchange failed. Verify client credentials and redirect URI."
+      );
+      const providerCode = String(providerData?.error || "").toLowerCase();
+      if (providerCode === "redirect_uri_mismatch") {
+        err.code = "google_redirect_uri_mismatch";
+      } else if (providerCode === "invalid_grant") {
+        err.code = "oauth_code_invalid";
+      } else if (providerCode === "invalid_client") {
+        err.code = "invalid_client";
+      } else {
+        err.code = "token_exchange_failed";
+      }
+      err.details = providerData;
+      throw err;
     }
   },
   async getProfile(accessToken) {
