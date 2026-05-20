@@ -12,13 +12,18 @@ import { createScheduleRoutes } from "./routes/schedule.routes.js";
 import { createLinkPreviewRoutes } from "./routes/linkPreview.routes.js";
 import { startScheduledPostWorker } from "./jobs/scheduledPostWorker.js";
 import { getProviderEnvStatus, getRequiredEnvStatus, getAppConfig } from "./config/social.config.js";
-import { getGoogleOAuthRedirectWarnings, resolveProviderRedirectUri } from "./utils/redirectUri.util.js";
+import {
+  getGoogleOAuthRedirectWarnings,
+  getInstagramOAuthRedirectWarnings,
+  resolveProviderRedirectUri,
+} from "./utils/redirectUri.util.js";
 import { registerGoogleAuthRoutes } from "./routes/authGoogle.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set("trust proxy", 1);
 const port = process.env.PORT || 4000;
 const mongoUri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB_NAME || "engagehub";
@@ -41,9 +46,16 @@ console.info("[startup:env]", {
     googleBusinessRedirectUri: resolveProviderRedirectUri("googleBusiness") || "missing",
     appBaseUrl: appConfig.appBaseUrl,
   },
+  instagramOAuth: {
+    redirectUri: resolveProviderRedirectUri("instagram") || "missing",
+    appBaseUrl: appConfig.appBaseUrl,
+  },
 });
 for (const warning of getGoogleOAuthRedirectWarnings()) {
   console.warn("[startup:google-oauth]", warning);
+}
+for (const warning of getInstagramOAuthRedirectWarnings()) {
+  console.warn("[startup:instagram-oauth]", warning);
 }
 
 const client = new MongoClient(mongoUri);

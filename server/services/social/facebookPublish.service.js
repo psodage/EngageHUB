@@ -34,6 +34,53 @@ function formBody(params) {
 
 const formHeaders = { "Content-Type": "application/x-www-form-urlencoded" };
 
+function filenameForMime(mime) {
+  const m = (mime || "").toLowerCase();
+  if (m.includes("png")) return "photo.png";
+  if (m.includes("gif")) return "photo.gif";
+  if (m.includes("webp")) return "photo.webp";
+  return "photo.jpg";
+}
+
+/**
+ * Upload a photo via multipart `source` so Meta never fetches an external image URL.
+ * @param {{
+ *   pageId?: string,
+ *   pageAccessToken?: string,
+ *   userAccessToken?: string,
+ *   buffer: Buffer,
+ *   mime: string,
+ *   message: string,
+ *   targetType: 'page' | 'profile',
+ * }} opts
+ */
+export async function publishFacebookPhotoFromBuffer(opts) {
+  const { buffer, mime, message, targetType, pageId, pageAccessToken, userAccessToken } = opts;
+  const token = targetType === "page" ? pageAccessToken : userAccessToken;
+  if (!token) {
+    throw createPublishError("Missing access token.", "facebook_publish_invalid", 400);
+  }
+
+  const endpoint =
+    targetType === "page"
+      ? `${META_GRAPH_BASE_URL}/${encodeURIComponent(String(pageId || "").trim())}/photos`
+      : `${META_GRAPH_BASE_URL}/me/photos`;
+
+  const form = new FormData();
+  form.append("source", new Blob([buffer], { type: mime || "image/jpeg" }), filenameForMime(mime));
+  if (message) form.append("caption", message);
+  form.append("published", "true");
+  form.append("access_token", token);
+
+  try {
+    const { data } = await axios.post(endpoint, form);
+    const postId = data?.post_id ? String(data.post_id) : data?.id ? String(data.id) : "";
+    return { postId, raw: { id: data?.id, post_id: data?.post_id } };
+  } catch (error) {
+    throw normalizeAxiosError(error);
+  }
+}
+
 /**
  * @param {{
  *   userAccessToken: string,

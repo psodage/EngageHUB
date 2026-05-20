@@ -98,8 +98,7 @@ async function run() {
 
   const redirects = {
     facebook: resolveProviderRedirectUri("facebook"),
-    instagram:
-      process.env.INSTAGRAM_REDIRECT_URI || `${appBaseUrl}/api/social/instagram/callback`,
+    instagram: resolveProviderRedirectUri("instagram"),
     threads: resolveProviderRedirectUri("threads"),
   };
 

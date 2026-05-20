@@ -26,6 +26,15 @@ export function validateProviderConfig(platform) {
     }
     return { valid: missing.length === 0, missing };
   }
+  if (platform === "instagram") {
+    const missing = [];
+    if (!process.env.INSTAGRAM_CLIENT_ID) missing.push("INSTAGRAM_CLIENT_ID");
+    if (!process.env.INSTAGRAM_CLIENT_SECRET) missing.push("INSTAGRAM_CLIENT_SECRET");
+    if (!resolveProviderRedirectUri("instagram")) {
+      missing.push("INSTAGRAM_REDIRECT_URI or APP_BASE_URL");
+    }
+    return { valid: missing.length === 0, missing };
+  }
   const requiredKeys = getProviderRequiredEnvKeys(platform);
   const missing = requiredKeys.filter((key) => !process.env[key]);
   return {
@@ -95,7 +104,7 @@ export function getSafeProviderDebugInfo(platform) {
     return {
       platform,
       clientId: maskIdentifier(process.env.INSTAGRAM_CLIENT_ID),
-      redirectUri: process.env.INSTAGRAM_REDIRECT_URI || "missing",
+      redirectUri: resolveProviderRedirectUri("instagram") || "missing",
     };
   }
   if (platform === "github") {

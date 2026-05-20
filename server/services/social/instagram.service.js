@@ -1,7 +1,10 @@
 import axios from "axios";
-import { resolveProviderRedirectUri } from "../../utils/redirectUri.util.js";
+import {
+  normalizeOAuthRedirectUri,
+  resolveProviderRedirectUri,
+} from "../../utils/redirectUri.util.js";
 
-const INSTAGRAM_AUTH_URL = "https://www.instagram.com/oauth/authorize";
+const INSTAGRAM_AUTH_URL = "https://api.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
 const INSTAGRAM_GRAPH_BASE_URL = "https://graph.instagram.com";
 const INSTAGRAM_GRAPH_API_VERSION = "v21.0";
@@ -28,10 +31,14 @@ function createInstagramError(message, code, status = 400, details = null) {
   return error;
 }
 
-function ensureInstagramConfig() {
+function resolveInstagramRedirectUri(override) {
+  return normalizeOAuthRedirectUri(override || resolveProviderRedirectUri("instagram"));
+}
+
+function ensureInstagramConfig(redirectUriOverride) {
   const appId = (process.env.INSTAGRAM_CLIENT_ID || "").trim();
   const appSecret = (process.env.INSTAGRAM_CLIENT_SECRET || "").trim();
-  const redirectUri = resolveProviderRedirectUri("instagram");
+  const redirectUri = resolveInstagramRedirectUri(redirectUriOverride);
   if (!appId || !appSecret || !redirectUri) {
     throw createInstagramError(
       "Instagram OAuth is not configured.",
@@ -253,7 +260,8 @@ const instagramService = {
 
   getAuthUrl(input) {
     const state = typeof input === "string" ? input : input?.state;
-    const { appId, redirectUri } = ensureInstagramConfig();
+    const redirectOverride = typeof input === "object" && input?.redirectUri ? input.redirectUri : "";
+    const { appId, redirectUri } = ensureInstagramConfig(redirectOverride);
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: redirectUri,
@@ -275,7 +283,8 @@ const instagramService = {
 
   getAdvancedAuthUrl(input, additionalScopes = []) {
     const state = typeof input === "string" ? input : input?.state;
-    const { appId, redirectUri } = ensureInstagramConfig();
+    const redirectOverride = typeof input === "object" && input?.redirectUri ? input.redirectUri : "";
+    const { appId, redirectUri } = ensureInstagramConfig(redirectOverride);
     const mergedScopes = Array.from(new Set([...INSTAGRAM_DEFAULT_SCOPES, ...additionalScopes]));
     const params = new URLSearchParams({
       client_id: appId,
@@ -317,8 +326,9 @@ const instagramService = {
     }
   },
 
-  async exchangeCodeForToken(code) {
-    const { appId, appSecret, redirectUri } = ensureInstagramConfig();
+  async exchangeCodeForToken(code, options = {}) {
+    const redirectOverride = options?.redirectUri || "";
+    const { appId, appSecret, redirectUri } = ensureInstagramConfig(redirectOverride);
     try {
       const response = await axios.post(
         INSTAGRAM_TOKEN_URL,

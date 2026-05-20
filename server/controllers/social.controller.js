@@ -8,7 +8,16 @@ import { getProvider } from "../services/social/providerRegistry.js";
 import instagramService, { publishInstagramContent, INSTAGRAM_CAPTION_MAX_LENGTH } from "../services/social/instagram.service.js";
 import { META_SCOPE_SETS } from "../services/social/meta.service.js";
 import { decryptToken, encryptToken } from "../utils/crypto.js";
-import { publishFacebookPagePost, publishFacebookProfilePost } from "../services/social/facebookPublish.service.js";
+import {
+  publishFacebookPagePost,
+  publishFacebookPhotoFromBuffer,
+  publishFacebookProfilePost,
+} from "../services/social/facebookPublish.service.js";
+import {
+  ingestRemoteUrlToUploads,
+  isAppHostedUploadUrl,
+  loadMediaBufferFromUrl,
+} from "../services/social/hostedMedia.service.js";
 import {
   isMetaTokenAuthError,
   persistPagePublishingToken,
@@ -17,7 +26,7 @@ import {
 } from "../services/social/facebookPublishCredentials.service.js";
 import facebookService from "../services/social/facebook.service.js";
 import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/providerConfig.util.js";
-import { resolveProviderRedirectUri } from "../utils/redirectUri.util.js";
+import { resolveInstagramRedirectUri, resolveProviderRedirectUri } from "../utils/redirectUri.util.js";
 import { getPlatformCapabilities } from "../config/platformCapabilities.js";
 import {
   disconnectAccount,
@@ -126,6 +135,13 @@ function mapProviderErrorReason(error, errorDescription = "") {
   ) {
     return "google_redirect_uri_mismatch";
   }
+  if (
+    normalizedDescription.includes("invalid redirect_uri") ||
+    normalizedDescription.includes("invalid redirect uri") ||
+    (normalizedDescription.includes("invalid request") && normalizedDescription.includes("redirect_uri"))
+  ) {
+    return "instagram_redirect_uri_mismatch";
+  }
   return errorDescription || error || "oauth_error";
 }
 
@@ -157,7 +173,15 @@ function buildOAuthRedirectParams(platform, reason, callbackError = null) {
   const normalizedReason = String(reason || "").toLowerCase();
   const isRedirectMismatch =
     normalizedReason.includes("google_redirect_uri_mismatch") ||
-    normalizedReason.includes("redirect_uri_mismatch");
+    normalizedReason.includes("redirect_uri_mismatch") ||
+    normalizedReason.includes("instagram_redirect_uri_mismatch");
+
+  if (normalizedReason.includes("instagram_redirect_uri_mismatch") && platform === "instagram") {
+    return {
+      detail: "",
+      redirectUri: resolveProviderRedirectUri("instagram"),
+    };
+  }
 
   if (isRedirectMismatch && isGooglePlatform(platform)) {
     return {
@@ -1296,9 +1320,16 @@ export async function connectInstagramPlatform(req, res) {
     if (!providerConfig.valid) {
       return errorResponse(res, "instagram OAuth config is missing required environment variables.", 400, providerConfig.missing);
     }
-    const state = createOAuthState({ userId: req.auth.userId, platform: "instagram", flow });
-    const authUrl = provider.getAuthUrl({ state });
-    return successResponse(res, { url: authUrl, state }, "Instagram OAuth URL generated.");
+    const redirectUri = resolveInstagramRedirectUri(req);
+    const state = createOAuthState({ userId: req.auth.userId, platform: "instagram", flow, redirectUri });
+    const authUrl = provider.getAuthUrl({ state, redirectUri });
+    console.info("[oauth:instagram:connect:start]", {
+      userId: req.auth.userId,
+      flow,
+      redirectUri,
+      requestHost: req.get("host"),
+    });
+    return successResponse(res, { url: authUrl, state, redirectUri }, "Instagram OAuth URL generated.");
   } catch (error) {
     console.error("[oauth:instagram:connect:error]", {
       userId: req.auth?.userId,
@@ -1447,6 +1478,9 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
     const tokenData = await provider.exchangeCodeForToken(code, {
       ...(platform === "x" && decodedState?.pkceVerifier ? { codeVerifier: decodedState.pkceVerifier } : {}),
       ...(platform === "x" ? { useBasicClientAuth: true } : {}),
+      ...(platform === "instagram" && decodedState?.redirectUri
+        ? { redirectUri: decodedState.redirectUri }
+        : {}),
     });
     if (!tokenData?.accessToken) {
       throw new Error("No access token received from provider.");
@@ -2581,7 +2615,38 @@ export async function createFacebookPost(req, res) {
       return errorResponse(res, reconnectMessage, 401, "token_expired");
     }
 
+    if (
+      (parsed.mediaType === "IMAGE" || parsed.mediaType === "VIDEO") &&
+      parsed.mediaUrl &&
+      !isAppHostedUploadUrl(parsed.mediaUrl)
+    ) {
+      try {
+        parsed.mediaUrl = await ingestRemoteUrlToUploads(parsed.mediaUrl);
+      } catch (ingestErr) {
+        console.error("[facebook:post:ingest:error]", { message: ingestErr?.message });
+        return errorResponse(
+          res,
+          ingestErr?.message || "Could not download media from that URL.",
+          502,
+          "remote_ingest_failed"
+        );
+      }
+    }
+
     const runPublish = async (token) => {
+      if (parsed.mediaType === "IMAGE" && parsed.mediaUrl) {
+        const { buffer, mime } = await loadMediaBufferFromUrl(parsed.mediaUrl);
+        return publishFacebookPhotoFromBuffer({
+          targetType,
+          pageId,
+          pageAccessToken: targetType === "page" ? token : undefined,
+          userAccessToken: targetType === "profile" ? token : undefined,
+          buffer,
+          mime,
+          message: parsed.message,
+        });
+      }
+
       if (targetType === "page") {
         return publishFacebookPagePost({
           pageId,
@@ -4140,7 +4205,7 @@ export async function debugSocialEnvCheck(req, res) {
         googleBusinessRedirectUri: resolveProviderRedirectUri("googleBusiness") || "missing",
         linkedinRedirectUri: appConfig.linkedinRedirectUri || "missing",
         metaRedirectUri: appConfig.metaRedirectUri || "missing",
-        instagramRedirectUri: appConfig.instagramRedirectUri || "missing",
+        instagramRedirectUri: resolveProviderRedirectUri("instagram") || "missing",
         hasMetaAppId: Boolean(process.env.META_APP_ID),
         hasInstagramClientId: Boolean(process.env.INSTAGRAM_CLIENT_ID),
       },

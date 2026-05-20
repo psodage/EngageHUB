@@ -1,5 +1,5 @@
 import { ingestRemoteSocialMediaUrl, uploadSocialPublicMediaFile } from "../services/socialApi";
-import { isAppHostedMediaUrl } from "./importRemoteMediaFile";
+import { channelNeedsRemoteMediaIngest, selectionNeedsRemoteMediaIngest } from "./channelMediaHosting";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import {
   getCreatePostChannelLabel,
@@ -90,13 +90,14 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
   const originalFile = shared.file || null;
   let preUploadedMediaUrl = (shared.mediaUrl || "").trim();
   const needsUpload = Boolean(originalFile && !preUploadedMediaUrl);
-  const needsLinkedInIngest =
+  const sharedForIngest = { file: originalFile, mediaUrl: preUploadedMediaUrl };
+  const needsRemoteIngest =
     !originalFile &&
     Boolean(preUploadedMediaUrl) &&
-    !isAppHostedMediaUrl(preUploadedMediaUrl) &&
-    publishable.some((k) => getPlatformKeyFromCreatePostChannelKey(k) === "linkedin");
+    selectionNeedsRemoteMediaIngest(publishable, sharedForIngest);
 
-  if (needsLinkedInIngest) {
+  let remoteIngestError = null;
+  if (needsRemoteIngest) {
     publishable.forEach((k) => {
       statuses[k] = CHANNEL_PUBLISH_STATUS.uploading;
     });
@@ -104,20 +105,7 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
     try {
       preUploadedMediaUrl = await ingestRemoteSocialMediaUrl(preUploadedMediaUrl);
     } catch (err) {
-      const message = err?.message || "Could not import media for LinkedIn.";
-      publishable.forEach((k) => {
-        statuses[k] = CHANNEL_PUBLISH_STATUS.failed;
-      });
-      onStatusChange?.({ ...statuses }, { error: message });
-      return {
-        ok: [],
-        failed: publishable.map((k) => ({ platformKey: k, message })),
-        skipped: skippedKeys.map((k) => ({
-          platformKey: k,
-          reason: `Use ${platformLabel(k, channelOptions)} settings if this channel needs extra setup.`,
-        })),
-        statuses,
-      };
+      remoteIngestError = err?.message || "Could not import media from that URL.";
     }
   }
 

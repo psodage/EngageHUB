@@ -179,6 +179,22 @@ export function getSocialOAuthErrorMessage(reason, platform, oauthDetail = "", o
     }
     return "Google OAuth redirect URI mismatch. Add the exact callback URL from your .env to Google Cloud Console → Credentials → Authorized redirect URIs.";
   }
+  if (
+    normalized.includes("instagram_redirect_uri_mismatch") ||
+    (platformKey === "instagram" &&
+      normalized.includes("redirect") &&
+      (normalized.includes("invalid") || normalized.includes("mismatch")))
+  ) {
+    const uri = pickGoogleRedirectUri(platformKey, oauthRedirectUri, oauthDetail);
+    if (uri) {
+      return (
+        `Instagram OAuth redirect URI mismatch. In Meta Developer Console → your Instagram app → Instagram → Business login settings → OAuth redirect URIs, add this exact URL (must match INSTAGRAM_REDIRECT_URI in .env / Render): ${uri}`
+      );
+    }
+    return (
+      "Instagram OAuth redirect URI mismatch. Add the exact callback URL from INSTAGRAM_REDIRECT_URI to Meta → Business login settings → OAuth redirect URIs (check for trailing slashes)."
+    );
+  }
   if (normalized.includes("threads_redirect_uri_mismatch") || normalized.includes("callback_mismatch")) {
     return "Threads redirect URI mismatch. In Meta Developer Console, add the exact callback URL from THREADS_REDIRECT_URI, and use the same URL when connecting (local vs production).";
   }
