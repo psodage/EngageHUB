@@ -108,13 +108,16 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
   const mediaUrl = (draft.mediaUrl || "").trim();
   const linkUrl = (draft.linkUrl || "").trim();
   const preUploadedMediaUrl = (options.preUploadedMediaUrl || "").trim();
+  const originalFile = options.originalFile || draft.file || null;
   const account = options.connectedAccount || null;
+
+  const publicMediaUrl = () => preUploadedMediaUrl || mediaUrl;
 
   if (platformKey === "instagram") {
     const mediaType = typeConfig?.mediaType || "IMAGE";
-    let url = preUploadedMediaUrl || mediaUrl;
-    if (!url && draft.file) {
-      url = await uploadSocialPublicMediaFile(draft.file);
+    let url = publicMediaUrl();
+    if (!url && originalFile) {
+      url = await uploadSocialPublicMediaFile(originalFile);
       if (!url) throw new Error("Upload did not return a URL.");
     }
     const result = await publishInstagramPost({
@@ -128,9 +131,9 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
 
   if (platformKey === "facebook") {
     const mediaType = typeConfig?.mediaType || "TEXT";
-    let resolvedMediaUrl = preUploadedMediaUrl || mediaUrl;
-    if (!resolvedMediaUrl && draft.file && (mediaType === "IMAGE" || mediaType === "VIDEO")) {
-      resolvedMediaUrl = await uploadSocialPublicMedia(draft.file);
+    let resolvedMediaUrl = publicMediaUrl();
+    if (!resolvedMediaUrl && originalFile && (mediaType === "IMAGE" || mediaType === "VIDEO")) {
+      resolvedMediaUrl = await uploadSocialPublicMedia(originalFile);
     }
     const { entityId: channelEntityId } = parseCreatePostChannelKey(channelKey);
     const result = await postToFacebook({
@@ -149,14 +152,12 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
     let apiMediaType = "TEXT";
     if (mediaType === "TEXT") {
       apiMediaType = "TEXT";
-    } else if (preUploadedMediaUrl || draft.file) {
-      resolvedUrl = preUploadedMediaUrl || (await uploadSocialPublicMedia(draft.file));
-      apiMediaType =
-        preUploadedMediaUrl && inferThreadsMediaTypeFromUrl(preUploadedMediaUrl) === "VIDEO"
-          ? "VIDEO"
-          : (draft.file?.type || "").startsWith("video/")
-            ? "VIDEO"
-            : "IMAGE";
+    } else if (preUploadedMediaUrl) {
+      resolvedUrl = preUploadedMediaUrl;
+      apiMediaType = inferThreadsMediaTypeFromUrl(preUploadedMediaUrl);
+    } else if (originalFile) {
+      resolvedUrl = await uploadSocialPublicMedia(originalFile);
+      apiMediaType = (originalFile.type || "").startsWith("video/") ? "VIDEO" : "IMAGE";
     } else if (mediaUrl) {
       resolvedUrl = mediaUrl;
       apiMediaType = inferThreadsMediaTypeFromUrl(mediaUrl);
@@ -172,19 +173,18 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
 
   if (platformKey === "linkedin") {
     const mediaType = typeConfig?.mediaType || "TEXT";
-    const mediaFile = draft.file || null;
-    // LinkedIn API requires multipart upload for IMAGE/VIDEO; do not send a public mediaUrl.
+    const mediaFile = originalFile;
     const payload = {
       content: caption,
       targetType: "profile",
       organizationId: null,
       mediaType,
-      mediaUrl: mediaFile ? "" : preUploadedMediaUrl || mediaUrl || "",
+      mediaUrl: "",
       linkUrl: "",
     };
-    if ((mediaType === "IMAGE" || mediaType === "VIDEO") && !mediaFile && (preUploadedMediaUrl || mediaUrl)) {
+    if ((mediaType === "IMAGE" || mediaType === "VIDEO") && !mediaFile) {
       throw new Error(
-        "LinkedIn needs a direct file upload. Remove LinkedIn from multi-channel post, or post to LinkedIn from its channel page."
+        "LinkedIn requires the original uploaded file. Select a file from your device (not a link preview image) to include LinkedIn in this post."
       );
     }
     const result = await postToLinkedIn(payload, mediaFile);
@@ -194,11 +194,11 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
   if (platformKey === "telegram") {
     const chatId = resolveTelegramChatId(account, draft);
     if (!chatId) throw new Error("Add a Telegram channel or group under Connect channels first.");
-    let resolvedUrl = preUploadedMediaUrl || mediaUrl;
+    let resolvedUrl = publicMediaUrl();
     let mediaType = "TEXT";
-    if (draft.file || resolvedUrl) {
-      if (!resolvedUrl && draft.file) resolvedUrl = await uploadSocialPublicMediaFile(draft.file);
-      mediaType = (draft.file?.type || "").startsWith("video/") ? "VIDEO" : "IMAGE";
+    if (originalFile || resolvedUrl) {
+      if (!resolvedUrl && originalFile) resolvedUrl = await uploadSocialPublicMediaFile(originalFile);
+      mediaType = (originalFile?.type || "").startsWith("video/") ? "VIDEO" : "IMAGE";
     }
     await postToTelegram({
       chatId,
@@ -213,11 +213,11 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
   if (platformKey === "discord") {
     const target = resolveDiscordTarget(account, draft);
     if (!target?.channelId) throw new Error("Add a Discord channel target under Connect channels first.");
-    let resolvedUrl = preUploadedMediaUrl || mediaUrl;
+    let resolvedUrl = publicMediaUrl();
     let mediaType = "TEXT";
-    if (draft.file || resolvedUrl) {
-      if (!resolvedUrl && draft.file) resolvedUrl = await uploadSocialPublicMedia(draft.file);
-      mediaType = (draft.file?.type || "").startsWith("video/") ? "EMBED" : "IMAGE";
+    if (originalFile || resolvedUrl) {
+      if (!resolvedUrl && originalFile) resolvedUrl = await uploadSocialPublicMedia(originalFile);
+      mediaType = (originalFile?.type || "").startsWith("video/") ? "EMBED" : "IMAGE";
     }
     await postToDiscord({
       guildId: target.guildId,
@@ -233,8 +233,8 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
   if (platformKey === "googleBusiness") {
     const loc = resolveGoogleBusinessLocation(account, draft);
     if (!loc) throw new Error("Connect a Google Business Profile location first.");
-    let resolvedUrl = preUploadedMediaUrl || mediaUrl;
-    if (!resolvedUrl && draft.file) resolvedUrl = await uploadSocialPublicMedia(draft.file);
+    let resolvedUrl = publicMediaUrl();
+    if (!resolvedUrl && originalFile) resolvedUrl = await uploadSocialPublicMedia(originalFile);
     await postToGoogleBusiness({
       locationId: loc.locationId,
       accountId: loc.accountId,
@@ -247,7 +247,7 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
 
   if (platformKey === "youtube") {
     const channelId = resolveYouTubeChannelId(account, draft);
-    const videoFile = draft.file;
+    const videoFile = originalFile;
     if (!videoFile) throw new Error("YouTube requires a video file.");
     await postYouTubeVideo({
       channelId: channelId || undefined,

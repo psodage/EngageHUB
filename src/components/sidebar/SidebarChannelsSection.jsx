@@ -15,15 +15,15 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
         <p className="sidebar-nav-label">Linked channels</p>
         <div className="sidebar-channels-empty">
           <p className="text-xs font-medium text-slate-700 dark:text-slate-200">No linked channels</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+          <p className="mt-1 text-[11px] leading-snug text-slate-500">
             Connect Instagram, LinkedIn, X, and more to manage profiles from the sidebar.
           </p>
           <NavLink
             to="/channels"
             onClick={onClose}
-            className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-buffer-700 dark:text-buffer-400"
+            className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-buffer-700 dark:text-buffer-400"
           >
-            <Plus size={12} aria-hidden />
+            <Plus size={11} aria-hidden />
             Connect channels
           </NavLink>
         </div>
@@ -57,7 +57,7 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
                     <PlatformBrandIcon
                       platformKey={channel.platformKey}
                       size="sm"
-                      className="!h-[18px] !w-[18px] !rounded-md [&_svg]:!h-2.5 [&_svg]:!w-2.5"
+                      className="!h-[16px] !w-[16px] !rounded-[5px] [&_svg]:!h-2.5 [&_svg]:!w-2.5"
                     />
                   </span>
                 </span>
@@ -78,7 +78,7 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
           `sidebar-manage-channels ${isActive ? "sidebar-manage-channels--active" : ""}`
         }
       >
-        <Plus size={14} aria-hidden />
+        <Plus size={13} aria-hidden />
         Manage channels
       </NavLink>
     </section>

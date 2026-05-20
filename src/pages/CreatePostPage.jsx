@@ -111,6 +111,15 @@ export default function CreatePostPage() {
     setStep("pick");
   }, [scopedPlatformKey, scopedEntityId, navigate]);
 
+  const handlePublishSuccess = useCallback(() => {
+    if (scopedPlatformKey) {
+      navigate("/create-post", { replace: true });
+    }
+    setSelectedChannelKeys([]);
+    setDrafts({});
+    setStep("pick");
+  }, [scopedPlatformKey, navigate]);
+
   useEffect(() => {
     if (step === "compose" && selectedChannelKeys.length === 0) {
       setStep("pick");
@@ -143,6 +152,7 @@ export default function CreatePostPage() {
         drafts={drafts}
         onSetDrafts={onSetDrafts}
         onBack={handleBack}
+        onPublishSuccess={handlePublishSuccess}
       />
     );
   } else {
@@ -162,11 +172,11 @@ export default function CreatePostPage() {
 
   return (
     <div
-      className={
+      className={`flex min-h-0 w-full flex-1 flex-col ${
         isComposeStep
-          ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
-          : "min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
-      }
+          ? "overflow-hidden"
+          : "overflow-y-auto overflow-x-hidden overscroll-contain"
+      }`}
     >
       {content}
     </div>

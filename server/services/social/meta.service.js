@@ -239,7 +239,7 @@ export function createMetaOAuthService({
         entityType: "page",
         entityId: page.id?.toString() || "",
         name: page.name || "",
-        profileImage: "",
+        profileImage: page.picture?.data?.url || "",
         metadata: {
           hasLinkedInstagram: Boolean(page.instagram_business_account?.id),
           linkedInstagramId: page.instagram_business_account?.id || "",

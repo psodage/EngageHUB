@@ -3,7 +3,7 @@ import TokenExpiryWarning from "./TokenExpiryWarning";
 import AccountSyncInfo from "./AccountSyncInfo";
 import LinkedAccountCard from "./channel-detail/LinkedAccountCard";
 import ChannelProfileSection from "./channel-detail/ChannelProfileSection";
-import { getChannelDisplayInfo } from "../../utils/channelDisplay";
+import { findFacebookEntityById, getChannelDisplayInfo } from "../../utils/channelDisplay";
 import { getDistinctOAuthConnections, getFacebookConnectionEntities } from "../../utils/socialAccountEntities";
 
 function entityIcon(type) {
@@ -15,14 +15,33 @@ function entityIcon(type) {
 export default function ChannelProfileView({
   account,
   platformKey,
+  scopedEntityId = "",
   capabilities = [],
   onDisconnectEntity,
   disconnectingEntityId = "",
 }) {
-  const info = getChannelDisplayInfo(account);
   const entities = Array.isArray(account?.entities) ? account.entities : [];
+  const facebookEntities =
+    platformKey === "facebook" ? getFacebookConnectionEntities(account) : [];
+  const scopedFacebookEntity =
+    platformKey === "facebook" && scopedEntityId
+      ? findFacebookEntityById(facebookEntities, scopedEntityId)
+      : null;
+  const displayAccount =
+    platformKey === "facebook" && scopedFacebookEntity
+      ? {
+          ...account,
+          accountName: scopedFacebookEntity.accountName || account.accountName,
+          profileImage: scopedFacebookEntity.profileImage || "",
+        }
+      : account;
+  const info = getChannelDisplayInfo(displayAccount);
   const oauthConnections =
-    platformKey === "facebook" ? getFacebookConnectionEntities(account) : getDistinctOAuthConnections(account);
+    platformKey === "facebook"
+      ? scopedFacebookEntity
+        ? [scopedFacebookEntity]
+        : getFacebookConnectionEntities(account)
+      : getDistinctOAuthConnections(account);
   const managedEntities = entities.filter((entity) => {
     const type = entity?.entityType || "profile";
     if (platformKey === "facebook") {
@@ -56,7 +75,11 @@ export default function ChannelProfileView({
           title="Connected accounts"
           description={
             platformKey === "facebook"
-              ? "Your Facebook profile and Pages stay connected together. Add more via Connect channels."
+              ? scopedFacebookEntity
+                ? scopedFacebookEntity.entityType === "page"
+                  ? "Posts from this channel page publish only to this Page. Switch destination from Linked channels in the sidebar."
+                  : "Posts from this profile publish only to your personal Facebook profile. Switch destination from Linked channels in the sidebar."
+                : "Your Facebook profile and Pages stay connected together. Add more via Connect channels."
               : "Each login is a separate connection. Use a different account when adding another."
           }
         >

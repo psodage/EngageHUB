@@ -57,6 +57,12 @@ function resolveChannelUsername(account, entity = null) {
 /** @param {Record<string, unknown> | null | undefined} [entity] */
 function resolveAccountProfileImage(account, entity = null) {
   if (entity?.profileImage) return String(entity.profileImage);
+  const entityMeta =
+    entity?.metadata && typeof entity.metadata === "object" && !Array.isArray(entity.metadata)
+      ? entity.metadata
+      : {};
+  if (entityMeta.pictureUrl) return String(entityMeta.pictureUrl);
+  if (entity) return "";
   if (account?.profileImage) return String(account.profileImage);
   const entities = Array.isArray(account?.entities) ? account.entities : [];
   const profileEntity = entities.find((e) => e?.entityType === "profile");

@@ -15,6 +15,7 @@ export default function ChannelProfilePageLayout({
   account,
   platformKey,
   postCount,
+  createPostPath,
   onRefresh,
   onAddAccount,
   addingAccount,
@@ -31,6 +32,7 @@ export default function ChannelProfilePageLayout({
           account={account}
           platformKey={platformKey}
           postCount={postCount}
+          createPostPath={createPostPath}
           onRefresh={onRefresh}
           onAddAccount={onAddAccount}
           addingAccount={addingAccount}

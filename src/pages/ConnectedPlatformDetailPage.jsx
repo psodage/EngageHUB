@@ -13,7 +13,12 @@ import GitHubDashboard from "../components/github/GitHubDashboard";
 import { AlertCircle } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { PLATFORM_CAPABILITY_MATRIX, SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
-import { getChannelDisplayInfo } from "../utils/channelDisplay";
+import {
+  buildScopedCreatePostPath,
+  getChannelDisplayInfo,
+  resolveFacebookDisplayAccount,
+} from "../utils/channelDisplay";
+import { getChannelEntityIdFromSearch } from "../utils/navigation";
 import { normalizeChannelTab } from "../data/channelNav";
 import PostHistoryPanel from "../components/social/PostHistoryPanel";
 import ChannelProfileView from "../components/social/ChannelProfileView";
@@ -31,9 +36,28 @@ export default function ConnectedPlatformDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const detailTab = normalizeChannelTab(searchParams.get("tab"));
-  const createPostPath = platformKey
-    ? `/create-post?platform=${encodeURIComponent(platformKey)}`
-    : "/create-post";
+  const scopedEntityId = useMemo(
+    () => getChannelEntityIdFromSearch(searchParams.toString()),
+    [searchParams]
+  );
+
+  const account = useMemo(
+    () => connectedAccounts.find((item) => item.platform === platformKey),
+    [connectedAccounts, platformKey]
+  );
+
+  const displayAccount = useMemo(() => {
+    if (platformKey !== "facebook" || !account?.isConnected) return account;
+    return resolveFacebookDisplayAccount(account, scopedEntityId);
+  }, [account, platformKey, scopedEntityId]);
+
+  const createPostPath = useMemo(() => {
+    if (!platformKey) return "/create-post";
+    return buildScopedCreatePostPath({
+      platformKey,
+      entityId: platformKey === "facebook" ? String(displayAccount?.entityId || scopedEntityId || "").trim() : "",
+    });
+  }, [platformKey, displayAccount?.entityId, scopedEntityId]);
 
   const setDetailTab = (tabId) => {
     const next = normalizeChannelTab(tabId);
@@ -58,22 +82,25 @@ export default function ConnectedPlatformDetailPage() {
   const [disconnectingAccountId, setDisconnectingAccountId] = useState("");
   const [connectingAnother, setConnectingAnother] = useState(false);
 
-  const account = useMemo(
-    () => connectedAccounts.find((item) => item.platform === platformKey),
-    [connectedAccounts, platformKey]
-  );
-
   const platformConfig = SOCIAL_PLATFORM_CONFIGS.find((platform) => platform.key === platformKey);
   const label = formatPlatformLabel(platformKey);
   const capabilities = account?.capabilities?.length ? account.capabilities : PLATFORM_CAPABILITY_MATRIX[platformKey]?.badges || [];
-  const channelInfo = account ? getChannelDisplayInfo(account) : null;
+  const channelInfo = displayAccount ? getChannelDisplayInfo(displayAccount) : null;
+
+  const historyTargetId =
+    platformKey === "facebook" ? String(displayAccount?.entityId || scopedEntityId || "").trim() : "";
 
   useEffect(() => {
     if (!platformKey || !account?.isConnected) return;
-    getPostHistory({ platform: platformKey, page: 1, limit: 1 })
+    getPostHistory({
+      platform: platformKey,
+      targetId: historyTargetId || undefined,
+      page: 1,
+      limit: 1,
+    })
       .then(({ pagination }) => setPostCount(pagination.total ?? 0))
       .catch(() => setPostCount(0));
-  }, [platformKey, account?.isConnected, historyRefreshKey]);
+  }, [platformKey, account?.isConnected, historyRefreshKey, historyTargetId]);
 
   useEffect(() => {
     if (detailTab === "create" && platformKey) {
@@ -193,9 +220,10 @@ export default function ConnectedPlatformDetailPage() {
   return (
     <>
       <ChannelProfilePageLayout
-        account={account}
+        account={displayAccount || account}
         platformKey={platformKey}
         postCount={postCount}
+        createPostPath={createPostPath}
         onRefresh={handleRefresh}
         onAddAccount={handleAddAnotherAccount}
         addingAccount={connectingAnother}
@@ -207,6 +235,7 @@ export default function ConnectedPlatformDetailPage() {
           <ChannelProfileView
             account={account}
             platformKey={platformKey}
+            scopedEntityId={platformKey === "facebook" ? historyTargetId : ""}
             capabilities={capabilities}
             onDisconnectEntity={handleDisconnectEntity}
             disconnectingEntityId={disconnectingGoogleLocationId || disconnectingAccountId}
@@ -225,7 +254,11 @@ export default function ConnectedPlatformDetailPage() {
         ) : null}
 
         {detailTab === "history" ? (
-          <PostHistoryPanel platformKey={platformKey} refreshKey={historyRefreshKey} />
+          <PostHistoryPanel
+            platformKey={platformKey}
+            targetId={historyTargetId || undefined}
+            refreshKey={historyRefreshKey}
+          />
         ) : null}
       </ChannelProfilePageLayout>
     </>

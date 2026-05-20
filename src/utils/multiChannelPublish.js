@@ -19,15 +19,19 @@ export const MULTI_CHANNEL_PUBLISHABLE = new Set([
   "youtube",
 ]);
 
+/** Per-platform publish lifecycle for multi-channel UI. */
 export const CHANNEL_PUBLISH_STATUS = {
   pending: "pending",
   uploading: "uploading",
   publishing: "publishing",
-  success: "success",
+  published: "published",
   failed: "failed",
   skipped: "skipped",
   scheduled: "scheduled",
 };
+
+/** @deprecated Use CHANNEL_PUBLISH_STATUS.published */
+export const CHANNEL_PUBLISH_STATUS_SUCCESS = CHANNEL_PUBLISH_STATUS.published;
 
 function platformLabel(key, channelOptions = []) {
   const fromOptions = getCreatePostChannelLabel(key, channelOptions);
@@ -38,6 +42,19 @@ function platformLabel(key, channelOptions = []) {
 
 function initialStatuses(channelKeys) {
   return Object.fromEntries(channelKeys.map((k) => [k, CHANNEL_PUBLISH_STATUS.pending]));
+}
+
+function partitionPublishableKeys(publishable) {
+  const facebookKeys = [];
+  const parallelKeys = [];
+  publishable.forEach((key) => {
+    if (getPlatformKeyFromCreatePostChannelKey(key) === "facebook") {
+      facebookKeys.push(key);
+    } else {
+      parallelKeys.push(key);
+    }
+  });
+  return { facebookKeys, parallelKeys };
 }
 
 /**
@@ -69,8 +86,9 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
     };
   }
 
+  const originalFile = shared.file || null;
   let preUploadedMediaUrl = (shared.mediaUrl || "").trim();
-  const needsUpload = Boolean(shared.file && !preUploadedMediaUrl);
+  const needsUpload = Boolean(originalFile && !preUploadedMediaUrl);
 
   if (needsUpload) {
     publishable.forEach((k) => {
@@ -78,7 +96,7 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
     });
     onStatusChange?.({ ...statuses }, { phase: "upload" });
 
-    preUploadedMediaUrl = await uploadSocialPublicMediaFile(shared.file);
+    preUploadedMediaUrl = await uploadSocialPublicMediaFile(originalFile);
     if (!preUploadedMediaUrl) throw new Error("Media upload failed.");
   }
 
@@ -111,9 +129,10 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
         connectedByPlatform[getPlatformKeyFromCreatePostChannelKey(channelKey)];
       const message = await publishChannelDraft(channelKey, draft, {
         preUploadedMediaUrl,
+        originalFile,
         connectedAccount: account,
       });
-      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.success;
+      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.published;
       onStatusChange?.({ ...statuses }, { platformKey: channelKey, message });
       ok.push({ platformKey: channelKey, message });
     } catch (err) {
@@ -124,7 +143,13 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
     }
   };
 
-  await Promise.all(publishable.map(runOne));
+  const { facebookKeys, parallelKeys } = partitionPublishableKeys(publishable);
+
+  await Promise.all(parallelKeys.map(runOne));
+
+  for (const channelKey of facebookKeys) {
+    await runOne(channelKey);
+  }
 
   const skipped = skippedKeys.map((k) => ({
     platformKey: k,

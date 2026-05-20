@@ -103,12 +103,17 @@ export default function SchedulePostPage() {
   }, []);
 
   const handleBack = useCallback(() => {
-    if (step === "compose" && !scopedPlatformKey) {
+    if (scopedPlatformKey) {
+      const entity = scopedEntityId ? `?entity=${encodeURIComponent(scopedEntityId)}` : "";
+      navigate(`/channels/${scopedPlatformKey}${entity}`);
+      return;
+    }
+    if (step === "compose") {
       setStep("pick");
       return;
     }
     navigate("/schedule");
-  }, [step, scopedPlatformKey, navigate]);
+  }, [scopedPlatformKey, scopedEntityId, step, navigate]);
 
   useEffect(() => {
     if (step === "compose" && selectedChannelKeys.length === 0) {
@@ -116,8 +121,11 @@ export default function SchedulePostPage() {
     }
   }, [step, selectedChannelKeys.length]);
 
+  const isComposeStep = step === "compose" && selectedChannelKeys.length > 0;
+
+  let content;
   if (!channelOptions.length) {
-    return (
+    content = (
       <section className="buffer-card mx-auto max-w-lg p-6">
         <p className="font-semibold text-slate-900 dark:text-white">No connected platforms</p>
         <p className="mt-1 text-sm text-slate-500">Connect at least one channel to schedule posts.</p>
@@ -130,10 +138,8 @@ export default function SchedulePostPage() {
         </button>
       </section>
     );
-  }
-
-  if (step === "compose" && selectedChannelKeys.length > 0) {
-    return (
+  } else if (isComposeStep) {
+    content = (
       <SchedulePostWorkspace
         selectedChannelKeys={selectedChannelKeys}
         connectedByPlatform={connectedByChannel}
@@ -142,20 +148,32 @@ export default function SchedulePostPage() {
         onBack={handleBack}
       />
     );
+  } else {
+    content = (
+      <ChannelPickerStep
+        title="Schedule post"
+        subtitle="Select channels, add your content, and choose when it goes live."
+        maxWidthClass={selectedChannelKeys.length ? "max-w-[88rem]" : "max-w-4xl"}
+        connectedPlatformConfigs={channelOptions}
+        selectedKeys={selectedChannelKeys}
+        onToggle={toggleChannel}
+        onSelectAll={selectAllChannels}
+        onClearAll={clearAllChannels}
+        onContinue={startCompose}
+        continueLabel="Continue to schedule"
+      />
+    );
   }
 
   return (
-    <ChannelPickerStep
-      title="Schedule post"
-      subtitle="Select channels, add your content, and choose when it goes live."
-      maxWidthClass={selectedChannelKeys.length ? "max-w-[88rem]" : "max-w-4xl"}
-      connectedPlatformConfigs={channelOptions}
-      selectedKeys={selectedChannelKeys}
-      onToggle={toggleChannel}
-      onSelectAll={selectAllChannels}
-      onClearAll={clearAllChannels}
-      onContinue={startCompose}
-      continueLabel="Continue to schedule"
-    />
+    <div
+      className={`flex min-h-0 w-full flex-1 flex-col ${
+        isComposeStep
+          ? "overflow-hidden"
+          : "overflow-y-auto overflow-x-hidden overscroll-contain"
+      }`}
+    >
+      {content}
+    </div>
   );
 }

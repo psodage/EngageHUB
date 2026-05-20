@@ -29,7 +29,13 @@ export default function ChannelsConnectionsPanel({ variant = "channels", showHea
     disconnectPlatform,
   } = useSocialConnections({ setToast, refreshConnectedAccounts });
 
-  const openDetails = (platformKey) => navigate(`/channels/${platformKey}`);
+  const openDetails = (platformKey, entityId = "") => {
+    if (platformKey === "facebook" && entityId) {
+      navigate(`/channels/facebook?entity=${encodeURIComponent(entityId)}`);
+      return;
+    }
+    navigate(`/channels/${platformKey}`);
+  };
 
   const connectedForGrid = useMemo(() => {
     return listConnectionCardsFromAccounts(accounts)
@@ -139,7 +145,9 @@ export default function ChannelsConnectionsPanel({ variant = "channels", showHea
                 key={cardKey}
                 platformConfig={platformConfig}
                 account={displayAccount}
-                onOpen={() => openDetails(platformConfig.key)}
+                onOpen={() =>
+                  openDetails(platformConfig.key, String(displayAccount.entityId || "").trim())
+                }
                 onDisconnect={() =>
                   setDisconnectDialog({
                     open: true,

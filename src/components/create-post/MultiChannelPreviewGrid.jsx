@@ -106,7 +106,7 @@ export default function MultiChannelPreviewGrid({
               {status ? (
                 <span
                   className={`absolute right-2 top-2 z-10 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                    status === "success"
+                    status === "published" || status === "success"
                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200"
                       : status === "failed"
                         ? "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200"

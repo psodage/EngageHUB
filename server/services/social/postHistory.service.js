@@ -119,6 +119,11 @@ export async function listPostHistoryForUser({ userId, query }) {
     filter.content = new RegExp(escapeRegex(search), "i");
   }
 
+  const targetId = (query?.targetId || "").toString().trim();
+  if (targetId.length > 0 && targetId.length <= 256) {
+    filter.targetId = targetId;
+  }
+
   const startRaw = (query?.startDate || "").toString().trim();
   const endRaw = (query?.endDate || "").toString().trim();
   if (startRaw || endRaw) {

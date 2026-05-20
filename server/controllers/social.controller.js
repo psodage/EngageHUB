@@ -1801,7 +1801,7 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
               accountName: entity.name || profile.accountName || "",
               username: profile.username || "",
               email: profile.email || "",
-              profileImage: entity.profileImage || profile.profileImage || "",
+              profileImage: entity.profileImage || entity.metadata?.pictureUrl || "",
               capabilities: profile.capabilities || profile?.metadata?.capabilities || [],
               metadata: {
                 ...profile.metadata,

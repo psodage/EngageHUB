@@ -182,6 +182,7 @@ export async function publishInstagramContent({
     const body = { image_url: mediaUrl, ...captionFields };
     const created = await instagramGraphPostJson(`/${igUserId}/media`, accessToken, body);
     creationId = created?.id;
+    if (creationId) await waitForMediaContainerFinished(creationId, accessToken);
   } else if (type === "VIDEO" || type === "REEL") {
     if (!mediaUrl) throw createInstagramError("mediaUrl is required for video posts.", "instagram_media_required", 400);
     const body = {
@@ -216,6 +217,7 @@ export async function publishInstagramContent({
     };
     const created = await instagramGraphPostJson(`/${igUserId}/media`, accessToken, carouselBody);
     creationId = created?.id;
+    if (creationId) await waitForMediaContainerFinished(creationId, accessToken);
   }
 
   if (!creationId) {

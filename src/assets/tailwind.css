@@ -33,7 +33,7 @@
   }
 
   .dashboard-scroll--composer {
-    @apply flex min-h-0 flex-col overflow-hidden;
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
   }
 
   /* —— Main content regions (route-aware via DashboardLayout) —— */
@@ -345,7 +345,7 @@
   }
 
   .sidebar-nav-section--channels {
-    @apply mt-2 border-t border-slate-200/70 pt-3 dark:border-slate-800;
+    @apply mt-2 border-t border-slate-200/70 pt-2.5 dark:border-slate-800;
   }
 
   .sidebar-nav-label {
@@ -358,23 +358,23 @@
 
   /* —— Sidebar channels —— */
   .sidebar-channels-empty {
-    @apply rounded-lg border border-dashed border-slate-300/90 bg-slate-50/80 px-3 py-3.5 dark:border-slate-600 dark:bg-slate-800/30;
+    @apply rounded-lg border border-dashed border-slate-300/90 bg-slate-50/80 px-2.5 py-3 dark:border-slate-600 dark:bg-slate-800/30;
   }
 
   .sidebar-channels-heading {
-    @apply mb-2 flex items-center justify-between gap-2 px-2.5;
+    @apply mb-1.5 flex items-center justify-between gap-2 px-2;
   }
 
   .sidebar-channels-count {
-    @apply rounded-full bg-buffer-100 px-2 py-0.5 text-[10px] font-bold tabular-nums text-buffer-800 dark:bg-buffer-500/20 dark:text-buffer-300;
+    @apply rounded-full bg-buffer-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-buffer-800 dark:bg-buffer-500/20 dark:text-buffer-300;
   }
 
   .sidebar-channels-list {
-    @apply space-y-1;
+    @apply space-y-0.5;
   }
 
   .sidebar-channel-item {
-    @apply list-none rounded-xl transition;
+    @apply list-none rounded-lg transition;
   }
 
   .sidebar-channel-item--open {
@@ -382,7 +382,7 @@
   }
 
   .sidebar-channel-card {
-    @apply flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-slate-100/80 dark:hover:bg-slate-800/50;
+    @apply flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-100/80 dark:hover:bg-slate-800/50;
   }
 
   .sidebar-channel-card--active {
@@ -390,11 +390,11 @@
   }
 
   .sidebar-channel-avatar {
-    @apply relative h-9 w-9 shrink-0;
+    @apply relative h-8 w-8 shrink-0;
   }
 
   .sidebar-channel-avatar-img {
-    @apply h-9 w-9 rounded-full object-cover ring-2 ring-white dark:ring-slate-800;
+    @apply h-8 w-8 rounded-full object-cover ring-2 ring-white dark:ring-slate-800;
   }
 
   .sidebar-channel-platform-badge {
@@ -402,11 +402,11 @@
   }
 
   .sidebar-channel-text {
-    @apply min-w-0 flex-1;
+    @apply min-w-0 flex-1 leading-snug;
   }
 
   .sidebar-channel-name {
-    @apply block truncate text-sm font-semibold leading-tight text-slate-900 dark:text-white;
+    @apply block truncate text-[13px] font-semibold text-slate-900 dark:text-white;
   }
 
   .sidebar-channel-meta {
@@ -422,11 +422,11 @@
   }
 
   .sidebar-channel-subnav {
-    @apply mx-2 mb-2 space-y-0.5 border-l-2 border-buffer-200/80 pl-2.5 dark:border-buffer-500/40;
+    @apply mx-1.5 mb-1 space-y-px border-l-2 border-buffer-200/80 pl-2 dark:border-buffer-500/40;
   }
 
   .sidebar-channel-subnav-link {
-    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-white hover:text-slate-800 dark:hover:bg-slate-900/60 dark:hover:text-slate-200;
+    @apply flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-slate-800 dark:hover:bg-slate-900/60 dark:hover:text-slate-200;
   }
 
   .sidebar-channel-subnav-link--active {
@@ -434,7 +434,7 @@
   }
 
   .sidebar-manage-channels {
-    @apply mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300/90 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-buffer-300 hover:bg-buffer-50/50 hover:text-buffer-800 dark:border-slate-600 dark:text-slate-400 dark:hover:border-buffer-500/40 dark:hover:bg-buffer-500/10 dark:hover:text-buffer-300;
+    @apply mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300/90 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-buffer-300 hover:bg-buffer-50/50 hover:text-buffer-800 dark:border-slate-600 dark:text-slate-400 dark:hover:border-buffer-500/40 dark:hover:bg-buffer-500/10 dark:hover:text-buffer-300;
   }
 
   .sidebar-manage-channels--active {

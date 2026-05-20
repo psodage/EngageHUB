@@ -19,6 +19,7 @@ export default function ChannelProfileHeader({
   account,
   platformKey,
   postCount = null,
+  createPostPath,
   onRefresh,
   onAddAccount,
   addingAccount = false,
@@ -31,9 +32,20 @@ export default function ChannelProfileHeader({
   const entities = Array.isArray(account?.entities) ? account.entities : [];
   const synced = Boolean(account?.lastSyncedAt);
 
+  const composerPath =
+    createPostPath || `/create-post?platform=${encodeURIComponent(platformKey)}`;
+
   const stats = [
     { label: "Posts", value: postCount != null ? String(postCount) : "\u2014" },
-    { label: "Targets", value: String(entities.length || 1) },
+    {
+      label: "Targets",
+      value:
+        platformKey === "facebook" && account?.entityId
+          ? account.entityType === "page"
+            ? "1 page"
+            : "1 profile"
+          : String(entities.length || 1),
+    },
     {
       label: "Last sync",
       value: synced
@@ -70,7 +82,7 @@ export default function ChannelProfileHeader({
 
           <div className="channel-profile-actions">
             <Link
-              to={`/create-post?platform=${encodeURIComponent(platformKey)}`}
+              to={composerPath}
               className="channel-profile-btn channel-profile-btn--primary"
             >
               <PenSquare size={16} aria-hidden />

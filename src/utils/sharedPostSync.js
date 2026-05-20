@@ -12,7 +12,7 @@ export function getSharedCaptionLimit(channelKeys) {
   return Math.min(...channelKeys.map((key) => getPlatformComposerConfig(key).maxChars ?? 2200));
 }
 
-function inferMediaKind(file, mediaUrl) {
+export function inferMediaKind(file, mediaUrl) {
   if (file) {
     if ((file.type || "").startsWith("video/")) return "video";
     if ((file.type || "").startsWith("image/")) return "image";
@@ -31,15 +31,15 @@ export function buildDraftFromShared(channelKey, shared, preUploadedMediaUrl = "
   const base = createEmptyChannelDraft(channelKey);
   const caption = truncateCaptionForPlatform(shared.caption, channelKey);
   const file = shared.file || null;
-  const mediaUrl = preUploadedMediaUrl || (shared.mediaUrl || "").trim();
-  const kind = inferMediaKind(file, mediaUrl);
-  const hasMedia = Boolean(file || mediaUrl);
+  const publicUrl = preUploadedMediaUrl || (shared.mediaUrl || "").trim();
+  const kind = inferMediaKind(file, publicUrl);
+  const hasMedia = Boolean(file || publicUrl);
 
   const draft = {
     ...base,
     caption,
     file,
-    mediaUrl: file ? "" : mediaUrl,
+    mediaUrl: file ? "" : publicUrl,
     error: "",
   };
 

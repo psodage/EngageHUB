@@ -709,6 +709,7 @@ export async function postToGoogleBusiness(payload) {
 /**
  * @param {{
  *   platform: string,
+ *   targetId?: string,
  *   mediaType?: string,
  *   search?: string,
  *   startDate?: string,
@@ -721,6 +722,7 @@ export async function getPostHistory(params = {}) {
   try {
     const searchParams = new URLSearchParams();
     if (params.platform) searchParams.set("platform", params.platform);
+    if (params.targetId) searchParams.set("targetId", params.targetId);
     if (params.mediaType) searchParams.set("mediaType", params.mediaType);
     if (params.search) searchParams.set("search", params.search);
     if (params.startDate) searchParams.set("startDate", params.startDate);

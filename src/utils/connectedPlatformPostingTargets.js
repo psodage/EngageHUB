@@ -73,46 +73,66 @@ export function buildPostingTargetsConfig(platformKey, account) {
     /** @type {PostingTargetCard[]} */
     const cards = [];
     if (profileRow) {
-      const pid = profileRow.entityId || profileRow.platformUserId || "";
+      const pid = String(profileRow.entityId || profileRow.platformUserId || "").trim();
+      const entityQs = pid ? `?entity=${encodeURIComponent(pid)}` : "";
       cards.push({
         key: `profile-${pid}`,
         badge: "profile",
         title: entityDisplayName(profileRow),
         sublabel: pid ? `Facebook profile · ID ${pid}` : "Facebook profile",
         imageUrl: profileRow.profileImage || placeholderImage("facebook"),
-        path: `/channels/facebook`,
+        path: `/channels/facebook${entityQs}`,
       });
     }
     for (const page of pageRows) {
-      const pageId = page.entityId || page.platformUserId || "";
+      const pageId = String(page.entityId || page.platformUserId || "").trim();
+      const entityQs = pageId ? `?entity=${encodeURIComponent(pageId)}` : "";
       cards.push({
         key: `page-${pageId}`,
         badge: "page",
         title: entityDisplayName(page),
         sublabel: pageId ? `Facebook Page · ID ${pageId}` : "Facebook Page",
         imageUrl: page.profileImage || placeholderImage("facebook"),
-        path: `/channels/facebook`,
+        path: `/channels/facebook${entityQs}`,
       });
     }
     if (!cards.length) {
       const row = primaryRow();
       const pid = row.entityId || account.platformUserId || "";
+      const entityQs = pid ? `?entity=${encodeURIComponent(pid)}` : "";
       cards.push({
         key: `fallback-${pid}`,
         badge: account.entityType === "page" ? "page" : "profile",
         title: row.accountName || row.username || "Facebook",
         sublabel: pid ? `ID ${pid}` : "Facebook",
         imageUrl: row.profileImage || placeholderImage("facebook"),
-        path: `/channels/facebook`,
+        path: `/channels/facebook${entityQs}`,
       });
     }
+
+    const primaryEntityId = profileRow
+      ? String(profileRow.entityId || profileRow.platformUserId || "").trim()
+      : pageRows[0]
+        ? String(pageRows[0].entityId || pageRows[0].platformUserId || "").trim()
+        : "";
+    const primaryCreatePath = primaryEntityId
+      ? `/create-post?platform=facebook&entity=${encodeURIComponent(primaryEntityId)}`
+      : "/create-post?platform=facebook";
 
     return {
       title: "Facebook destinations",
       description: "Publish to your personal profile or any connected Facebook Page.",
       primaryCtaLabel: "Create post",
-      primaryCtaPath: "/channels/facebook",
-      cards,
+      primaryCtaPath: primaryCreatePath,
+      cards: cards.map((card) => {
+        const match = card.key.match(/^(?:profile|page)-(.+)$/);
+        const entityId = match?.[1] ? decodeURIComponent(match[1]) : "";
+        if (!entityId) return card;
+        return {
+          ...card,
+          path: `/create-post?platform=facebook&entity=${encodeURIComponent(entityId)}`,
+        };
+      }),
       emptyBanner: null,
     };
   }

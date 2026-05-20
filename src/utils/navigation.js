@@ -59,8 +59,12 @@ export function isChannelSidebarItemActive(pathname, search, channel) {
  */
 export function isChannelTabActive(pathname, search, platformKey, tabId, options = {}) {
   if (tabId === "create" && isCreatePostActive(pathname)) {
-    const platform = new URLSearchParams(search).get("platform")?.trim() || "";
-    return platform === platformKey;
+    const params = new URLSearchParams(search);
+    const platform = params.get("platform")?.trim() || "";
+    if (platform !== platformKey) return false;
+    const entityId = options.entityId || "";
+    if (!entityId) return true;
+    return params.get("entity")?.trim() === entityId;
   }
   if (pathname !== `/channels/${platformKey}`) return false;
 

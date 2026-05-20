@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Send } from "lucide-react";
+import { AUTH_FEEDBACK_REDIRECT_MS } from "../auth/authFeedbackConstants";
 import { useApp } from "../../context/AppContext";
 import { createEmptyChannelDraft } from "../../data/platformComposerConfig";
 import {
@@ -9,6 +10,7 @@ import {
 } from "../../utils/sharedPostSync";
 import { getCreatePostChannelLabel } from "../../utils/createPostChannels";
 import { publishToAllChannelsWithProgress, CHANNEL_PUBLISH_STATUS } from "../../utils/multiChannelPublish";
+import { shouldWarnLinkedInMissingOriginalFile } from "../../utils/multiChannelMedia";
 import CreatePostWorkspaceHeader from "./CreatePostWorkspaceHeader";
 import ChannelPreviewPanel from "./ChannelPreviewPanel";
 import ChannelPublishProgress from "./ChannelPublishProgress";
@@ -31,8 +33,10 @@ export default function CreatePostWorkspace({
   drafts,
   onSetDrafts,
   onBack,
+  onPublishSuccess,
 }) {
-  const { setToast, refreshConnectedAccounts } = useApp();
+  const { setToast, showAuthFeedback, refreshConnectedAccounts } = useApp();
+  const publishSuccessTimerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [sharedCaption, setSharedCaption] = useState("");
@@ -62,6 +66,15 @@ export default function CreatePostWorkspace({
       setActivePreviewChannelKey(selectedChannelKeys[0]);
     }
   }, [channelKeysKey, activePreviewChannelKey, selectedChannelKeys]);
+
+  useEffect(
+    () => () => {
+      if (publishSuccessTimerRef.current) {
+        clearTimeout(publishSuccessTimerRef.current);
+      }
+    },
+    []
+  );
 
   const previewChannelKeys = activePreviewChannelKey ? [activePreviewChannelKey] : [];
   const ideasPlatformKey =
@@ -115,6 +128,14 @@ export default function CreatePostWorkspace({
     [sharedCaption, sharedFile, selectedChannelKeys, drafts]
   );
 
+  const linkedInFileWarning = useMemo(() => {
+    const shared = {
+      file: sharedFile || getSharedFromDrafts(selectedChannelKeys, drafts).file,
+      mediaUrl: sharedMediaUrl,
+    };
+    return shouldWarnLinkedInMissingOriginalFile(selectedChannelKeys, shared);
+  }, [selectedChannelKeys, sharedFile, sharedMediaUrl, drafts, channelKeysKey]);
+
   const submitLabel = useMemo(() => {
     const n = selectedChannelKeys.length;
     return `Post to ${n} channel${n === 1 ? "" : "s"}`;
@@ -164,22 +185,34 @@ export default function CreatePostWorkspace({
         const labels = ok
           .map(({ platformKey }) => getCreatePostChannelLabel(platformKey, channelOptions))
           .join(", ");
-        setToast({
-          message:
-            ok.length === selectedChannelKeys.length
-              ? `Posted to all ${ok.length} channel(s): ${labels}.`
-              : `Posted to ${ok.length} channel(s): ${labels}.`,
-        });
+        const allSucceeded = ok.length === selectedChannelKeys.length;
+        const successMessage = allSucceeded
+          ? `Posted to all ${ok.length} channel(s): ${labels}.`
+          : `Posted to ${ok.length} channel(s): ${labels}.`;
+
         try {
           await refreshConnectedAccounts();
         } catch {
           /* non-fatal */
         }
-        const cleared = {};
-        selectedChannelKeys.forEach((key) => {
-          cleared[key] = createEmptyChannelDraft(key);
-        });
-        onSetDrafts(cleared);
+
+        if (allSucceeded && onPublishSuccess) {
+          if (publishSuccessTimerRef.current) {
+            clearTimeout(publishSuccessTimerRef.current);
+          }
+          showAuthFeedback({ message: successMessage, redirecting: true });
+          publishSuccessTimerRef.current = setTimeout(() => {
+            showAuthFeedback(null);
+            onPublishSuccess();
+          }, AUTH_FEEDBACK_REDIRECT_MS);
+        } else {
+          setToast({ message: successMessage });
+          const cleared = {};
+          selectedChannelKeys.forEach((key) => {
+            cleared[key] = createEmptyChannelDraft(key);
+          });
+          onSetDrafts(cleared);
+        }
       }
 
       if (failed.length && !ok.length) {
@@ -228,6 +261,7 @@ export default function CreatePostWorkspace({
               file={sharedFile}
               mediaUrl={sharedMediaUrl}
               captionLimit={captionLimit}
+              linkedInFileWarning={linkedInFileWarning}
               onCaptionChange={handleCaptionChange}
               onFileChange={handleFileChange}
               onSuggestedImageSelect={handleSuggestedImageSelect}

@@ -10,9 +10,9 @@ function platformLabel(key) {
 }
 
 /**
- * @param {{ platformKey: string, refreshKey?: number }} props
+ * @param {{ platformKey: string, targetId?: string, refreshKey?: number }} props
  */
-export default function PostHistoryPanel({ platformKey, refreshKey = 0 }) {
+export default function PostHistoryPanel({ platformKey, targetId = "", refreshKey = 0 }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [records, setRecords] = useState([]);
@@ -31,6 +31,7 @@ export default function PostHistoryPanel({ platformKey, refreshKey = 0 }) {
       try {
         const { records: rows, pagination: pg } = await getPostHistory({
           platform: platformKey,
+          targetId: targetId || undefined,
           mediaType: mediaType || undefined,
           search: searchApplied || undefined,
           startDate: startDate || undefined,
@@ -48,7 +49,7 @@ export default function PostHistoryPanel({ platformKey, refreshKey = 0 }) {
         setLoading(false);
       }
     },
-    [platformKey, mediaType, searchApplied, startDate, endDate]
+    [platformKey, targetId, mediaType, searchApplied, startDate, endDate]
   );
 
   useEffect(() => {
