@@ -8,6 +8,7 @@ import {
   Repeat2,
   Send,
 } from "lucide-react";
+import PlatformBrandIcon from "../channels/PlatformBrandIcon";
 import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
 import { getPlatformComposerConfig } from "../../data/platformComposerConfig";
 import { useObjectUrl } from "../../utils/useObjectUrl";
@@ -18,26 +19,7 @@ import {
   PREVIEW_CARD_WORKSPACE,
 } from "./workspaceLayout";
 
-function InstagramBrandIcon({ className = "h-4 w-4" }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      <defs>
-        <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#f09433" />
-          <stop offset="25%" stopColor="#e6683c" />
-          <stop offset="50%" stopColor="#dc2743" />
-          <stop offset="75%" stopColor="#cc2366" />
-          <stop offset="100%" stopColor="#bc1888" />
-        </linearGradient>
-      </defs>
-      <rect width="24" height="24" rx="6" fill="url(#ig-grad)" />
-      <circle cx="12" cy="12" r="4.2" fill="none" stroke="white" strokeWidth="1.8" />
-      <circle cx="17.4" cy="6.6" r="1.1" fill="white" />
-    </svg>
-  );
-}
-
-function PreviewShell({ compact, platformKey, platformLabel, PlatformIcon, children, emptyHint }) {
+function PreviewShell({ compact, platformKey, platformLabel, children, emptyHint }) {
   return (
     <div className={compact ? "flex w-full flex-col" : "flex h-full min-h-0 w-full flex-1 flex-col"}>
       <div
@@ -45,11 +27,11 @@ function PreviewShell({ compact, platformKey, platformLabel, PlatformIcon, child
           compact ? "mb-2 text-xs" : "mb-3 text-sm"
         }`}
       >
-        {platformKey === "instagram" ? (
-          <InstagramBrandIcon className="h-4 w-4 shrink-0" />
-        ) : PlatformIcon ? (
-          <PlatformIcon size={compact ? 16 : 18} className="shrink-0 text-slate-500" />
-        ) : null}
+        <PlatformBrandIcon
+          platformKey={platformKey}
+          size="sm"
+          className={`shrink-0 !h-4 !w-4 !rounded-md [&_svg]:!h-2.5 [&_svg]:!w-2.5 ${compact ? "" : ""}`}
+        />
         <span>{platformLabel}</span>
       </div>
 
@@ -253,7 +235,6 @@ function PlatformPostPreviewInner({
   const platformConfig = SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === platformKey);
   const composerConfig = getPlatformComposerConfig(platformKey);
   const theme = PREVIEW_THEMES[platformKey] || {};
-  const PlatformIcon = platformConfig?.icon;
   const previewLarge = size === "workspace";
 
   const localMediaUrl = useObjectUrl(
@@ -327,7 +308,6 @@ function PlatformPostPreviewInner({
       compact={compact}
       platformKey={platformKey}
       platformLabel={platformLabel}
-      PlatformIcon={PlatformIcon}
       emptyHint={!hasContent && !compact ? "Add a caption or media in the composer" : null}
     >
       <div className={cardWidthClass}>{card}</div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import AuthFormShell from "../components/auth/AuthFormShell";
@@ -59,13 +59,13 @@ export default function LoginPage() {
         footer={
           <>
             By signing in you agree to our{" "}
-            <a href="/login" className="underline underline-offset-2 hover:text-slate-600">
+            <Link to="/terms" className="underline underline-offset-2 hover:text-slate-600">
               Terms
-            </a>{" "}
+            </Link>{" "}
             &amp;{" "}
-            <a href="/login" className="underline underline-offset-2 hover:text-slate-600">
+            <Link to="/privacy" className="underline underline-offset-2 hover:text-slate-600">
               Privacy Policy
-            </a>
+            </Link>
           </>
         }
       >

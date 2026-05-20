@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import AuthFormShell from "../components/auth/AuthFormShell";
@@ -62,13 +62,13 @@ function SignupForm() {
       footer={
         <>
           By creating your account you agree to our{" "}
-          <a href="/signup" className="underline underline-offset-2 hover:text-slate-600">
+          <Link to="/terms" className="underline underline-offset-2 hover:text-slate-600">
             Terms
-          </a>{" "}
+          </Link>{" "}
           &amp;{" "}
-          <a href="/signup" className="underline underline-offset-2 hover:text-slate-600">
+          <Link to="/privacy" className="underline underline-offset-2 hover:text-slate-600">
             Privacy Policy
-          </a>
+          </Link>
         </>
       }
     >

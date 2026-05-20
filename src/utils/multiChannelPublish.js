@@ -1,5 +1,10 @@
 import { uploadSocialPublicMediaFile } from "../services/socialApi";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
+import {
+  getCreatePostChannelLabel,
+  getPlatformKeyFromCreatePostChannelKey,
+  isMultiChannelPublishable,
+} from "./createPostChannels";
 import { buildDraftFromShared } from "./sharedPostSync";
 import { publishChannelDraft, validateChannelDraft } from "./publishChannelDraft";
 
@@ -24,8 +29,11 @@ export const CHANNEL_PUBLISH_STATUS = {
   scheduled: "scheduled",
 };
 
-function platformLabel(key) {
-  return SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === key)?.label || key;
+function platformLabel(key, channelOptions = []) {
+  const fromOptions = getCreatePostChannelLabel(key, channelOptions);
+  if (fromOptions !== key) return fromOptions;
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(key);
+  return SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === platformKey)?.label || key;
 }
 
 function initialStatuses(channelKeys) {
@@ -36,11 +44,11 @@ function initialStatuses(channelKeys) {
  * Publish to all selected channels with per-channel progress callbacks.
  * @param {string[]} channelKeys
  * @param {{ caption: string, file?: File | null, mediaUrl?: string }} shared
- * @param {{ connectedByPlatform?: Record<string, object>, onStatusChange?: (statuses: Record<string, string>, detail?: object) => void }} [options]
+ * @param {{ connectedByPlatform?: Record<string, object>, connectedByChannel?: Record<string, object>, channelOptions?: Array<Record<string, unknown>>, onStatusChange?: (statuses: Record<string, string>, detail?: object) => void }} [options]
  */
 export async function publishToAllChannelsWithProgress(channelKeys, shared, options = {}) {
-  const { connectedByPlatform = {}, onStatusChange } = options;
-  const publishable = channelKeys.filter((k) => MULTI_CHANNEL_PUBLISHABLE.has(k));
+  const { connectedByPlatform = {}, connectedByChannel = {}, channelOptions = [], onStatusChange } = options;
+  const publishable = channelKeys.filter((k) => isMultiChannelPublishable(k));
   const skippedKeys = channelKeys.filter((k) => !MULTI_CHANNEL_PUBLISHABLE.has(k));
 
   const statuses = initialStatuses(channelKeys);
@@ -55,7 +63,7 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
       failed: [],
       skipped: skippedKeys.map((k) => ({
         platformKey: k,
-        reason: `${platformLabel(k)} is not available in multi-channel publish yet.`,
+        reason: `${platformLabel(k, channelOptions)} is not available in multi-channel publish yet.`,
       })),
       statuses,
     };
@@ -77,40 +85,42 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
   const ok = [];
   const failed = [];
 
-  const runOne = async (platformKey) => {
-    statuses[platformKey] = CHANNEL_PUBLISH_STATUS.publishing;
-    onStatusChange?.({ ...statuses }, { platformKey, phase: "publish" });
+  const runOne = async (channelKey) => {
+    statuses[channelKey] = CHANNEL_PUBLISH_STATUS.publishing;
+    onStatusChange?.({ ...statuses }, { platformKey: channelKey, phase: "publish" });
 
-    const draft = buildDraftFromShared(platformKey, shared, preUploadedMediaUrl);
+    const draft = buildDraftFromShared(channelKey, shared, preUploadedMediaUrl);
     if (draft.error) {
-      statuses[platformKey] = CHANNEL_PUBLISH_STATUS.failed;
-      onStatusChange?.({ ...statuses }, { platformKey, error: draft.error });
-      failed.push({ platformKey, message: draft.error });
+      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.failed;
+      onStatusChange?.({ ...statuses }, { platformKey: channelKey, error: draft.error });
+      failed.push({ platformKey: channelKey, message: draft.error });
       return;
     }
 
-    const validationError = validateChannelDraft(platformKey, draft);
+    const validationError = validateChannelDraft(channelKey, draft);
     if (validationError) {
-      statuses[platformKey] = CHANNEL_PUBLISH_STATUS.failed;
-      onStatusChange?.({ ...statuses }, { platformKey, error: validationError });
-      failed.push({ platformKey, message: validationError });
+      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.failed;
+      onStatusChange?.({ ...statuses }, { platformKey: channelKey, error: validationError });
+      failed.push({ platformKey: channelKey, message: validationError });
       return;
     }
 
     try {
-      const account = connectedByPlatform[platformKey];
-      const message = await publishChannelDraft(platformKey, draft, {
+      const account =
+        connectedByChannel[channelKey] ||
+        connectedByPlatform[getPlatformKeyFromCreatePostChannelKey(channelKey)];
+      const message = await publishChannelDraft(channelKey, draft, {
         preUploadedMediaUrl,
         connectedAccount: account,
       });
-      statuses[platformKey] = CHANNEL_PUBLISH_STATUS.success;
-      onStatusChange?.({ ...statuses }, { platformKey, message });
-      ok.push({ platformKey, message });
+      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.success;
+      onStatusChange?.({ ...statuses }, { platformKey: channelKey, message });
+      ok.push({ platformKey: channelKey, message });
     } catch (err) {
       const message = err?.message || "Publish failed.";
-      statuses[platformKey] = CHANNEL_PUBLISH_STATUS.failed;
-      onStatusChange?.({ ...statuses }, { platformKey, error: message });
-      failed.push({ platformKey, message });
+      statuses[channelKey] = CHANNEL_PUBLISH_STATUS.failed;
+      onStatusChange?.({ ...statuses }, { platformKey: channelKey, error: message });
+      failed.push({ platformKey: channelKey, message });
     }
   };
 
@@ -118,7 +128,7 @@ export async function publishToAllChannelsWithProgress(channelKeys, shared, opti
 
   const skipped = skippedKeys.map((k) => ({
     platformKey: k,
-    reason: `Use ${platformLabel(k)} settings if this channel needs extra setup.`,
+    reason: `Use ${platformLabel(k, channelOptions)} settings if this channel needs extra setup.`,
   }));
 
   return { ok, failed, skipped, statuses };

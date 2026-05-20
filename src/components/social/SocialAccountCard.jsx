@@ -3,6 +3,7 @@ import ConnectionStatusBadge from "./ConnectionStatusBadge";
 import ConnectButton from "./ConnectButton";
 import TokenExpiryWarning from "./TokenExpiryWarning";
 import AccountSyncInfo from "./AccountSyncInfo";
+import PlatformBrandIcon from "../channels/PlatformBrandIcon";
 import { PLATFORM_CAPABILITY_MATRIX } from "../../data/socialPlatforms";
 
 export default function SocialAccountCard({
@@ -18,7 +19,6 @@ export default function SocialAccountCard({
   variant = "dark",
 }) {
   const isBuffer = variant === "buffer";
-  const Icon = platformConfig.icon;
   const isConnected = !!account?.isConnected;
   const openDetailsEnabled = isConnected && typeof onOpenDetails === "function";
   const displayName = isConnected ? account?.accountName || account?.username || "No Account linked" : "No Account linked";
@@ -85,15 +85,7 @@ export default function SocialAccountCard({
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div
-              className={
-                isBuffer
-                  ? "rounded-lg bg-slate-100 p-2 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  : "rounded-xl bg-blue-500/10 p-2 text-blue-300"
-              }
-            >
-              {Icon ? <Icon size={18} /> : <span className="text-xs font-bold">X</span>}
-            </div>
+            <PlatformBrandIcon platformKey={platformConfig.key} size="sm" />
             <div>
               <p className={`text-sm font-semibold ${isBuffer ? "text-slate-900 dark:text-white" : "text-white"}`}>
                 {platformConfig.label}

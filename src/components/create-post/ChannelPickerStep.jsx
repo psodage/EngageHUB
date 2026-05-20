@@ -1,4 +1,58 @@
 import { Check } from "lucide-react";
+import PlatformBrandIcon from "../channels/PlatformBrandIcon";
+import { getPlatformKeyFromCreatePostChannelKey } from "../../utils/createPostChannels";
+
+function profilePlaceholder(displayName, platformName) {
+  const initial = (displayName?.[0] || platformName?.[0] || "?").toUpperCase();
+  return `https://placehold.co/96x96/e2e8f0/64748b?text=${encodeURIComponent(initial)}`;
+}
+
+function ChannelPickerCard({ option, isSelected, onToggle }) {
+  const platformKey = option.platformKey || getPlatformKeyFromCreatePostChannelKey(option.key);
+  const platformName = option.platformName || option.label;
+  const accountTypeLabel = option.accountTypeLabel || "";
+  const profileSrc =
+    option.profileImage || profilePlaceholder(option.accountDisplayName || option.label, platformName);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(option.key)}
+      className={`buffer-card flex items-center gap-3 p-4 text-left transition ring-2 ${
+        isSelected
+          ? "border-buffer-400 ring-buffer-200 dark:border-buffer-500/50 dark:ring-buffer-500/30"
+          : "ring-transparent hover:border-slate-300 dark:hover:border-slate-600"
+      }`}
+    >
+      <span className="relative shrink-0">
+        <img src={profileSrc} alt="" className="h-12 w-12 rounded-xl object-cover" />
+        <span className="absolute -bottom-0.5 -right-0.5">
+          <PlatformBrandIcon
+            platformKey={platformKey}
+            size="sm"
+            className="!h-[18px] !w-[18px] !rounded-md [&_svg]:!h-2.5 [&_svg]:!w-2.5 ring-2 ring-white dark:ring-slate-900"
+          />
+        </span>
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <p className="font-semibold text-slate-900 dark:text-white">{platformName}</p>
+        {accountTypeLabel ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400">{accountTypeLabel}</p>
+        ) : null}
+      </span>
+
+      <span
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+          isSelected ? "border-buffer-600 bg-buffer-600 text-white" : "border-slate-300 dark:border-slate-600"
+        }`}
+        aria-hidden
+      >
+        {isSelected ? <Check size={14} /> : null}
+      </span>
+    </button>
+  );
+}
 
 export default function ChannelPickerStep({
   title = "Create post",
@@ -44,43 +98,14 @@ export default function ChannelPickerStep({
 
       <div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {connectedPlatformConfigs.map((platformConfig) => {
-            const Icon = platformConfig.icon;
-            const isSelected = selectedKeys.includes(platformConfig.key);
-            return (
-              <button
-                key={platformConfig.key}
-                type="button"
-                onClick={() => onToggle(platformConfig.key)}
-                className={`buffer-card flex items-center gap-4 p-4 text-left transition ring-2 ${
-                  isSelected
-                    ? "border-buffer-400 ring-buffer-200 dark:border-buffer-500/50 dark:ring-buffer-500/30"
-                    : "ring-transparent hover:border-slate-300 dark:hover:border-slate-600"
-                }`}
-              >
-                <span
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                    isSelected
-                      ? "bg-buffer-100 text-buffer-700 dark:bg-buffer-500/20 dark:text-buffer-300"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800"
-                  }`}
-                >
-                  <Icon size={22} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 dark:text-white">{platformConfig.label}</p>
-                  <p className="text-xs text-slate-500">{platformConfig.hint}</p>
-                </span>
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                    isSelected ? "border-buffer-600 bg-buffer-600 text-white" : "border-slate-300 dark:border-slate-600"
-                  }`}
-                >
-                  {isSelected ? <Check size={14} /> : null}
-                </span>
-              </button>
-            );
-          })}
+          {connectedPlatformConfigs.map((option) => (
+            <ChannelPickerCard
+              key={option.key}
+              option={option}
+              isSelected={selectedKeys.includes(option.key)}
+              onToggle={onToggle}
+            />
+          ))}
         </div>
 
         <div className="mt-6 flex justify-end">

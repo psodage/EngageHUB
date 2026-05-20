@@ -5,6 +5,11 @@ import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import { createEmptyChannelDraft } from "../data/platformComposerConfig";
 import ChannelPickerStep from "../components/create-post/ChannelPickerStep";
 import CreatePostWorkspace from "../components/create-post/CreatePostWorkspace";
+import {
+  buildConnectedByChannelKey,
+  mapAccountsToCreatePostChannelOptions,
+  parseCreatePostChannelKey,
+} from "../utils/createPostChannels";
 
 export default function CreatePostPage() {
   const navigate = useNavigate();
@@ -20,6 +25,8 @@ export default function CreatePostPage() {
     return SOCIAL_PLATFORM_CONFIGS.some((c) => c.key === raw) ? raw : null;
   }, [searchParams]);
 
+  const scopedEntityId = useMemo(() => searchParams.get("entity")?.trim() || "", [searchParams]);
+
   useEffect(() => {
     getSocialAccounts()
       .then(setConnectedAccounts)
@@ -31,18 +38,42 @@ export default function CreatePostPage() {
     [connectedAccounts]
   );
 
-  const connectedPlatformConfigs = useMemo(
-    () => SOCIAL_PLATFORM_CONFIGS.filter((c) => connectedByPlatform[c.key]?.isConnected),
-    [connectedByPlatform]
+  const channelOptions = useMemo(
+    () => mapAccountsToCreatePostChannelOptions(connectedAccounts),
+    [connectedAccounts]
+  );
+
+  const connectedByChannel = useMemo(
+    () => buildConnectedByChannelKey(connectedAccounts),
+    [connectedAccounts]
   );
 
   useEffect(() => {
     if (!scopedPlatformKey) return;
     if (!connectedByPlatform[scopedPlatformKey]?.isConnected) return;
-    setSelectedChannelKeys([scopedPlatformKey]);
-    setDrafts({ [scopedPlatformKey]: createEmptyChannelDraft(scopedPlatformKey) });
+
+    let keys = [scopedPlatformKey];
+
+    if (scopedPlatformKey === "facebook") {
+      if (!scopedEntityId) return;
+      const platformChannelKeys = channelOptions
+        .filter((o) => o.platformKey === "facebook")
+        .map((o) => o.key);
+      const match = platformChannelKeys.find(
+        (key) => parseCreatePostChannelKey(key).entityId === scopedEntityId
+      );
+      if (!match) return;
+      keys = [match];
+    }
+
+    setSelectedChannelKeys(keys);
+    const nextDrafts = {};
+    keys.forEach((key) => {
+      nextDrafts[key] = createEmptyChannelDraft(key);
+    });
+    setDrafts(nextDrafts);
     setStep("compose");
-  }, [scopedPlatformKey, connectedByPlatform]);
+  }, [scopedPlatformKey, scopedEntityId, connectedByPlatform, channelOptions]);
 
   const toggleChannel = useCallback((key) => {
     setSelectedChannelKeys((prev) =>
@@ -51,8 +82,8 @@ export default function CreatePostPage() {
   }, []);
 
   const selectAllChannels = useCallback(() => {
-    setSelectedChannelKeys(connectedPlatformConfigs.map((c) => c.key));
-  }, [connectedPlatformConfigs]);
+    setSelectedChannelKeys(channelOptions.map((c) => c.key));
+  }, [channelOptions]);
 
   const clearAllChannels = useCallback(() => {
     setSelectedChannelKeys([]);
@@ -73,11 +104,12 @@ export default function CreatePostPage() {
 
   const handleBack = useCallback(() => {
     if (scopedPlatformKey) {
-      navigate(`/channels/${scopedPlatformKey}`);
+      const entity = scopedEntityId ? `?entity=${encodeURIComponent(scopedEntityId)}` : "";
+      navigate(`/channels/${scopedPlatformKey}${entity}`);
       return;
     }
     setStep("pick");
-  }, [scopedPlatformKey, navigate]);
+  }, [scopedPlatformKey, scopedEntityId, navigate]);
 
   useEffect(() => {
     if (step === "compose" && selectedChannelKeys.length === 0) {
@@ -88,7 +120,7 @@ export default function CreatePostPage() {
   const isComposeStep = step === "compose" && selectedChannelKeys.length > 0;
 
   let content;
-  if (!connectedPlatformConfigs.length) {
+  if (!channelOptions.length) {
     content = (
       <section className="buffer-card mx-auto w-full max-w-lg p-6">
         <p className="font-semibold text-slate-900 dark:text-white">No connected platforms</p>
@@ -106,7 +138,8 @@ export default function CreatePostPage() {
     content = (
       <CreatePostWorkspace
         selectedChannelKeys={selectedChannelKeys}
-        connectedByPlatform={connectedByPlatform}
+        connectedByPlatform={connectedByChannel}
+        channelOptions={channelOptions}
         drafts={drafts}
         onSetDrafts={onSetDrafts}
         onBack={handleBack}
@@ -117,8 +150,7 @@ export default function CreatePostPage() {
       <ChannelPickerStep
         title="Create post"
         subtitle="Select channels, write your post, and publish to all at once."
-        connectedPlatformConfigs={connectedPlatformConfigs}
-        connectedByPlatform={connectedByPlatform}
+        connectedPlatformConfigs={channelOptions}
         selectedKeys={selectedChannelKeys}
         onToggle={toggleChannel}
         onSelectAll={selectAllChannels}

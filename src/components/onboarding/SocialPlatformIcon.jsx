@@ -1,21 +1,8 @@
-import { SOCIAL_PLATFORM_ICON_MAP } from "./socialPlatformIcons";
+import PlatformBrandIcon from "../channels/PlatformBrandIcon";
 
-const SIZE = {
-  sm: "h-8 w-8 text-sm rounded-lg",
-  md: "h-9 w-9 text-base rounded-lg",
-};
+const SIZE_MAP = { sm: "sm", md: "md" };
 
+/** @deprecated Prefer PlatformBrandIcon directly — kept for onboarding cards. */
 export default function SocialPlatformIcon({ platformKey, size = "sm", className = "" }) {
-  const config = SOCIAL_PLATFORM_ICON_MAP[platformKey];
-  const Icon = config?.Icon;
-  const brandClass = config?.brandClass || "from-slate-600 to-slate-700";
-
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center justify-center bg-gradient-to-br text-white ${SIZE[size]} ${brandClass} ${className}`}
-      aria-hidden
-    >
-      {Icon ? <Icon /> : <span className="text-xs font-bold">?</span>}
-    </span>
-  );
+  return <PlatformBrandIcon platformKey={platformKey} size={SIZE_MAP[size] || "sm"} className={className} />;
 }

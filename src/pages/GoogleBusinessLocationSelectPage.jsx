@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Building2, CheckCircle2, ChevronLeft, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
+import PlatformBrandIcon from "../components/channels/PlatformBrandIcon";
 import {
   getGoogleBusinessLocationsSession,
   selectGoogleBusinessLocations,
@@ -28,9 +29,7 @@ function LocationCard({ location, selected, onToggle }) {
           : "border-slate-200/90 dark:border-slate-800",
       ].join(" ")}
     >
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
-        <Building2 size={20} aria-hidden />
-      </div>
+      <PlatformBrandIcon platformKey="googleBusiness" size="md" />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

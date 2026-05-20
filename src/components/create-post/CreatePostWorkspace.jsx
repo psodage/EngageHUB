@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
 import { createEmptyChannelDraft } from "../../data/platformComposerConfig";
 import {
   getSharedCaptionLimit,
   getSharedFromDrafts,
   syncSharedToAllDrafts,
 } from "../../utils/sharedPostSync";
+import { getCreatePostChannelLabel } from "../../utils/createPostChannels";
 import { publishToAllChannelsWithProgress, CHANNEL_PUBLISH_STATUS } from "../../utils/multiChannelPublish";
 import CreatePostWorkspaceHeader from "./CreatePostWorkspaceHeader";
 import ChannelPreviewPanel from "./ChannelPreviewPanel";
@@ -27,6 +27,7 @@ import {
 export default function CreatePostWorkspace({
   selectedChannelKeys,
   connectedByPlatform,
+  channelOptions = [],
   drafts,
   onSetDrafts,
   onBack,
@@ -63,7 +64,8 @@ export default function CreatePostWorkspace({
   }, [channelKeysKey, activePreviewChannelKey, selectedChannelKeys]);
 
   const previewChannelKeys = activePreviewChannelKey ? [activePreviewChannelKey] : [];
-  const ideasPlatformKey = activePreviewChannelKey || selectedChannelKeys[0] || "";
+  const ideasPlatformKey =
+    activePreviewChannelKey?.split(":")[0] || selectedChannelKeys[0]?.split(":")[0] || "";
 
   const sharedMediaUrl = useMemo(
     () => getSharedFromDrafts(selectedChannelKeys, drafts).mediaUrl,
@@ -143,6 +145,8 @@ export default function CreatePostWorkspace({
         payload,
         {
           connectedByPlatform,
+          connectedByChannel: connectedByPlatform,
+          channelOptions,
           onStatusChange: (next, detail) => {
             setChannelStatuses({ ...next });
             if (detail?.error && detail.platformKey) {
@@ -158,7 +162,7 @@ export default function CreatePostWorkspace({
         setSharedCaption("");
         setSharedFile(null);
         const labels = ok
-          .map(({ platformKey }) => SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === platformKey)?.label || platformKey)
+          .map(({ platformKey }) => getCreatePostChannelLabel(platformKey, channelOptions))
           .join(", ");
         setToast({
           message:
@@ -234,6 +238,7 @@ export default function CreatePostWorkspace({
               <div className="border-t border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-950/30">
                 <ChannelPublishProgress
                   selectedChannelKeys={selectedChannelKeys}
+                  channelOptions={channelOptions}
                   channelStatuses={channelStatuses}
                   errors={channelErrors}
                 />

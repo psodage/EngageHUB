@@ -2,13 +2,8 @@ import { useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Plus } from "lucide-react";
 import PlatformBrandIcon from "../channels/PlatformBrandIcon";
-import { CHANNEL_PROFILE_TABS } from "../../data/channelNav";
 import { buildChannelTabPath, mapConnectedChannelsForSidebar } from "../../utils/channelDisplay";
-import {
-  isChannelSidebarItemActive,
-  isChannelTabActive,
-  isChannelsListActive,
-} from "../../utils/navigation";
+import { isChannelSidebarItemActive } from "../../utils/navigation";
 
 export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
   const location = useLocation();
@@ -45,8 +40,7 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
 
       <ul className="sidebar-channels-list">
         {channels.map((channel) => {
-          const channelOpen = isChannelSidebarItemActive(location.pathname, location.search, channel);
-          const channelActive = channelOpen;
+          const channelActive = isChannelSidebarItemActive(location.pathname, location.search, channel);
 
           return (
             <li key={channel.sidebarKey} className="sidebar-channel-item">
@@ -72,39 +66,6 @@ export default function SidebarChannelsSection({ connectedAccounts, onClose }) {
                   <span className="sidebar-channel-meta">{channel.handle || channel.platformLabel}</span>
                 </span>
               </NavLink>
-
-              {channelOpen ? (
-                <ul className="sidebar-channel-subnav" aria-label={`${channel.displayName} sections`}>
-                  {CHANNEL_PROFILE_TABS.map((tab) => {
-                    const Icon = tab.icon;
-                    const tabActive = isChannelTabActive(
-                      location.pathname,
-                      location.search,
-                      channel.platformKey,
-                      tab.id,
-                      { entityId: channel.entityId, isDefaultEntity: channel.isDefaultEntity }
-                    );
-                    const tabTo =
-                      tab.id === "create"
-                        ? `/create-post?platform=${encodeURIComponent(channel.platformKey)}`
-                        : buildChannelTabPath(channel, tab.id);
-                    return (
-                      <li key={tab.id}>
-                        <NavLink
-                          to={tabTo}
-                          onClick={onClose}
-                          className={() =>
-                            `sidebar-channel-subnav-link ${tabActive ? "sidebar-channel-subnav-link--active" : ""}`
-                          }
-                        >
-                          <Icon size={14} className="shrink-0 opacity-75" aria-hidden />
-                          <span className="truncate">{tab.label}</span>
-                        </NavLink>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
             </li>
           );
         })}

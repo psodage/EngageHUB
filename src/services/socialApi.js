@@ -553,6 +553,7 @@ export async function postToLinkedIn(payload, mediaFile) {
  *   mediaType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'LINK',
  *   mediaUrl?: string,
  *   linkUrl?: string,
+ *   entityId?: string,
  * }} payload
  */
 export async function postToFacebook(payload) {

@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
+import { getCreatePostChannelLabel, getPlatformKeyFromCreatePostChannelKey } from "../../utils/createPostChannels";
 import { useObjectUrl } from "../../utils/useObjectUrl";
 import { buildDraftFromShared } from "../../utils/sharedPostSync";
 import PlatformPostPreview from "./PlatformPostPreview";
@@ -29,13 +29,14 @@ function draftOverrideKey(drafts, keys) {
 }
 
 const PreviewCell = memo(function PreviewCell({
-  platformKey,
+  channelKey,
   draft,
   account,
   mediaPreviewUrl,
   previewSize,
   compact,
 }) {
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(channelKey);
   return (
     <PlatformPostPreview
       platformKey={platformKey}
@@ -93,8 +94,8 @@ export default function MultiChannelPreviewGrid({
         }
       >
         {previews.map(({ key, draft }) => {
-          const config = SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === key);
           const status = channelStatuses[key];
+          const label = getCreatePostChannelLabel(key);
 
           return (
             <article
@@ -122,15 +123,15 @@ export default function MultiChannelPreviewGrid({
                 </span>
               ) : null}
               <PreviewCell
-                platformKey={key}
+                channelKey={key}
                 draft={draft}
                 account={connectedByPlatform[key]}
                 mediaPreviewUrl={sharedMediaUrl}
                 previewSize={previewSize}
                 compact={!isWorkspace}
               />
-              {!isWorkspace && !showCompact && config ? (
-                <p className="mt-1 text-center text-[10px] font-medium text-slate-500">{config.label}</p>
+              {!isWorkspace && !showCompact ? (
+                <p className="mt-1 text-center text-[10px] font-medium text-slate-500">{label}</p>
               ) : null}
             </article>
           );

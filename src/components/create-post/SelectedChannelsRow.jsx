@@ -1,4 +1,6 @@
+import PlatformBrandIcon from "../channels/PlatformBrandIcon";
 import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
+import { getPlatformKeyFromCreatePostChannelKey } from "../../utils/createPostChannels";
 
 const PLATFORM_AVATAR_RING = {
   instagram: "ring-pink-500",
@@ -11,9 +13,9 @@ const PLATFORM_AVATAR_RING = {
   tiktok: "ring-slate-900 dark:ring-slate-200",
 };
 
-function ChannelAvatar({ platformKey, account, isActive }) {
+function ChannelAvatar({ channelKey, account, isActive }) {
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(channelKey);
   const platformConfig = SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === platformKey);
-  const Icon = platformConfig?.icon;
   const displayName = account?.accountName || account?.username || platformConfig?.label || "?";
   const profileImage =
     account?.profileImage ||
@@ -32,11 +34,13 @@ function ChannelAvatar({ platformKey, account, isActive }) {
         alt=""
         className={`h-11 w-11 rounded-xl object-cover ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${ringClass}`}
       />
-      {Icon ? (
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-white dark:border-slate-900">
-          <Icon size={11} />
-        </span>
-      ) : null}
+      <span className="absolute -bottom-0.5 -right-0.5">
+        <PlatformBrandIcon
+          platformKey={platformKey}
+          size="sm"
+          className="!h-5 !w-5 !rounded-full [&_svg]:!h-2.5 [&_svg]:!w-2.5 ring-2 ring-white dark:ring-slate-900"
+        />
+      </span>
     </span>
   );
 }
@@ -65,7 +69,7 @@ export default function SelectedChannelsRow({
         const isActive = activeChannelKey === key;
         const avatar = (
           <ChannelAvatar
-            platformKey={key}
+            channelKey={key}
             account={connectedByPlatform[key]}
             isActive={canSelect && isActive}
           />
@@ -83,7 +87,7 @@ export default function SelectedChannelsRow({
             className={`rounded-xl transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-buffer-500 ${
               isActive ? "" : "opacity-75 hover:opacity-100"
             }`}
-            aria-label={`Preview ${SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === key)?.label || key}`}
+            aria-label={`Preview ${connectedByPlatform[key]?.accountName || SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === getPlatformKeyFromCreatePostChannelKey(key))?.label || key}`}
             aria-pressed={isActive}
           >
             {avatar}

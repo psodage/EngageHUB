@@ -13,6 +13,10 @@ import {
 } from "../services/socialApi";
 import { getActivePostTypeConfig } from "../data/platformComposerConfig";
 import {
+  getPlatformKeyFromCreatePostChannelKey,
+  parseCreatePostChannelKey,
+} from "./createPostChannels";
+import {
   resolveDiscordTarget,
   resolveGoogleBusinessLocation,
   resolveTelegramChatId,
@@ -25,8 +29,9 @@ function inferThreadsMediaTypeFromUrl(url) {
   return "IMAGE";
 }
 
-export function validateChannelDraft(platformKey, draft) {
-  const typeConfig = getActivePostTypeConfig(platformKey, draft.postType);
+export function validateChannelDraft(channelKey, draft) {
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(channelKey);
+  const typeConfig = getActivePostTypeConfig(channelKey, draft.postType);
   const caption = (draft.caption || "").trim();
   const mediaUrl = (draft.mediaUrl || "").trim();
   const linkUrl = (draft.linkUrl || "").trim();
@@ -96,8 +101,9 @@ export function validateChannelDraft(platformKey, draft) {
   return null;
 }
 
-export async function publishChannelDraft(platformKey, draft, options = {}) {
-  const typeConfig = getActivePostTypeConfig(platformKey, draft.postType);
+export async function publishChannelDraft(channelKey, draft, options = {}) {
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(channelKey);
+  const typeConfig = getActivePostTypeConfig(channelKey, draft.postType);
   const caption = (draft.caption || "").trim();
   const mediaUrl = (draft.mediaUrl || "").trim();
   const linkUrl = (draft.linkUrl || "").trim();
@@ -126,11 +132,13 @@ export async function publishChannelDraft(platformKey, draft, options = {}) {
     if (!resolvedMediaUrl && draft.file && (mediaType === "IMAGE" || mediaType === "VIDEO")) {
       resolvedMediaUrl = await uploadSocialPublicMedia(draft.file);
     }
+    const { entityId: channelEntityId } = parseCreatePostChannelKey(channelKey);
     const result = await postToFacebook({
       message: caption,
       mediaType,
       mediaUrl: resolvedMediaUrl || undefined,
       linkUrl: mediaType === "LINK" ? linkUrl : undefined,
+      entityId: (draft.entityId || channelEntityId || "").trim() || undefined,
     });
     return result?.message || "Published to Facebook.";
   }

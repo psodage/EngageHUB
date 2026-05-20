@@ -74,7 +74,8 @@ export default function SchedulePostWorkspace({
   }, [channelKeysKey, activePreviewChannelKey, selectedChannelKeys]);
 
   const previewChannelKeys = activePreviewChannelKey ? [activePreviewChannelKey] : [];
-  const ideasPlatformKey = activePreviewChannelKey || selectedChannelKeys[0] || "";
+  const ideasPlatformKey =
+    activePreviewChannelKey?.split(":")[0] || selectedChannelKeys[0]?.split(":")[0] || "";
 
   const sharedMediaUrl = useMemo(
     () => getSharedFromDrafts(selectedChannelKeys, drafts).mediaUrl,

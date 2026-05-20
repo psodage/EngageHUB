@@ -320,6 +320,38 @@ export async function getStoredAccountForProvider(userId, platform) {
   return SocialAccount.findOne({ userId, platform: normalizePlatform(platform) });
 }
 
+/**
+ * Resolve the Facebook SocialAccount row for publishing (profile or a specific Page).
+ * @param {import("mongodb").ObjectId} userId
+ * @param {string | null | undefined} entityId Facebook profile or Page id from the client
+ */
+export async function getFacebookAccountForPublish(userId, entityId) {
+  const normalized = entityId != null && String(entityId).trim() ? String(entityId).trim() : "";
+  if (normalized) {
+    const byEntityId = await SocialAccount.findOne({
+      userId,
+      platform: "facebook",
+      entityId: normalized,
+      isConnected: true,
+    });
+    if (byEntityId) return byEntityId;
+
+    const byPlatformUserId = await SocialAccount.findOne({
+      userId,
+      platform: "facebook",
+      platformUserId: normalized,
+      isConnected: true,
+    });
+    if (byPlatformUserId) return byPlatformUserId;
+  }
+
+  return (
+    (await SocialAccount.findOne({ userId, platform: "facebook", entityType: "profile", isConnected: true })) ||
+    (await SocialAccount.findOne({ userId, platform: "facebook", isPrimary: true, isConnected: true })) ||
+    (await SocialAccount.findOne({ userId, platform: "facebook", isConnected: true }))
+  );
+}
+
 /** LinkedIn stores one row per profile plus optional organization rows; tokens are duplicated. Prefer the profile row for publishing. */
 export async function getLinkedInAccountForToken(userId) {
   const platform = "linkedin";

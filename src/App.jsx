@@ -5,6 +5,8 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import AuthGoogleCallbackPage from "./pages/AuthGoogleCallbackPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import DashboardPage from "./pages/DashboardPage";
 import CreatePostPage from "./pages/CreatePostPage";
 import SchedulePage from "./pages/SchedulePage";
@@ -75,6 +77,8 @@ function RootRouter() {
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/signup" element={<SignupRoute />} />
         <Route path="/auth/google/callback" element={<AuthGoogleCallbackPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/onboarding/platforms" element={<OnboardingRoute />} />
         <Route
           path="/"

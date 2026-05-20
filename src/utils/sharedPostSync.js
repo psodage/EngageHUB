@@ -1,7 +1,8 @@
 import { createEmptyChannelDraft, getPlatformComposerConfig } from "../data/platformComposerConfig";
+import { getPlatformKeyFromCreatePostChannelKey } from "./createPostChannels";
 
-export function truncateCaptionForPlatform(caption, platformKey) {
-  const max = getPlatformComposerConfig(platformKey).maxChars ?? 2200;
+export function truncateCaptionForPlatform(caption, channelKey) {
+  const max = getPlatformComposerConfig(channelKey).maxChars ?? 2200;
   return (caption || "").slice(0, max);
 }
 
@@ -25,9 +26,10 @@ function inferMediaKind(file, mediaUrl) {
 /**
  * Build a per-platform draft from shared caption + media for one-click publishing.
  */
-export function buildDraftFromShared(platformKey, shared, preUploadedMediaUrl = "") {
-  const base = createEmptyChannelDraft(platformKey);
-  const caption = truncateCaptionForPlatform(shared.caption, platformKey);
+export function buildDraftFromShared(channelKey, shared, preUploadedMediaUrl = "") {
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(channelKey);
+  const base = createEmptyChannelDraft(channelKey);
+  const caption = truncateCaptionForPlatform(shared.caption, channelKey);
   const file = shared.file || null;
   const mediaUrl = preUploadedMediaUrl || (shared.mediaUrl || "").trim();
   const kind = inferMediaKind(file, mediaUrl);

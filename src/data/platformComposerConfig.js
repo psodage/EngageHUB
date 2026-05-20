@@ -1,3 +1,8 @@
+import {
+  getPlatformKeyFromCreatePostChannelKey,
+  parseCreatePostChannelKey,
+} from "../utils/createPostChannels";
+
 const BYTES_IN_MB = 1024 * 1024;
 
 export const PLATFORM_COMPOSER_CONFIG = {
@@ -113,7 +118,8 @@ export const PLATFORM_COMPOSER_CONFIG = {
   },
 };
 
-export function getPlatformComposerConfig(platformKey) {
+export function getPlatformComposerConfig(channelOrPlatformKey) {
+  const platformKey = getPlatformKeyFromCreatePostChannelKey(channelOrPlatformKey);
   return PLATFORM_COMPOSER_CONFIG[platformKey] || {
     maxChars: 2200,
     defaultPostType: "post",
@@ -122,8 +128,9 @@ export function getPlatformComposerConfig(platformKey) {
   };
 }
 
-export function createEmptyChannelDraft(platformKey) {
-  const config = getPlatformComposerConfig(platformKey);
+export function createEmptyChannelDraft(channelKey) {
+  const config = getPlatformComposerConfig(channelKey);
+  const { entityId } = parseCreatePostChannelKey(channelKey);
   return {
     postType: config.defaultPostType || "post",
     caption: "",
@@ -133,12 +140,12 @@ export function createEmptyChannelDraft(platformKey) {
     linkUrl: "",
     youtubeTitle: "",
     youtubePrivacy: "private",
-    entityId: "",
+    entityId: entityId || "",
     error: "",
   };
 }
 
-export function getActivePostTypeConfig(platformKey, postTypeId) {
-  const config = getPlatformComposerConfig(platformKey);
+export function getActivePostTypeConfig(channelOrPlatformKey, postTypeId) {
+  const config = getPlatformComposerConfig(channelOrPlatformKey);
   return config.postTypes?.find((t) => t.id === postTypeId) || config.postTypes?.[0] || null;
 }

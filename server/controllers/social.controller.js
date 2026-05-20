@@ -24,6 +24,7 @@ import {
   getGoogleBusinessLocationAccount,
   getLinkedInAccountForToken,
   getLinkedInOrganizationAccount,
+  getFacebookAccountForPublish,
   getStoredAccountForProvider,
   refreshAccountToken,
   refreshAccountTokenById,
@@ -2378,6 +2379,7 @@ function parseFacebookPostBody(body) {
   const message = typeof body.message === "string" ? body.message.trim() : "";
   const mediaUrl = typeof body.mediaUrl === "string" ? body.mediaUrl.trim() : "";
   const linkUrl = typeof body.linkUrl === "string" ? body.linkUrl.trim() : "";
+  const entityId = typeof body.entityId === "string" ? body.entityId.trim() : "";
 
   if (message.length > FACEBOOK_MESSAGE_MAX) {
     const err = new Error(`message cannot exceed ${FACEBOOK_MESSAGE_MAX} characters.`);
@@ -2463,6 +2465,7 @@ function parseFacebookPostBody(body) {
     message,
     mediaUrl: mediaTypeRaw === "IMAGE" || mediaTypeRaw === "VIDEO" ? mediaUrl : "",
     linkUrl: mediaTypeRaw === "LINK" ? linkUrl : "",
+    entityId,
   };
 }
 
@@ -2478,7 +2481,7 @@ export async function createFacebookPost(req, res) {
   const reconnectMessage = "Facebook is not connected or token expired. Please reconnect Facebook.";
 
   try {
-    let account = await getStoredAccountForProvider(userId, "facebook");
+    let account = await getFacebookAccountForPublish(userId, parsed.entityId);
     if (!account || !account.isConnected) {
       return errorResponse(res, reconnectMessage, 401, "not_connected");
     }
@@ -2493,7 +2496,7 @@ export async function createFacebookPost(req, res) {
         const refreshed = await facebookService.refreshTokenIfNeeded(account);
         if (refreshed?.accessToken) {
           await refreshAccountToken(userId, "facebook", refreshed);
-          account = await getStoredAccountForProvider(userId, "facebook");
+          account = await getFacebookAccountForPublish(userId, parsed.entityId);
           accessToken = account.getDecryptedAccessToken?.();
         } else {
           return errorResponse(res, reconnectMessage, 401, "token_expired");
@@ -2508,9 +2511,9 @@ export async function createFacebookPost(req, res) {
       return errorResponse(res, reconnectMessage, 401, "token_missing");
     }
 
-    const platformUserId = String(account.platformUserId || "").trim();
+    const platformUserId = String(account.platformUserId || account.entityId || "").trim();
     const entityType = String(account.entityType || "profile").trim().toLowerCase();
-    const targetName = account.accountName || account.username || platformUserId || "Facebook Page";
+    const targetName = account.accountName || account.username || platformUserId || "Facebook";
     const targetType = entityType === "page" ? "page" : "profile";
 
     const runPublish = async (token) => {
@@ -2560,7 +2563,7 @@ export async function createFacebookPost(req, res) {
           });
           if (refreshed?.accessToken) {
             await refreshAccountToken(userId, "facebook", refreshed);
-            account = await getStoredAccountForProvider(userId, "facebook");
+            account = await getFacebookAccountForPublish(userId, parsed.entityId);
             accessToken = account?.getDecryptedAccessToken?.();
             if (accessToken) {
               result = await runPublish(accessToken);

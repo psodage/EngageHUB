@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Hash, ImagePlus, Smile, X } from "lucide-react";
+import PlatformBrandIcon from "../channels/PlatformBrandIcon";
 import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
 import { getActivePostTypeConfig, getPlatformComposerConfig } from "../../data/platformComposerConfig";
 
-function PlatformBadge({ platformKey, size = 18 }) {
-  const config = SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === platformKey);
-  if (!config) return null;
-  const Icon = config.icon;
+function PlatformBadge({ platformKey }) {
   return (
-    <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-white dark:border-slate-900">
-      <Icon size={size - 6} />
+    <span className="absolute -bottom-0.5 -right-0.5">
+      <PlatformBrandIcon
+        platformKey={platformKey}
+        size="sm"
+        className="!h-5 !w-5 !rounded-full [&_svg]:!h-2.5 [&_svg]:!w-2.5 ring-2 ring-white dark:ring-slate-900"
+      />
     </span>
   );
 }

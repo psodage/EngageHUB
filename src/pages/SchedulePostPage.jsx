@@ -5,6 +5,11 @@ import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import { createEmptyChannelDraft } from "../data/platformComposerConfig";
 import ChannelPickerStep from "../components/create-post/ChannelPickerStep";
 import SchedulePostWorkspace from "../components/create-post/SchedulePostWorkspace";
+import {
+  buildConnectedByChannelKey,
+  mapAccountsToCreatePostChannelOptions,
+  parseCreatePostChannelKey,
+} from "../utils/createPostChannels";
 
 export default function SchedulePostPage() {
   const navigate = useNavigate();
@@ -20,6 +25,8 @@ export default function SchedulePostPage() {
     return SOCIAL_PLATFORM_CONFIGS.some((c) => c.key === raw) ? raw : null;
   }, [searchParams]);
 
+  const scopedEntityId = useMemo(() => searchParams.get("entity")?.trim() || "", [searchParams]);
+
   useEffect(() => {
     getSocialAccounts()
       .then(setConnectedAccounts)
@@ -31,18 +38,42 @@ export default function SchedulePostPage() {
     [connectedAccounts]
   );
 
-  const connectedPlatformConfigs = useMemo(
-    () => SOCIAL_PLATFORM_CONFIGS.filter((c) => connectedByPlatform[c.key]?.isConnected),
-    [connectedByPlatform]
+  const channelOptions = useMemo(
+    () => mapAccountsToCreatePostChannelOptions(connectedAccounts),
+    [connectedAccounts]
+  );
+
+  const connectedByChannel = useMemo(
+    () => buildConnectedByChannelKey(connectedAccounts),
+    [connectedAccounts]
   );
 
   useEffect(() => {
     if (!scopedPlatformKey) return;
     if (!connectedByPlatform[scopedPlatformKey]?.isConnected) return;
-    setSelectedChannelKeys([scopedPlatformKey]);
-    setDrafts({ [scopedPlatformKey]: createEmptyChannelDraft(scopedPlatformKey) });
+
+    let keys = [scopedPlatformKey];
+
+    if (scopedPlatformKey === "facebook") {
+      if (!scopedEntityId) return;
+      const platformChannelKeys = channelOptions
+        .filter((o) => o.platformKey === "facebook")
+        .map((o) => o.key);
+      const match = platformChannelKeys.find(
+        (key) => parseCreatePostChannelKey(key).entityId === scopedEntityId
+      );
+      if (!match) return;
+      keys = [match];
+    }
+
+    setSelectedChannelKeys(keys);
+    const nextDrafts = {};
+    keys.forEach((key) => {
+      nextDrafts[key] = createEmptyChannelDraft(key);
+    });
+    setDrafts(nextDrafts);
     setStep("compose");
-  }, [scopedPlatformKey, connectedByPlatform]);
+  }, [scopedPlatformKey, scopedEntityId, connectedByPlatform, channelOptions]);
 
   const toggleChannel = useCallback((key) => {
     setSelectedChannelKeys((prev) =>
@@ -51,8 +82,8 @@ export default function SchedulePostPage() {
   }, []);
 
   const selectAllChannels = useCallback(() => {
-    setSelectedChannelKeys(connectedPlatformConfigs.map((c) => c.key));
-  }, [connectedPlatformConfigs]);
+    setSelectedChannelKeys(channelOptions.map((c) => c.key));
+  }, [channelOptions]);
 
   const clearAllChannels = useCallback(() => {
     setSelectedChannelKeys([]);
@@ -85,7 +116,7 @@ export default function SchedulePostPage() {
     }
   }, [step, selectedChannelKeys.length]);
 
-  if (!connectedPlatformConfigs.length) {
+  if (!channelOptions.length) {
     return (
       <section className="buffer-card mx-auto max-w-lg p-6">
         <p className="font-semibold text-slate-900 dark:text-white">No connected platforms</p>
@@ -105,7 +136,7 @@ export default function SchedulePostPage() {
     return (
       <SchedulePostWorkspace
         selectedChannelKeys={selectedChannelKeys}
-        connectedByPlatform={connectedByPlatform}
+        connectedByPlatform={connectedByChannel}
         drafts={drafts}
         onSetDrafts={onSetDrafts}
         onBack={handleBack}
@@ -118,8 +149,7 @@ export default function SchedulePostPage() {
       title="Schedule post"
       subtitle="Select channels, add your content, and choose when it goes live."
       maxWidthClass={selectedChannelKeys.length ? "max-w-[88rem]" : "max-w-4xl"}
-      connectedPlatformConfigs={connectedPlatformConfigs}
-      connectedByPlatform={connectedByPlatform}
+      connectedPlatformConfigs={channelOptions}
       selectedKeys={selectedChannelKeys}
       onToggle={toggleChannel}
       onSelectAll={selectAllChannels}
