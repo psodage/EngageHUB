@@ -8,6 +8,8 @@ const PUBLISH_ERROR_CODE_HINTS = {
   not_connected: "This platform is not connected. Connect it under Channels.",
   validation_error: "Check the post content and media for this platform’s requirements.",
   organization_not_allowed: "You cannot post as that LinkedIn company page. Pick a page you manage or reconnect LinkedIn.",
+  google_business_quota_exceeded:
+    "Google Business Profile API rate limit reached. Wait 1–2 minutes, then use Retry on the location page (do not click Connect repeatedly). Request higher quota in Google Cloud Console if this persists.",
 };
 
 function resolveApiBodyMessage(data) {

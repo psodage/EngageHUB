@@ -50,10 +50,8 @@ import { getLinkedInAuthorUrn } from "../services/social/linkedinAuthor.util.js"
 import youtubeService from "../services/social/youtube.service.js";
 import { publishGoogleBusinessLocalPost } from "../services/social/googleBusinessPublish.service.js";
 import {
-  getBusinessAccounts,
-  getBusinessLocations,
   getGoogleBusinessLocationName,
-  listBusinessLocationsForAccounts,
+  discoverGoogleBusinessProfiles,
 } from "../services/social/googleBusiness.service.js";
 import { listPostHistoryForUser, recordSuccessfulPublish } from "../services/social/postHistory.service.js";
 
@@ -979,7 +977,26 @@ export async function googleBusinessLocationsSession(req, res) {
     if (doc.platform !== "googleBusiness") {
       return errorResponse(res, "Invalid session platform.", 400, "invalid_session_platform");
     }
-    const locations = sanitizeGoogleBusinessLocations(doc.payload || {});
+    let locations = sanitizeGoogleBusinessLocations(doc.payload || {});
+    let accounts = Array.isArray(doc?.payload?.accounts) ? doc.payload.accounts : [];
+
+    if (!locations.length) {
+      const accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
+      if (!accessToken) {
+        return errorResponse(res, "Access token is unavailable. Please reconnect Google Business Profile.", 400, "token_missing");
+      }
+      const discovered = await discoverGoogleBusinessProfiles(accessToken, accounts.length ? accounts : null);
+      accounts = discovered.accounts;
+      locations = sanitizeGoogleBusinessLocations({ locations: discovered.locations });
+      doc.payload = {
+        ...(doc.payload || {}),
+        accounts,
+        locations: discovered.locations,
+      };
+      doc.markModified("payload");
+      await doc.save();
+    }
+
     if (!locations.length) {
       return errorResponse(res, "No Google Business Profiles found for this account.", 404, "no_google_business_locations");
     }
@@ -990,7 +1007,7 @@ export async function googleBusinessLocationsSession(req, res) {
         platform: doc.platform,
         flow: doc.flow || "settings",
         googleUser: doc?.payload?.googleUser || null,
-        accounts: Array.isArray(doc?.payload?.accounts) ? doc.payload.accounts : [],
+        accounts,
         locations,
       },
       "Fetched Google Business locations for selection."
@@ -1707,22 +1724,7 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
           avatar: profile.profileImage || "",
         };
 
-        const accounts = await getBusinessAccounts(tokenData.accessToken);
-        if (!accounts.length) {
-          const noAccountsErr = new Error("No Google Business Profiles found for this account.");
-          noAccountsErr.code = "no_google_business_accounts";
-          noAccountsErr.status = 404;
-          throw noAccountsErr;
-        }
-
-        const locations = await listBusinessLocationsForAccounts(tokenData.accessToken, accounts);
-        if (!locations.length) {
-          const noLocationsErr = new Error("No Google Business Profiles found for this account.");
-          noLocationsErr.code = "no_google_business_locations";
-          noLocationsErr.status = 404;
-          throw noLocationsErr;
-        }
-
+        // Defer Google Business API calls to the location-select page (avoids burst quota on OAuth callback).
         const session = await SocialOAuthSession.create({
           userId: new ObjectId(decodedState.userId),
           platform: "googleBusiness",
@@ -1737,8 +1739,8 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
           payload: {
             provider: "google_business",
             googleUser,
-            accounts,
-            locations,
+            accounts: [],
+            locations: [],
           },
         });
 

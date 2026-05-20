@@ -10,7 +10,10 @@ const BUSINESS_INFO_READ_MASK =
   "name,title,storefrontAddress,primaryPhone,websiteUri,primaryCategory,metadata,openInfo";
 const BUSINESS_INFO_V1 = "https://mybusinessbusinessinformation.googleapis.com/v1";
 /** Pause between per-account location list calls to avoid GBP API per-minute limits. */
-const LOCATION_FETCH_DELAY_MS = 600;
+const LOCATION_FETCH_DELAY_MS = 2000;
+/** After a 429, block further GBP calls briefly so retries do not hammer the quota. */
+const QUOTA_COOLDOWN_MS = 90_000;
+let quotaCooldownUntil = 0;
 
 function maskClientId(value) {
   if (!value) return "missing";
@@ -156,19 +159,52 @@ function parseAccountsFromResponse(response) {
     .filter(Boolean);
 }
 
-async function googleBusinessGet(url, { headers, params, maxAttempts = 4 } = {}) {
+function assertNotInQuotaCooldown() {
+  if (Date.now() < quotaCooldownUntil) {
+    const waitSec = Math.ceil((quotaCooldownUntil - Date.now()) / 1000);
+    const err = new Error(
+      `Google Business Profile API rate limit active. Wait about ${waitSec} seconds before retrying.`
+    );
+    err.code = "google_business_quota_exceeded";
+    err.status = 429;
+    throw err;
+  }
+}
+
+function markQuotaCooldown() {
+  quotaCooldownUntil = Date.now() + QUOTA_COOLDOWN_MS;
+}
+
+async function googleBusinessGet(url, { headers, params, maxAttempts = 6 } = {}) {
+  assertNotInQuotaCooldown();
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const response = await axios.get(url, { headers, params, validateStatus: () => true });
-    if (!isQuotaExceeded(response) || attempt >= maxAttempts) {
+    if (!isQuotaExceeded(response)) {
+      return response;
+    }
+    markQuotaCooldown();
+    if (attempt >= maxAttempts) {
       return response;
     }
     const retryAfterSec = Number(response.headers?.["retry-after"] || 0);
     const waitMs =
-      retryAfterSec > 0 ? retryAfterSec * 1000 : Math.min(1500 * 2 ** (attempt - 1), 20000);
+      retryAfterSec > 0 ? retryAfterSec * 1000 : Math.min(3000 * 2 ** (attempt - 1), 45000);
     console.warn("[googleBusiness:rate-limit:retry]", { url, attempt, waitMs });
     await sleep(waitMs);
   }
   return axios.get(url, { headers, params, validateStatus: () => true });
+}
+
+/**
+ * Load accounts (1 API call) then locations (1+ calls, throttled). Used after OAuth before selection UI.
+ */
+export async function discoverGoogleBusinessProfiles(accessToken, accounts = null) {
+  const resolvedAccounts = accounts?.length ? accounts : await getBusinessAccounts(accessToken);
+  if (!resolvedAccounts.length) {
+    return { accounts: [], locations: [] };
+  }
+  const locations = await listBusinessLocationsForAccounts(accessToken, resolvedAccounts);
+  return { accounts: resolvedAccounts, locations };
 }
 
 function classifyGoogleBusinessError(response, fallbackCode) {

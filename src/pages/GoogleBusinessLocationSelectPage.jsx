@@ -72,10 +72,12 @@ export default function GoogleBusinessLocationSelectPage() {
   const [locations, setLocations] = useState([]);
   const [flow, setFlow] = useState("settings");
   const [selectedIds, setSelectedIds] = useState([]);
+  const [retryCountdown, setRetryCountdown] = useState(0);
 
   const allSelected = locations.length > 0 && selectedIds.length === locations.length;
+  const isQuotaError = (message) => /rate limit|quota exceeded/i.test(String(message || ""));
 
-  const loadSession = async () => {
+  const loadSession = async ({ autoRetry = false } = {}) => {
     if (!sessionId) {
       setError("Missing connection session. Please reconnect Google Business Profile.");
       setLoading(false);
@@ -89,20 +91,41 @@ export default function GoogleBusinessLocationSelectPage() {
       setLocations(next);
       setFlow(data?.flow || "settings");
       setSelectedIds((prev) => (prev.length ? prev : next.slice(0, 1).map((row) => row.locationId)));
+      setRetryCountdown(0);
       if (!next.length) {
         setError("No Google Business Profiles found for this account.");
       }
     } catch (err) {
-      setError(err?.message || "Unable to load Google Business Profiles.");
+      const message = err?.message || "Unable to load Google Business Profiles.";
+      setError(message);
+      if (autoRetry && isQuotaError(message)) {
+        setRetryCountdown(90);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSession();
+    loadSession({ autoRetry: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  useEffect(() => {
+    if (retryCountdown <= 0 || loading || locations.length > 0) return undefined;
+    const timer = window.setInterval(() => {
+      setRetryCountdown((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(timer);
+          loadSession();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCountdown, loading, locations.length]);
 
   const handleSwitchAccount = async () => {
     try {
@@ -195,16 +218,24 @@ export default function GoogleBusinessLocationSelectPage() {
             {loading ? (
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
                 <Loader2 className="animate-spin" size={18} aria-hidden />
-                Loading Google Business Profiles…
+                {retryCountdown > 0
+                  ? `Google API rate limit — retrying in ${retryCountdown}s…`
+                  : "Loading Google Business Profiles from Google (may take up to a minute)…"}
               </div>
             ) : error ? (
               <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
                 <p className="font-semibold">We couldn’t load your business profiles.</p>
                 <p className="opacity-90">{error}</p>
+                {isQuotaError(error) ? (
+                  <p className="text-xs opacity-80">
+                    Google limits how many requests per minute your Cloud project can make. Wait before retrying, and
+                    avoid clicking Connect again on the channels page.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={loadSession}
+                    onClick={() => loadSession()}
                     className="inline-flex items-center gap-2 rounded-lg bg-amber-900 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
                   >
                     <RefreshCcw size={14} aria-hidden />
