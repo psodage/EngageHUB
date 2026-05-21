@@ -67,10 +67,6 @@ export default function ConnectedPlatformDetailPage() {
 
   const setDetailTab = (tabId) => {
     const next = normalizeChannelTab(tabId);
-    if (next === "create") {
-      navigate(createPostPath);
-      return;
-    }
     setSearchParams(
       (prev) => {
         const params = new URLSearchParams(prev);
@@ -107,12 +103,6 @@ export default function ConnectedPlatformDetailPage() {
       .then(({ pagination }) => setPostCount(pagination.total ?? 0))
       .catch(() => setPostCount(0));
   }, [platformKey, account?.isConnected, historyRefreshKey, historyTargetId]);
-
-  useEffect(() => {
-    if (detailTab === "create" && platformKey) {
-      navigate(createPostPath, { replace: true });
-    }
-  }, [detailTab, platformKey, createPostPath, navigate]);
 
   const handleRefresh = async () => {
     setSyncing(true);

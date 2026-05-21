@@ -21,13 +21,10 @@ export default function Sidebar({ open, onClose, onLogout }) {
           <NavLink
             to="/dashboard"
             onClick={onClose}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg outline-none ring-buffer-500 focus-visible:ring-2"
+            className="flex min-w-0 flex-1 items-center rounded-lg outline-none ring-buffer-500 focus-visible:ring-2"
             aria-label="EngageHub home"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-buffer-600 text-sm font-bold text-white">
-              A
-            </span>
-            <span className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-white">
+            <span className="truncate text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
               EngageHub
             </span>
           </NavLink>

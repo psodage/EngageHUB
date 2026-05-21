@@ -20,12 +20,15 @@ import {
 } from "../../utils/scheduleDateTime";
 import {
   WORKSPACE_CARD,
+  WORKSPACE_CARD_FILL,
   WORKSPACE_COMPOSER_COLUMN,
   WORKSPACE_COMPOSER_SCROLL,
   WORKSPACE_FOOTER,
   WORKSPACE_GRID,
+  WORKSPACE_GRID_FILL,
   WORKSPACE_PREVIEW_ASIDE,
   WORKSPACE_SHELL,
+  WORKSPACE_SHELL_FILL,
 } from "./workspaceLayout";
 
 const defaultTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -182,12 +185,12 @@ export default function SchedulePostWorkspace({
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-slate-100 p-4 dark:bg-slate-950 md:p-6"
     : WORKSPACE_SHELL;
 
-  const workspaceCardClass = isFullscreen
-    ? "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900"
-    : WORKSPACE_CARD;
+  const workspaceCardClass = isFullscreen ? WORKSPACE_CARD_FILL : WORKSPACE_CARD;
+  const workspaceGridClass = isFullscreen ? WORKSPACE_GRID_FILL : WORKSPACE_GRID;
+  const workspaceShellClass = isFullscreen ? WORKSPACE_SHELL_FILL : WORKSPACE_SHELL;
 
   return (
-    <section className={cardShell}>
+    <section className={isFullscreen ? cardShell : workspaceShellClass}>
       <article className={workspaceCardClass}>
         <CreatePostWorkspaceHeader
           title="Schedule post"
@@ -204,7 +207,7 @@ export default function SchedulePostWorkspace({
           onPreviewClick={() => setPreviewPanelMode("previews")}
         />
 
-        <div className={WORKSPACE_GRID}>
+        <div className={workspaceGridClass}>
           <div className={WORKSPACE_COMPOSER_COLUMN}>
             <div className={WORKSPACE_COMPOSER_SCROLL}>
             <SharedPostComposer

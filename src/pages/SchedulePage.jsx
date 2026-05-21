@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarClock, Filter, LayoutGrid, List, Loader2 } from "lucide-react";
+import { CalendarClock, LayoutGrid, List, Loader2 } from "lucide-react";
 import DashboardPageShell from "../components/layout/DashboardPageShell";
+import ScheduleChannelFilter from "../components/schedule/ScheduleChannelFilter";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import { deleteScheduledPost, listScheduledPosts } from "../services/scheduleApi";
-import { getPlatformKeyFromCreatePostChannelKey } from "../utils/createPostChannels";
+import { getCreatePostChannelLabel, getPlatformKeyFromCreatePostChannelKey } from "../utils/createPostChannels";
 
 const statusClass = {
   scheduled: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
@@ -41,6 +42,7 @@ export default function SchedulePage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,18 +71,31 @@ export default function SchedulePage() {
     }
   };
 
+  const filterChannelKeys = useMemo(() => {
+    const keys = new Set();
+    posts.forEach((row) => {
+      (row.channelKeys || []).forEach((key) => keys.add(key));
+    });
+    return Array.from(keys).sort((a, b) =>
+      getCreatePostChannelLabel(a).localeCompare(getCreatePostChannelLabel(b))
+    );
+  }, [posts]);
+
+  const filteredPosts = useMemo(() => {
+    if (!channelFilter) return posts;
+    return posts.filter((row) => (row.channelKeys || []).includes(channelFilter));
+  }, [posts, channelFilter]);
+
   return (
     <DashboardPageShell
       description="Your queued and scheduled content across all connected channels."
       actions={
         <>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-          >
-            <Filter size={14} />
-            All channels
-          </button>
+          <ScheduleChannelFilter
+            value={channelFilter}
+            onChange={setChannelFilter}
+            channelKeys={filterChannelKeys}
+          />
           <div className="flex rounded-lg border border-slate-300 p-0.5 dark:border-slate-600">
             <button type="button" className="rounded-md bg-slate-100 p-2 dark:bg-slate-800" aria-label="List view">
               <List size={14} />
@@ -121,17 +136,23 @@ export default function SchedulePage() {
                     Loading scheduled posts…
                   </td>
                 </tr>
-              ) : posts.length === 0 ? (
+              ) : filteredPosts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-12 text-center text-slate-500">
-                    No scheduled posts yet.{" "}
-                    <Link to="/schedule/new" className="font-semibold text-buffer-700 dark:text-buffer-400">
-                      Schedule a post
-                    </Link>
+                    {posts.length === 0 ? (
+                      <>
+                        No scheduled posts yet.{" "}
+                        <Link to="/schedule/new" className="font-semibold text-buffer-700 dark:text-buffer-400">
+                          Schedule a post
+                        </Link>
+                      </>
+                    ) : (
+                      <>No posts match this channel filter.</>
+                    )}
                   </td>
                 </tr>
               ) : (
-                posts.map((row) => (
+                filteredPosts.map((row) => (
                   <tr
                     key={row._id}
                     role="button"

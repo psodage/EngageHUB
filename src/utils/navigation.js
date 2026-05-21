@@ -32,7 +32,8 @@ export function getChannelEntityIdFromSearch(search) {
 /** @param {string} search */
 export function getChannelTabFromSearch(search) {
   const tab = new URLSearchParams(search).get("tab");
-  if (tab === "profile" || tab === "create" || tab === "history") return tab;
+  if (tab === "create") return "profile";
+  if (tab === "profile" || tab === "history" || tab === "analytics") return tab;
   return "profile";
 }
 
@@ -58,14 +59,6 @@ export function isChannelSidebarItemActive(pathname, search, channel) {
  * @param {{ entityId?: string, isDefaultEntity?: boolean }} [options]
  */
 export function isChannelTabActive(pathname, search, platformKey, tabId, options = {}) {
-  if (tabId === "create" && isCreatePostActive(pathname)) {
-    const params = new URLSearchParams(search);
-    const platform = params.get("platform")?.trim() || "";
-    if (platform !== platformKey) return false;
-    const entityId = options.entityId || "";
-    if (!entityId) return true;
-    return params.get("entity")?.trim() === entityId;
-  }
   if (pathname !== `/channels/${platformKey}`) return false;
 
   const entityId = options.entityId || "";

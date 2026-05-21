@@ -1,9 +1,13 @@
 /** Shared layout tokens for create / schedule composer cards */
-export const WORKSPACE_SHELL = "flex min-h-0 w-full flex-1 flex-col";
+export const WORKSPACE_SHELL = "flex w-full flex-col";
+export const WORKSPACE_SHELL_FILL = "flex min-h-0 h-full w-full flex-1 flex-col";
 export const WORKSPACE_CARD =
+  "flex flex-col rounded-2xl border-2 border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900";
+export const WORKSPACE_CARD_FILL =
   "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900";
 export const WORKSPACE_GRID_COLS = "lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_400px]";
-export const WORKSPACE_GRID = `grid min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain lg:overflow-hidden ${WORKSPACE_GRID_COLS}`;
+export const WORKSPACE_GRID = `grid gap-0 overflow-x-hidden ${WORKSPACE_GRID_COLS}`;
+export const WORKSPACE_GRID_FILL = `grid min-h-0 flex-1 overflow-hidden ${WORKSPACE_GRID_COLS}`;
 
 export const WORKSPACE_COMPOSER_COLUMN =
   "flex min-h-0 flex-col overflow-hidden border-r border-slate-200 dark:border-slate-700";
