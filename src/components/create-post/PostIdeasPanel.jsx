@@ -19,6 +19,7 @@ export default function PostIdeasPanel({
 }) {
   const showTemplates = section === "both" || section === "templates";
   const showAi = section === "both" || section === "ai";
+  const templatesOnlyEmbedded = embedded && showTemplates && !showAi;
   const [category, setCategory] = useState("all");
   const [topic, setTopic] = useState(topicProp || "");
   const [tone, setTone] = useState("casual");
@@ -57,7 +58,7 @@ export default function PostIdeasPanel({
     <article
       className={`overflow-hidden bg-white dark:bg-slate-900 ${
         embedded
-          ? "rounded-xl border border-slate-200 shadow-sm dark:border-slate-700"
+          ? "flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 shadow-sm dark:border-slate-700"
           : "rounded-2xl border-2 border-slate-200 shadow-sm dark:border-slate-700"
       }`}
     >
@@ -72,14 +73,16 @@ export default function PostIdeasPanel({
       ) : null}
 
       <div
-        className={`grid min-h-[320px] ${
+        className={`grid ${
+          templatesOnlyEmbedded ? "min-h-0 flex-1" : "min-h-[320px]"
+        } ${
           showTemplates && showAi
             ? "lg:grid-cols-2 lg:divide-x lg:divide-slate-200 dark:lg:divide-slate-700"
             : "grid-cols-1"
         }`}
       >
         {showTemplates ? (
-        <section className="flex min-h-[280px] flex-col">
+        <section className={`flex flex-col ${templatesOnlyEmbedded ? "min-h-0 flex-1" : "min-h-[280px]"}`}>
           <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-950/30">
             <LayoutTemplate size={15} className="text-buffer-600 dark:text-buffer-400" />
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
@@ -87,22 +90,24 @@ export default function PostIdeasPanel({
             </span>
           </div>
           <div className="flex flex-1 flex-col overflow-hidden p-4">
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {POST_TEMPLATE_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setCategory(cat.id)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                    category === cat.id
-                      ? "bg-buffer-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
+            {!templatesOnlyEmbedded ? (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {POST_TEMPLATE_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                      category === cat.id
+                        ? "bg-buffer-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {templates.length === 0 ? (
                 <p className="text-xs text-slate-500">No templates for this filter. Try &quot;All&quot;.</p>

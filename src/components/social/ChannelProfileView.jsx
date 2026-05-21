@@ -3,8 +3,16 @@ import TokenExpiryWarning from "./TokenExpiryWarning";
 import AccountSyncInfo from "./AccountSyncInfo";
 import LinkedAccountCard from "./channel-detail/LinkedAccountCard";
 import ChannelProfileSection from "./channel-detail/ChannelProfileSection";
-import { findFacebookEntityById, getChannelDisplayInfo } from "../../utils/channelDisplay";
-import { getDistinctOAuthConnections, getFacebookConnectionEntities } from "../../utils/socialAccountEntities";
+import {
+  findFacebookEntityById,
+  findLinkedInEntityById,
+  getChannelDisplayInfo,
+} from "../../utils/channelDisplay";
+import {
+  getDistinctOAuthConnections,
+  getFacebookConnectionEntities,
+  getLinkedInConnectionEntities,
+} from "../../utils/socialAccountEntities";
 
 function entityIcon(type) {
   if (type === "page" || type === "organization") return Building2;
@@ -23,16 +31,25 @@ export default function ChannelProfileView({
   const entities = Array.isArray(account?.entities) ? account.entities : [];
   const facebookEntities =
     platformKey === "facebook" ? getFacebookConnectionEntities(account) : [];
+  const linkedinEntities =
+    platformKey === "linkedin" ? getLinkedInConnectionEntities(account) : [];
   const scopedFacebookEntity =
     platformKey === "facebook" && scopedEntityId
       ? findFacebookEntityById(facebookEntities, scopedEntityId)
       : null;
+  const scopedLinkedInEntity =
+    platformKey === "linkedin" && scopedEntityId
+      ? findLinkedInEntityById(linkedinEntities, scopedEntityId)
+      : null;
+  const scopedChannelEntity = scopedFacebookEntity || scopedLinkedInEntity;
   const displayAccount =
-    platformKey === "facebook" && scopedFacebookEntity
+    scopedChannelEntity
       ? {
           ...account,
-          accountName: scopedFacebookEntity.accountName || account.accountName,
-          profileImage: scopedFacebookEntity.profileImage || "",
+          accountName: scopedChannelEntity.accountName || account.accountName,
+          profileImage: scopedChannelEntity.profileImage || "",
+          entityType: scopedChannelEntity.entityType,
+          entityId: scopedChannelEntity.entityId || scopedChannelEntity.platformUserId,
         }
       : account;
   const info = getChannelDisplayInfo(displayAccount);
@@ -41,11 +58,28 @@ export default function ChannelProfileView({
       ? scopedFacebookEntity
         ? [scopedFacebookEntity]
         : getFacebookConnectionEntities(account)
-      : getDistinctOAuthConnections(account);
+      : platformKey === "linkedin"
+        ? scopedLinkedInEntity?.entityType === "organization"
+          ? []
+          : scopedLinkedInEntity
+            ? [scopedLinkedInEntity]
+            : linkedinEntities.filter((e) => (e.entityType || "profile") === "profile")
+        : getDistinctOAuthConnections(account);
   const managedEntities = entities.filter((entity) => {
     const type = entity?.entityType || "profile";
     if (platformKey === "facebook") {
       return type !== "profile" && type !== "page";
+    }
+    if (platformKey === "linkedin") {
+      if (scopedLinkedInEntity?.entityType === "organization") {
+        return (
+          type === "organization" &&
+          String(entity.entityId || entity.platformUserId || "") ===
+            String(scopedLinkedInEntity.entityId || scopedLinkedInEntity.platformUserId || "")
+        );
+      }
+      if (scopedLinkedInEntity) return false;
+      return type === "organization";
     }
     return !["profile", "bot", "business", "professional"].includes(type);
   });
@@ -78,7 +112,13 @@ export default function ChannelProfileView({
               ? scopedFacebookEntity
                 ? "Posts from this channel publish only to this Facebook Page. Switch destination from Linked channels in the sidebar."
                 : "Connected Facebook Pages for publishing. Add more via Connect channels."
-              : "Each login is a separate connection. Use a different account when adding another."
+              : platformKey === "linkedin"
+                ? scopedLinkedInEntity
+                  ? scopedLinkedInEntity.entityType === "organization"
+                    ? "Posts from this channel publish only to this LinkedIn company page. Switch destination from Linked channels in the sidebar."
+                    : "Posts from this channel publish only to this LinkedIn profile. Switch destination from Linked channels in the sidebar."
+                  : "Connected LinkedIn profiles for publishing. Add more via Connect channels."
+                : "Each login is a separate connection. Use a different account when adding another."
           }
         >
           <ul className="grid gap-3 sm:grid-cols-2">

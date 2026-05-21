@@ -193,5 +193,13 @@ export default function CreatePostPage() {
     );
   }
 
-  return <div className="flex w-full flex-col">{content}</div>;
+  return (
+    <div
+      className={`flex h-0 min-h-0 w-full flex-1 flex-col ${
+        isComposeStep ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-contain"
+      }`}
+    >
+      {content}
+    </div>
+  );
 }

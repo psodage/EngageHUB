@@ -5,11 +5,12 @@ import { getPageTitle } from "../data/constants";
 import { CHANNEL_PROFILE_TABS } from "../data/channelNav";
 import { getChannelDisplayInfo } from "../utils/channelDisplay";
 import { getChannelEntityIdFromSearch, getChannelTabFromSearch } from "../utils/navigation";
-import { getFacebookConnectionEntities } from "../utils/socialAccountEntities";
+import { getFacebookConnectionEntities, getLinkedInConnectionEntities } from "../utils/socialAccountEntities";
+import { findLinkedInEntityById } from "../utils/channelDisplay";
 import { getDashboardContentMaxClass } from "../utils/pageLayout";
 import { useApp } from "../context/AppContext";
 
-export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
+export default function Topbar({ contentLayout = "default", onOpenSidebar, className = "" }) {
   const { toggleTheme, theme, connectedAccounts } = useApp();
   const location = useLocation();
   const title = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
@@ -22,17 +23,22 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
     const account = connectedAccounts.find((a) => a.platform === platformKey);
     const info = getChannelDisplayInfo(account || { platform: platformKey });
     let label = info.displayName;
-    if (platformKey === "facebook" && account) {
+    if ((platformKey === "facebook" || platformKey === "linkedin") && account) {
       const entityId = getChannelEntityIdFromSearch(location.search);
-      const entities = getFacebookConnectionEntities(account);
+      const entities =
+        platformKey === "facebook"
+          ? getFacebookConnectionEntities(account)
+          : getLinkedInConnectionEntities(account);
       const entity = entityId
-        ? entities.find((e) => String(e.entityId || e.platformUserId || "") === entityId)
+        ? platformKey === "facebook"
+          ? entities.find((e) => String(e.entityId || e.platformUserId || "") === entityId)
+          : findLinkedInEntityById(entities, entityId)
         : entities[0];
       if (entity) {
         label =
           entity.accountName?.trim() ||
           entity.username?.trim()?.replace(/^@/, "") ||
-          "Facebook Page";
+          (platformKey === "facebook" ? "Facebook Page" : "LinkedIn");
       }
     }
     const tabId = getChannelTabFromSearch(location.search);
@@ -44,9 +50,10 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
   }, [location.pathname, location.search, connectedAccounts]);
 
   const contentMaxClass = getDashboardContentMaxClass(contentLayout);
+  const showPageTitle = contentLayout !== "composer";
 
   return (
-    <header className="dashboard-topbar">
+    <header className={`dashboard-topbar ${className}`.trim()}>
       <div className={`dashboard-topbar-inner ${contentMaxClass}`}>
         <div className="dashboard-topbar-start">
           <button
@@ -57,25 +64,27 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
           >
             <Menu size={20} />
           </button>
-          {channelBreadcrumb ? (
-            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
-              <Link
-                to="/channels"
-                className="truncate font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                Channels
-              </Link>
-              <ChevronRight size={14} className="shrink-0 text-slate-400" aria-hidden />
-              <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
-                {channelBreadcrumb.label}
-                {channelBreadcrumb.tabLabel ? (
-                  <span className="font-medium text-slate-500 dark:text-slate-400"> · {channelBreadcrumb.tabLabel}</span>
-                ) : null}
-              </h1>
-            </nav>
-          ) : (
-            <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
-          )}
+          {showPageTitle ? (
+            channelBreadcrumb ? (
+              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
+                <Link
+                  to="/channels"
+                  className="truncate font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  Channels
+                </Link>
+                <ChevronRight size={14} className="shrink-0 text-slate-400" aria-hidden />
+                <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
+                  {channelBreadcrumb.label}
+                  {channelBreadcrumb.tabLabel ? (
+                    <span className="font-medium text-slate-500 dark:text-slate-400"> · {channelBreadcrumb.tabLabel}</span>
+                  ) : null}
+                </h1>
+              </nav>
+            ) : (
+              <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
+            )
+          ) : null}
         </div>
 
         <div className="dashboard-topbar-actions">

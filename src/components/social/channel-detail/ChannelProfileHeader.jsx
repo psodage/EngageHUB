@@ -40,10 +40,14 @@ export default function ChannelProfileHeader({
     {
       label: "Targets",
       value:
-        platformKey === "facebook" && account?.entityId
-          ? account.entityType === "page"
-            ? "1 page"
-            : "1 profile"
+        (platformKey === "facebook" || platformKey === "linkedin") && account?.entityId
+          ? platformKey === "facebook"
+            ? account.entityType === "page"
+              ? "1 page"
+              : "1 profile"
+            : account.entityType === "organization"
+              ? "1 company page"
+              : "1 profile"
           : String(entities.length || 1),
     },
     {

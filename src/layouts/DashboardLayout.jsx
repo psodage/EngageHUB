@@ -29,7 +29,11 @@ export default function DashboardLayout() {
     <div className="dashboard-shell">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={handleLogout} />
       <div className="dashboard-main">
-        <Topbar contentLayout={contentLayout} onOpenSidebar={() => setSidebarOpen(true)} />
+        <Topbar
+          contentLayout={contentLayout}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          className={contentLayout === "composer" ? "dashboard-topbar--composer" : ""}
+        />
         <main
           className={`dashboard-scroll ${contentLayout === "composer" ? "dashboard-scroll--composer" : ""}`}
         >

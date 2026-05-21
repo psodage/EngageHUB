@@ -17,6 +17,7 @@ import {
   buildScopedCreatePostPath,
   getChannelDisplayInfo,
   resolveFacebookDisplayAccount,
+  resolveLinkedInDisplayAccount,
 } from "../utils/channelDisplay";
 import { getChannelEntityIdFromSearch } from "../utils/navigation";
 import { normalizeChannelTab } from "../data/channelNav";
@@ -47,18 +48,24 @@ export default function ConnectedPlatformDetailPage() {
   );
 
   const displayAccount = useMemo(() => {
-    if (platformKey !== "facebook" || !account?.isConnected) return account;
-    return resolveFacebookDisplayAccount(account, scopedEntityId);
+    if (!account?.isConnected) return account;
+    if (platformKey === "facebook") return resolveFacebookDisplayAccount(account, scopedEntityId);
+    if (platformKey === "linkedin") return resolveLinkedInDisplayAccount(account, scopedEntityId);
+    return account;
   }, [account, platformKey, scopedEntityId]);
 
   const createPostPath = useMemo(() => {
     if (!platformKey) return "/create-post";
     const entityId =
-      platformKey === "facebook" ? String(displayAccount?.entityId || scopedEntityId || "").trim() : "";
+      platformKey === "facebook" || platformKey === "linkedin"
+        ? String(displayAccount?.entityId || scopedEntityId || "").trim()
+        : "";
     const entityType =
       platformKey === "facebook"
         ? String(displayAccount?.entityType || (scopedEntityId ? "" : "profile")).trim()
-        : "";
+        : platformKey === "linkedin"
+          ? String(displayAccount?.entityType || "").trim()
+          : "";
     return buildScopedCreatePostPath(
       { platformKey, entityId, entityType },
       platformKey === "facebook" ? account : null
@@ -90,7 +97,9 @@ export default function ConnectedPlatformDetailPage() {
   const channelInfo = displayAccount ? getChannelDisplayInfo(displayAccount) : null;
 
   const historyTargetId =
-    platformKey === "facebook" ? String(displayAccount?.entityId || scopedEntityId || "").trim() : "";
+    platformKey === "facebook" || platformKey === "linkedin"
+      ? String(displayAccount?.entityId || scopedEntityId || "").trim()
+      : "";
 
   useEffect(() => {
     if (!platformKey || !account?.isConnected) return;
@@ -231,7 +240,9 @@ export default function ConnectedPlatformDetailPage() {
           <ChannelProfileView
             account={account}
             platformKey={platformKey}
-            scopedEntityId={platformKey === "facebook" ? historyTargetId : ""}
+            scopedEntityId={
+              platformKey === "facebook" || platformKey === "linkedin" ? historyTargetId : ""
+            }
             capabilities={capabilities}
             onDisconnectEntity={handleDisconnectEntity}
             disconnectingEntityId={disconnectingGoogleLocationId || disconnectingAccountId}

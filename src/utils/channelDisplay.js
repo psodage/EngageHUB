@@ -1,12 +1,22 @@
 import { SOCIAL_PLATFORM_CONFIGS, isHiddenConnectPlatform } from "../data/socialPlatforms";
 import { resolveFacebookPageCreatePostPath } from "./createPostChannels";
-import { getFacebookConnectionEntities } from "./socialAccountEntities";
+import { getFacebookConnectionEntities, getLinkedInConnectionEntities } from "./socialAccountEntities";
 
 /**
  * @param {Array<Record<string, unknown>>} entities
  * @param {string} [entityId]
  */
 export function findFacebookEntityById(entities, entityId) {
+  return findConnectionEntityById(entities, entityId);
+}
+
+/** @param {Array<Record<string, unknown>>} entities @param {string} [entityId] */
+export function findLinkedInEntityById(entities, entityId) {
+  return findConnectionEntityById(entities, entityId);
+}
+
+/** @param {Array<Record<string, unknown>>} entities @param {string} [entityId] */
+function findConnectionEntityById(entities, entityId) {
   const id = String(entityId || "").trim();
   if (!id) return null;
   return (
@@ -51,6 +61,42 @@ export function resolveFacebookDisplayAccount(groupedAccount, entityId) {
   };
 }
 
+/**
+ * Shape a grouped LinkedIn account for a single profile or company page destination.
+ * @param {Record<string, unknown>} groupedAccount
+ * @param {string} [entityId]
+ */
+export function resolveLinkedInDisplayAccount(groupedAccount, entityId) {
+  if (!groupedAccount?.isConnected || groupedAccount.platform !== "linkedin") {
+    return groupedAccount;
+  }
+
+  const entities = getLinkedInConnectionEntities(groupedAccount);
+  if (!entities.length) return groupedAccount;
+
+  const entity = findLinkedInEntityById(entities, entityId) || entities[0];
+  const entityType = entity.entityType === "organization" ? "organization" : "profile";
+  const resolvedEntityId = String(entity.entityId || entity.platformUserId || "").trim();
+  const entityMeta =
+    entity.metadata && typeof entity.metadata === "object" && !Array.isArray(entity.metadata)
+      ? entity.metadata
+      : {};
+
+  return {
+    ...groupedAccount,
+    accountName:
+      entity.accountName?.trim() ||
+      entity.username?.trim()?.replace(/^@/, "") ||
+      (entityType === "organization" ? "LinkedIn Page" : "LinkedIn Profile"),
+    username: entity.username || groupedAccount.username || "",
+    profileImage: entity.profileImage || entityMeta.pictureUrl || "",
+    entityType,
+    entityId: resolvedEntityId,
+    metadata: { ...(groupedAccount.metadata || {}), ...entityMeta },
+    _scopedLinkedInEntity: entity,
+  };
+}
+
 /** @param {import("../data/socialPlatforms").SocialAccount | Record<string, unknown>} account */
 export function getChannelDisplayInfo(account) {
   const platformKey = account?.platform;
@@ -65,6 +111,14 @@ export function getChannelDisplayInfo(account) {
   if (platformKey === "facebook" && account?.entityType) {
     const entityId = String(account.entityId || "").trim();
     handle = entityId ? `Page · ${entityId}` : "Page";
+  }
+  if (platformKey === "linkedin" && account?.entityType) {
+    const entityId = String(account.entityId || "").trim();
+    if (account.entityType === "organization") {
+      handle = entityId ? `Company page · ${entityId}` : "Company page";
+    } else {
+      handle = "Profile";
+    }
   }
   const profileImage =
     account?.profileImage ||
@@ -117,6 +171,43 @@ function buildFacebookSidebarChannel(account, entity) {
   };
 }
 
+/**
+ * @param {Record<string, unknown>} account
+ * @param {Record<string, unknown>} entity
+ */
+function buildLinkedInSidebarChannel(account, entity) {
+  const entityType = entity.entityType === "organization" ? "organization" : "profile";
+  const entityId = String(entity.entityId || entity.platformUserId || "").trim();
+  const displayName =
+    entity.accountName?.trim() ||
+    entity.username?.trim()?.replace(/^@/, "") ||
+    (entityType === "organization" ? "LinkedIn Page" : "LinkedIn Profile");
+  const entityMeta =
+    entity.metadata && typeof entity.metadata === "object" && !Array.isArray(entity.metadata)
+      ? entity.metadata
+      : {};
+  const profileImage =
+    entity.profileImage ||
+    entityMeta.pictureUrl ||
+    `https://placehold.co/80x80/e2e8f0/64748b?text=${encodeURIComponent((displayName[0] || "?").toUpperCase())}`;
+  const search = entityId ? `?entity=${encodeURIComponent(entityId)}` : "";
+
+  return {
+    account,
+    entity,
+    sidebarKey: entityId ? `linkedin:${entityType}:${entityId}` : `linkedin:${entityType}`,
+    platformKey: "linkedin",
+    entityId,
+    entityType,
+    platformLabel: "LinkedIn",
+    displayName,
+    handle: entityType === "organization" ? "Company page" : "Profile",
+    profileImage,
+    path: `/channels/linkedin${search}`,
+    sortKey: displayName.toLowerCase(),
+  };
+}
+
 /** @param {Array<Record<string, unknown>>} accounts */
 export function mapConnectedChannelsForSidebar(accounts) {
   /** @type {Array<Record<string, unknown>>} */
@@ -131,6 +222,19 @@ export function mapConnectedChannelsForSidebar(accounts) {
         entities.forEach((entity, index) => {
           channels.push({
             ...buildFacebookSidebarChannel(account, entity),
+            isDefaultEntity: index === 0,
+          });
+        });
+        continue;
+      }
+    }
+
+    if (account.platform === "linkedin") {
+      const entities = getLinkedInConnectionEntities(account);
+      if (entities.length) {
+        entities.forEach((entity, index) => {
+          channels.push({
+            ...buildLinkedInSidebarChannel(account, entity),
             isDefaultEntity: index === 0,
           });
         });
@@ -176,6 +280,10 @@ export function buildScopedCreatePostPath(channel, groupedAccount = null) {
     }
     if (groupedAccount) return resolveFacebookPageCreatePostPath(groupedAccount);
     return "/create-post?platform=facebook";
+  }
+  if (channel.platformKey === "linkedin" && channel.entityId) {
+    const params = new URLSearchParams({ platform: "linkedin", entity: channel.entityId });
+    return `/create-post?${params.toString()}`;
   }
   const params = new URLSearchParams({ platform: channel.platformKey });
   if (channel.entityId) params.set("entity", channel.entityId);

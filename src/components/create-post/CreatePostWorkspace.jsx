@@ -18,16 +18,13 @@ import ChannelPublishProgress from "./ChannelPublishProgress";
 import PreviewIdeasBoard from "./PreviewIdeasBoard";
 import SharedPostComposer from "./SharedPostComposer";
 import {
+  WORKSPACE_BODY,
   WORKSPACE_CARD,
-  WORKSPACE_CARD_FILL,
   WORKSPACE_COMPOSER_COLUMN,
-  WORKSPACE_COMPOSER_SCROLL,
   WORKSPACE_FOOTER,
   WORKSPACE_GRID,
-  WORKSPACE_GRID_FILL,
   WORKSPACE_PREVIEW_ASIDE,
   WORKSPACE_SHELL,
-  WORKSPACE_SHELL_FILL,
 } from "./workspaceLayout";
 
 export default function CreatePostWorkspace({
@@ -270,14 +267,14 @@ export default function CreatePostWorkspace({
 
   const cardShell = isFullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-slate-100 p-4 dark:bg-slate-950 md:p-6"
-    : WORKSPACE_SHELL;
+    : null;
 
-  const workspaceCardClass = isFullscreen ? WORKSPACE_CARD_FILL : WORKSPACE_CARD;
-  const workspaceGridClass = isFullscreen ? WORKSPACE_GRID_FILL : WORKSPACE_GRID;
-  const workspaceShellClass = isFullscreen ? WORKSPACE_SHELL_FILL : WORKSPACE_SHELL;
+  const workspaceCardClass = isFullscreen
+    ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900"
+    : WORKSPACE_CARD;
 
   return (
-    <section className={isFullscreen ? cardShell : workspaceShellClass}>
+    <section className={isFullscreen ? cardShell : WORKSPACE_SHELL}>
       <article className={workspaceCardClass}>
         <CreatePostWorkspaceHeader
           title="Create post"
@@ -294,58 +291,57 @@ export default function CreatePostWorkspace({
           onPreviewClick={() => setPreviewPanelMode("previews")}
         />
 
-        <div className={workspaceGridClass}>
-          <div className={WORKSPACE_COMPOSER_COLUMN}>
-            <div className={WORKSPACE_COMPOSER_SCROLL}>
-            <SharedPostComposer
-              caption={sharedCaption}
-              file={sharedFile}
-              mediaUrl={sharedMediaUrl}
-              captionLimit={captionLimit}
-              linkedInMediaImporting={importingRemoteMedia}
-              onCaptionChange={handleCaptionChange}
-              onFileChange={handleFileChange}
-              onSuggestedImageSelect={handleSuggestedImageSelect}
-              onClearSuggestedMedia={handleClearSuggestedMedia}
-            />
-
-            {isPublishingOrDone ? (
-              <div className="border-t border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-950/30">
-                <ChannelPublishProgress
-                  selectedChannelKeys={selectedChannelKeys}
-                  channelOptions={channelOptions}
-                  channelStatuses={channelStatuses}
-                  errors={channelErrors}
-                />
-              </div>
-            ) : null}
-            </div>
-          </div>
-
-          <aside className={WORKSPACE_PREVIEW_ASIDE}>
-            {previewPanelMode === "previews" ? (
-              <ChannelPreviewPanel
-                selectedChannelKeys={previewChannelKeys}
-                connectedByPlatform={connectedByPlatform}
-                sharedCaption={sharedCaption}
-                sharedFile={sharedFile}
-                drafts={drafts}
-                channelStatuses={channelStatuses}
-                className="h-full min-h-0"
-              />
-            ) : (
-              <PreviewIdeasBoard
-                focus={previewPanelMode}
+        <div className={WORKSPACE_BODY}>
+          <div className={WORKSPACE_GRID}>
+            <div className={WORKSPACE_COMPOSER_COLUMN}>
+              <SharedPostComposer
                 caption={sharedCaption}
-                onApplyCaption={applyCaption}
-                selectedPlatform={ideasPlatformKey}
-                topic={ideaTopic}
-                onTopicChange={setIdeaTopic}
-                onClose={() => setPreviewPanelMode("previews")}
-                onApplied={() => setPreviewPanelMode("previews")}
+                file={sharedFile}
+                mediaUrl={sharedMediaUrl}
+                captionLimit={captionLimit}
+                linkedInMediaImporting={importingRemoteMedia}
+                onCaptionChange={handleCaptionChange}
+                onFileChange={handleFileChange}
+                onSuggestedImageSelect={handleSuggestedImageSelect}
+                onClearSuggestedMedia={handleClearSuggestedMedia}
               />
-            )}
-          </aside>
+
+              {isPublishingOrDone ? (
+                <div className="border-t border-slate-100 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-950/30">
+                  <ChannelPublishProgress
+                    selectedChannelKeys={selectedChannelKeys}
+                    channelOptions={channelOptions}
+                    channelStatuses={channelStatuses}
+                    errors={channelErrors}
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            <aside className={WORKSPACE_PREVIEW_ASIDE}>
+              {previewPanelMode === "previews" ? (
+                <ChannelPreviewPanel
+                  selectedChannelKeys={previewChannelKeys}
+                  connectedByPlatform={connectedByPlatform}
+                  sharedCaption={sharedCaption}
+                  sharedFile={sharedFile}
+                  drafts={drafts}
+                  channelStatuses={channelStatuses}
+                />
+              ) : (
+                <PreviewIdeasBoard
+                  focus={previewPanelMode}
+                  caption={sharedCaption}
+                  onApplyCaption={applyCaption}
+                  selectedPlatform={ideasPlatformKey}
+                  topic={ideaTopic}
+                  onTopicChange={setIdeaTopic}
+                  onClose={() => setPreviewPanelMode("previews")}
+                  onApplied={() => setPreviewPanelMode("previews")}
+                />
+              )}
+            </aside>
+          </div>
         </div>
 
         <footer className={WORKSPACE_FOOTER}>

@@ -2,12 +2,12 @@ export const POST_TEMPLATE_CATEGORIES = [
   { id: "all", label: "All" },
   { id: "launch", label: "Launch" },
   { id: "engagement", label: "Engagement" },
-  { id: "education", label: "Education" },
+  { id: "education", label: "Tips" },
   { id: "promo", label: "Promo" },
   { id: "story", label: "Story" },
-  { id: "hiring", label: "Hiring" },
 ];
 
+/** Curated starter templates shown in Create post (keep count between 4–6). */
 export const POST_IDEA_TEMPLATES = [
   {
     id: "launch-teaser",
@@ -16,21 +16,6 @@ export const POST_IDEA_TEMPLATES = [
     caption:
       "Something new is coming. We've been building in the open—and the wait is almost over.\n\nDrop a 🔥 if you want early access.",
     hashtags: ["#ComingSoon", "#ProductLaunch", "#BuildInPublic"],
-  },
-  {
-    id: "launch-live",
-    category: "launch",
-    title: "We're live announcement",
-    caption:
-      "We're live.\n\n{{product}} is here to help you {{benefit}}—without the usual hassle.\n\nTry it today → {{link}}",
-    hashtags: ["#LaunchDay", "#NewProduct"],
-  },
-  {
-    id: "engagement-poll",
-    category: "engagement",
-    title: "Quick poll",
-    caption: "Quick question for you:\n\n{{question}}\n\nA) {{optionA}}\nB) {{optionB}}\n\nVote in the comments 👇",
-    hashtags: ["#Poll", "#Community"],
   },
   {
     id: "engagement-question",
@@ -48,35 +33,12 @@ export const POST_IDEA_TEMPLATES = [
     hashtags: ["#Tips", "#HowTo", "#LearnOnSocial"],
   },
   {
-    id: "education-myth",
-    category: "education",
-    title: "Myth vs fact",
-    caption: "Myth: {{myth}}\n\nFact: {{fact}}\n\nWhich surprised you most?",
-    hashtags: ["#MythBusting", "#DidYouKnow"],
-  },
-  {
     id: "promo-limited",
     category: "promo",
     title: "Limited offer",
     caption:
       "48 hours only: {{offer}}\n\nUse code {{code}} at checkout.\n\nEnds {{deadline}}—don't sleep on this.",
     hashtags: ["#Sale", "#LimitedOffer"],
-  },
-  {
-    id: "promo-social-proof",
-    category: "promo",
-    title: "Social proof",
-    caption:
-      "{{number}}+ teams already use {{product}} to {{benefit}}.\n\nHere's what {{customer}} said:\n\n\"{{quote}}\"",
-    hashtags: ["#CustomerLove", "#Testimonial"],
-  },
-  {
-    id: "story-behind",
-    category: "story",
-    title: "Behind the scenes",
-    caption:
-      "Behind the scenes of {{project}}:\n\nWe {{challenge}}—then {{win}}.\n\nGrateful for everyone who cheered us on.",
-    hashtags: ["#BTS", "#FounderStory"],
   },
   {
     id: "story-milestone",
@@ -86,37 +48,12 @@ export const POST_IDEA_TEMPLATES = [
     hashtags: ["#Milestone", "#Grateful"],
   },
   {
-    id: "hiring-role",
-    category: "hiring",
-    title: "We're hiring",
+    id: "launch-live",
+    category: "launch",
+    title: "We're live",
     caption:
-      "We're hiring a {{role}}.\n\nYou'll work on {{focus}} with a team that cares about craft.\n\nRemote-friendly · {{location}}\n\nDM or apply: {{link}}",
-    hashtags: ["#Hiring", "#JoinUs"],
-  },
-  {
-    id: "threads-hook",
-    category: "engagement",
-    title: "Thread hook",
-    caption: "I spent {{time}} learning {{topic}}.\n\nHere are {{count}} lessons I'd share with my past self 🧵",
-    hashtags: ["#Thread"],
-    platforms: ["threads", "x"],
-  },
-  {
-    id: "linkedin-thought",
-    category: "education",
-    title: "LinkedIn thought leadership",
-    caption:
-      "Unpopular opinion: {{opinion}}\n\nHere's why—and what we're doing differently at {{company}}.",
-    hashtags: ["#Leadership", "#Career"],
-    platforms: ["linkedin"],
-  },
-  {
-    id: "instagram-reel",
-    category: "promo",
-    title: "Reel / short video CTA",
-    caption: "Watch till the end for the {{hook}} 👀\n\n{{cta}}\n\nSave · Share · Follow for more {{niche}} content",
-    hashtags: ["#Reels", "#ContentCreator"],
-    platforms: ["instagram"],
+      "We're live.\n\n{{product}} is here to help you {{benefit}}—without the usual hassle.\n\nTry it today → {{link}}",
+    hashtags: ["#LaunchDay", "#NewProduct"],
   },
 ];
 
