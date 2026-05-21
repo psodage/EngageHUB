@@ -10,6 +10,7 @@
     "tunnel:cf": "cloudflared tunnel --url http://localhost:5173",
     "server": "node server/start.js",
     "debug:meta-oauth": "node scripts/debug-meta-oauth.js",
+    "debug:google-business-post": "node scripts/debug-google-business-post.js",
     "build": "vite build",
     "preview": "vite preview"
   },

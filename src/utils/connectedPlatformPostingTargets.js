@@ -1,3 +1,5 @@
+import { resolveFacebookPageCreatePostPath } from "./facebookProfilePublish";
+
 /** @typedef {'profile' | 'page' | 'organization' | 'channel' | 'account'} PostingTargetBadge */
 
 /**
@@ -110,30 +112,33 @@ export function buildPostingTargetsConfig(platformKey, account) {
       });
     }
 
-    const primaryEntityId = profileRow
-      ? String(profileRow.entityId || profileRow.platformUserId || "").trim()
-      : pageRows[0]
-        ? String(pageRows[0].entityId || pageRows[0].platformUserId || "").trim()
-        : "";
-    const primaryCreatePath = primaryEntityId
-      ? `/create-post?platform=facebook&entity=${encodeURIComponent(primaryEntityId)}`
-      : "/create-post?platform=facebook";
+    const primaryCreatePath = resolveFacebookPageCreatePostPath(account);
 
     return {
       title: "Facebook destinations",
-      description: "Publish to your personal profile or any connected Facebook Page.",
-      primaryCtaLabel: "Create post",
+      description:
+        "Publish to connected Facebook Pages. Personal profile posting is not available via Meta’s API—use a Page.",
+      primaryCtaLabel: pageRows.length ? "Create post on a Page" : "Connect a Facebook Page",
       primaryCtaPath: primaryCreatePath,
       cards: cards.map((card) => {
-        const match = card.key.match(/^(?:profile|page)-(.+)$/);
+        if (card.badge === "profile") {
+          return { ...card, createPostDisabled: true };
+        }
+        const match = card.key.match(/^page-(.+)$/);
         const entityId = match?.[1] ? decodeURIComponent(match[1]) : "";
         if (!entityId) return card;
         return {
           ...card,
-          path: `/create-post?platform=facebook&entity=${encodeURIComponent(entityId)}`,
+          createPostPath: `/create-post?platform=facebook&entity=${encodeURIComponent(entityId)}`,
         };
       }),
-      emptyBanner: null,
+      emptyBanner: pageRows.length
+        ? null
+        : {
+            tone: "amber",
+            text:
+              "Connect at least one Facebook Page to publish from EngageHub. Personal profile posts must be shared manually on Facebook.",
+          },
     };
   }
 

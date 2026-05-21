@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { X as CloseIcon } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { postToFacebook, uploadSocialPublicMedia } from "../../services/socialApi";
+import {
+  FACEBOOK_PROFILE_API_PUBLISH_MESSAGE,
+  openFacebookProfileShareDialog,
+} from "../../utils/facebookProfilePublish";
 
 const MAX_MESSAGE = 63206;
 
@@ -34,6 +38,8 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
   const prevOpen = useRef(false);
 
   const connected = Boolean(account?.isConnected);
+  const isProfileTarget = account?.entityType !== "page";
+  const profilePublishBlocked = isProfileTarget;
 
   useEffect(() => {
     if (open && !prevOpen.current) {
@@ -103,6 +109,7 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
   const submitDisabled =
     posting ||
     !connected ||
+    profilePublishBlocked ||
     msgLen > MAX_MESSAGE ||
     (mediaType === "TEXT" && (!trimmedMessage || trimmedMediaUrl || trimmedLink)) ||
     (mediaType === "LINK" && (!trimmedLink || !isValidHttpUrl(trimmedLink) || trimmedMediaUrl)) ||
@@ -204,10 +211,17 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
           Create post on Facebook
         </h2>
         <p className="mt-1 text-xs text-slate-400">
-          Posts are published to your connected personal Facebook profile ({account?.accountName || account?.username || "profile"}).
+          {isProfileTarget
+            ? `Personal profile (${account?.accountName || account?.username || "profile"}) — API posting not supported.`
+            : `Posts are published to ${account?.accountName || account?.username || "this Page"}.`}
         </p>
 
         <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
+          {profilePublishBlocked ? (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100/90">
+              {FACEBOOK_PROFILE_API_PUBLISH_MESSAGE}
+            </p>
+          ) : null}
           {!connected ? (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100/90">
               Connect Facebook first from Connect channels.
@@ -372,13 +386,47 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={submitDisabled}
-            >
-              {posting ? "Posting…" : "Publish to profile"}
-            </button>
+            {profilePublishBlocked ? (
+              <button
+                type="button"
+                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={
+                  !connected ||
+                  (mediaType === "LINK" && !trimmedLink) ||
+                  ((mediaType === "IMAGE" || mediaType === "VIDEO") && !trimmedMediaUrl && !file)
+                }
+                onClick={async () => {
+                  setSubmitError("");
+                  try {
+                    let shareUrl = mediaType === "LINK" ? trimmedLink : trimmedMediaUrl;
+                    if (!shareUrl && file && (mediaType === "IMAGE" || mediaType === "VIDEO")) {
+                      shareUrl = await uploadSocialPublicMedia(file);
+                    }
+                    openFacebookProfileShareDialog({
+                      caption: trimmedMessage,
+                      linkUrl: mediaType === "LINK" ? trimmedLink : "",
+                      mediaUrl: shareUrl,
+                    });
+                    setToast({
+                      message:
+                        "Finish your post in the Facebook window that opened. API posting to profiles is not supported by Meta.",
+                    });
+                  } catch (err) {
+                    setSubmitError(err?.message || "Could not open Facebook share.");
+                  }
+                }}
+              >
+                Share to profile on Facebook
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={submitDisabled}
+              >
+                {posting ? "Posting…" : "Publish to Page"}
+              </button>
+            )}
           </div>
         </form>
       </div>

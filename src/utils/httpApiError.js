@@ -11,6 +11,10 @@ const PUBLISH_ERROR_CODE_HINTS = {
     "Facebook personal profiles only support photo or video posts through the API. Use a Facebook Page or attach media.",
   facebook_profile_permission:
     "Facebook does not allow this app to post to your personal profile with the current permissions. Use a Facebook Page instead.",
+  facebook_profile_api_unsupported:
+    "Facebook no longer allows third-party apps to publish to personal profiles via API. Post to a connected Facebook Page instead.",
+  facebook_profile_not_supported:
+    "Facebook no longer allows third-party apps to publish to personal profiles via API. Post to a connected Facebook Page instead.",
   token_expired:
     "This account’s access token expired. Reconnect the platform under Channels.",
   media_not_public:

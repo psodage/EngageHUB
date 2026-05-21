@@ -267,7 +267,7 @@ export default function GoogleBusinessCreatePostModal({ open, onClose, account, 
         mediaUrl = mediaUrlInput.trim();
       }
 
-      await postToGoogleBusiness({
+      const result = await postToGoogleBusiness({
         locationId,
         accountId,
         postType,
@@ -284,7 +284,11 @@ export default function GoogleBusinessCreatePostModal({ open, onClose, account, 
         termsConditions: postType === "OFFER" ? termsConditions.trim() : "",
       });
 
-      setToast({ message: "Post published successfully on Google Business Profile." });
+      setToast({
+        message:
+          (typeof result?.message === "string" && result.message) ||
+          "Post published successfully on Google Business Profile.",
+      });
       onPublishSuccess?.();
       setSummary("");
       setMediaSource("none");

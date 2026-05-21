@@ -1,6 +1,6 @@
 # EngageHub Platform Limitations (Official APIs)
 
-- **Facebook**: Supports profile + Pages via official Meta APIs and granted scopes.
+- **Facebook**: **Pages only** for API publishing (`pages_manage_posts`). Personal profile timeline posting was removed by Meta (Graph API v2.4+); reconnecting cannot restore it.
 - **Instagram**: Supports professional accounts linked through Meta graph permissions.
 - **Threads**: Supports profile publishing and insights where available by app permissions.
 - **LinkedIn**: Profile publishing supported; organization/page support depends on app review scopes.

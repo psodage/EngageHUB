@@ -12,17 +12,23 @@ function ChannelPickerCard({ option, isSelected, onToggle }) {
   const platformName = option.platformName || option.label;
   const username = option.username || option.accountDisplayName || option.label || "";
   const accountTypeLabel = option.accountTypeLabel || "";
+  const disabled = Boolean(option.publishDisabled);
+  const disabledReason = option.publishDisabledReason || "";
   const profileSrc =
     option.profileImage || profilePlaceholder(option.accountDisplayName || username, platformName);
 
   return (
     <button
       type="button"
-      onClick={() => onToggle(option.key)}
-      className={`buffer-card flex items-center gap-3 p-4 text-left transition ring-2 ${
-        isSelected
-          ? "border-buffer-400 ring-buffer-200 dark:border-buffer-500/50 dark:ring-buffer-500/30"
-          : "ring-transparent hover:border-slate-300 dark:hover:border-slate-600"
+      disabled={disabled}
+      title={disabled ? disabledReason : undefined}
+      onClick={() => !disabled && onToggle(option.key)}
+      className={`buffer-card flex w-full items-center gap-3 p-4 text-left transition ring-2 ${
+        disabled
+          ? "cursor-not-allowed opacity-60 ring-transparent"
+          : isSelected
+            ? "border-buffer-400 ring-buffer-200 dark:border-buffer-500/50 dark:ring-buffer-500/30"
+            : "ring-transparent hover:border-slate-300 dark:hover:border-slate-600"
       }`}
     >
       <span className="relative shrink-0">
@@ -41,6 +47,9 @@ function ChannelPickerCard({ option, isSelected, onToggle }) {
         <p className="text-xs text-slate-500 dark:text-slate-400">{platformName}</p>
         {accountTypeLabel ? (
           <p className="text-[11px] text-slate-400 dark:text-slate-500">{accountTypeLabel}</p>
+        ) : null}
+        {disabled && disabledReason ? (
+          <p className="mt-1 text-[11px] leading-snug text-amber-800 dark:text-amber-200/90">{disabledReason}</p>
         ) : null}
       </span>
 

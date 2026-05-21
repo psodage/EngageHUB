@@ -1,6 +1,11 @@
 import axios from "axios";
+import { buildGoogleBusinessLocalPostRequest } from "./googleBusinessPostBody.util.js";
 
 const MYBUSINESS_V4 = "https://mybusiness.googleapis.com/v4";
+
+function isGoogleBusinessDryRunEnabled() {
+  return String(process.env.GOOGLE_BUSINESS_DRY_RUN || "").trim().toLowerCase() === "true";
+}
 
 function summarizeAxiosError(error) {
   return {
@@ -8,20 +13,6 @@ function summarizeAxiosError(error) {
     status: error?.response?.status || null,
     data: error?.response?.data || null,
   };
-}
-
-function inferMediaFormat(mediaUrl) {
-  if (!mediaUrl || typeof mediaUrl !== "string") return "PHOTO";
-  const lower = mediaUrl.split("?")[0].toLowerCase();
-  if (
-    lower.endsWith(".mp4") ||
-    lower.endsWith(".mov") ||
-    lower.endsWith(".webm") ||
-    lower.endsWith(".m4v")
-  ) {
-    return "VIDEO";
-  }
-  return "PHOTO";
 }
 
 /**
@@ -32,49 +23,20 @@ function inferMediaFormat(mediaUrl) {
  * @param {object} opts.parsed Output of controller validation
  */
 export async function publishGoogleBusinessLocalPost({ accessToken, accountId, locationId, parsed }) {
-  const url = `${MYBUSINESS_V4}/accounts/${encodeURIComponent(accountId)}/locations/${encodeURIComponent(locationId)}/localPosts`;
+  const { urlPath, body } = buildGoogleBusinessLocalPostRequest({ accountId, locationId, parsed });
+  const url = `${MYBUSINESS_V4}${urlPath}`;
 
-  /** @type {Record<string, unknown>} */
-  const body = {
-    languageCode: "en-US",
-    summary: parsed.summary,
-    topicType: parsed.postType,
-  };
-
-  if (parsed.ctaType) {
-    body.callToAction = { actionType: parsed.ctaType };
-    if (parsed.ctaType !== "CALL" && parsed.ctaUrl) {
-      body.callToAction.url = parsed.ctaUrl;
-    }
-  }
-
-  if (parsed.mediaUrl) {
-    body.media = [
-      {
-        mediaFormat: parsed.mediaFormat || inferMediaFormat(parsed.mediaUrl),
-        sourceUrl: parsed.mediaUrl,
-      },
-    ];
-  }
-
-  if (parsed.postType === "EVENT" || parsed.postType === "OFFER") {
-    body.event = {
-      title: parsed.postType === "EVENT" ? parsed.eventTitle : parsed.offerTitle,
-      schedule: {
-        startDate: parsed.startDateParts,
-        endDate: parsed.endDateParts,
+  if (isGoogleBusinessDryRunEnabled()) {
+    const postId = `dry-run-${Date.now()}`;
+    console.info("[googleBusiness:publish:dry-run]", { url, body });
+    return {
+      postId,
+      raw: {
+        name: `accounts/${accountId}/locations/${locationId}/localPosts/${postId}`,
+        topicType: parsed.postType,
+        dryRun: true,
       },
     };
-  }
-
-  if (parsed.postType === "OFFER") {
-    body.offer = {};
-    if (parsed.couponCode) body.offer.couponCode = parsed.couponCode;
-    if (parsed.redeemUrl) body.offer.redeemOnlineUrl = parsed.redeemUrl;
-    if (parsed.termsConditions) body.offer.termsConditions = parsed.termsConditions;
-    if (!Object.keys(body.offer).length) {
-      delete body.offer;
-    }
   }
 
   try {

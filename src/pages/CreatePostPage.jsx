@@ -10,6 +10,11 @@ import {
   mapAccountsToCreatePostChannelOptions,
   parseCreatePostChannelKey,
 } from "../utils/createPostChannels";
+import {
+  FACEBOOK_PROFILE_API_PUBLISH_MESSAGE,
+  isFacebookProfileChannelPublishable,
+  resolveFacebookPageCreatePostPath,
+} from "../utils/facebookProfilePublish";
 
 export default function CreatePostPage() {
   const navigate = useNavigate();
@@ -66,6 +71,12 @@ export default function CreatePostPage() {
           (key) => parseCreatePostChannelKey(key).entityId === scopedEntityId
         );
         if (!match) return;
+        if (!isFacebookProfileChannelPublishable(match)) {
+          setSelectedChannelKeys([]);
+          setDrafts({});
+          setStep("facebook-profile-blocked");
+          return;
+        }
         keys = [match];
       } else if (scopedPlatformKey === "linkedin") {
         const profileKey = platformChannelKeys.find(
@@ -86,15 +97,25 @@ export default function CreatePostPage() {
     setStep("compose");
   }, [scopedPlatformKey, scopedEntityId, connectedByPlatform, channelOptions]);
 
-  const toggleChannel = useCallback((key) => {
-    setSelectedChannelKeys((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-  }, []);
+  const toggleChannel = useCallback(
+    (key) => {
+      const option = channelOptions.find((c) => c.key === key);
+      if (option?.publishDisabled) return;
+      setSelectedChannelKeys((prev) =>
+        prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      );
+    },
+    [channelOptions]
+  );
+
+  const publishableChannelOptions = useMemo(
+    () => channelOptions.filter((c) => !c.publishDisabled),
+    [channelOptions]
+  );
 
   const selectAllChannels = useCallback(() => {
-    setSelectedChannelKeys(channelOptions.map((c) => c.key));
-  }, [channelOptions]);
+    setSelectedChannelKeys(publishableChannelOptions.map((c) => c.key));
+  }, [publishableChannelOptions]);
 
   const clearAllChannels = useCallback(() => {
     setSelectedChannelKeys([]);
@@ -138,9 +159,36 @@ export default function CreatePostPage() {
   }, [step, selectedChannelKeys.length]);
 
   const isComposeStep = step === "compose" && selectedChannelKeys.length > 0;
+  const facebookAccount = connectedByPlatform.facebook;
+  const facebookPageCreatePath = facebookAccount
+    ? resolveFacebookPageCreatePostPath(facebookAccount)
+    : "/create-post?platform=facebook";
 
   let content;
-  if (!channelOptions.length) {
+  if (step === "facebook-profile-blocked") {
+    content = (
+      <section className="buffer-card mx-auto w-full max-w-lg p-6">
+        <p className="font-semibold text-slate-900 dark:text-white">Personal Facebook profile</p>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{FACEBOOK_PROFILE_API_PUBLISH_MESSAGE}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(facebookPageCreatePath)}
+            className="rounded-lg bg-buffer-600 px-4 py-2 text-sm font-semibold text-white hover:bg-buffer-700"
+          >
+            Create post on a Page
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/channels/facebook${scopedEntityId ? `?entity=${encodeURIComponent(scopedEntityId)}` : ""}`)}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200"
+          >
+            Back to channel
+          </button>
+        </div>
+      </section>
+    );
+  } else if (!channelOptions.length) {
     content = (
       <section className="buffer-card mx-auto w-full max-w-lg p-6">
         <p className="font-semibold text-slate-900 dark:text-white">No connected platforms</p>

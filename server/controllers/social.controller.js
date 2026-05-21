@@ -1772,6 +1772,23 @@ async function handleOAuthCallback(req, res, requestedPlatform) {
           avatar: profile.profileImage || "",
         };
 
+        // Store tokens on profile row so refresh works even if the user has zero GBP locations.
+        await upsertConnectedAccount({
+          userId: new ObjectId(decodedState.userId),
+          platform: "googleBusiness",
+          profile: {
+            ...profile,
+            entityType: "profile",
+            entityId: profile.entityId || profile.platformUserId,
+            isPrimary: true,
+            metadata: {
+              ...(profile.metadata || {}),
+              capabilities: ["posting", "analytics", "business-updates"],
+            },
+          },
+          tokenData,
+        });
+
         // Defer Google Business API calls to the location-select page (avoids burst quota on OAuth callback).
         const session = await SocialOAuthSession.create({
           userId: new ObjectId(decodedState.userId),
@@ -2573,6 +2590,15 @@ export async function createFacebookPost(req, res) {
   const userId = new ObjectId(req.auth.userId);
   const reconnectMessage = "Facebook is not connected or token expired. Please reconnect Facebook.";
 
+  if (parsed.entityType === "profile") {
+    return errorResponse(
+      res,
+      "Facebook no longer allows third-party apps to publish to personal profiles via API. Post to a connected Facebook Page instead.",
+      403,
+      "facebook_profile_api_unsupported"
+    );
+  }
+
   parsed.mediaType = normalizeFacebookMediaType(parsed.mediaType, parsed.mediaUrl);
   if (parsed.mediaUrl) {
     try {
@@ -2591,40 +2617,16 @@ export async function createFacebookPost(req, res) {
       return errorResponse(res, "Invalid Facebook Page destination. Reconnect the Page under Channels.", 400, ctx.code);
     }
 
-    if (ctx.targetType === "profile" && parsed.mediaType === "TEXT") {
+    if (ctx.targetType === "profile") {
       return errorResponse(
         res,
-        "Facebook personal profiles only support photo or video posts through the API. Choose a Facebook Page or attach media.",
-        400,
-        "facebook_profile_text_unsupported"
+        "Facebook no longer allows third-party apps to publish to personal profiles via API. Post to a connected Facebook Page instead.",
+        403,
+        "facebook_profile_not_supported"
       );
     }
 
     let { account, accessToken, targetType, pageId, platformAccountId, targetName } = ctx;
-
-    if (ctx.targetType === "profile") {
-      const profileDoc = ctx.profileAccount;
-      const freshUserToken = await refreshFacebookProfileAccessToken(profileDoc, facebookService);
-      if (!freshUserToken) {
-        return errorResponse(
-          res,
-          "Facebook profile access expired or is missing. Reconnect Facebook under Channels and select your personal profile again.",
-          401,
-          "token_expired"
-        );
-      }
-      accessToken = freshUserToken;
-      ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId, parsed.entityType);
-      if (!ctx.ok || !ctx.accessToken) {
-        return errorResponse(res, reconnectMessage, 401, "token_missing");
-      }
-      account = ctx.account;
-      accessToken = ctx.accessToken;
-      targetType = ctx.targetType;
-      pageId = ctx.pageId;
-      platformAccountId = ctx.platformAccountId;
-      targetName = ctx.targetName;
-    }
 
     if (
       (parsed.mediaType === "IMAGE" || parsed.mediaType === "VIDEO") &&
@@ -3512,26 +3514,36 @@ export async function createGoogleBusinessPost(req, res) {
       return errorResponse(res, GB_RECONNECT_MESSAGE, 401, "no_token");
     }
 
-    const locationAccount = await getGoogleBusinessLocationAccount(userId, parsed.locationId);
-    if (!locationAccount || !locationAccount.isConnected) {
-      return errorResponse(
-        res,
-        "You do not have access to this Google Business Profile location, or it is not connected.",
-        403,
-        "location_not_allowed"
-      );
-    }
+    const dryRunEnabled = String(process.env.GOOGLE_BUSINESS_DRY_RUN || "").trim().toLowerCase() === "true";
+    let locationAccount = null;
 
-    const meta = locationAccount.metadata || {};
-    const managed = meta.managedEntity || {};
-    const storedAccountId = String(meta.googleBusinessAccountId || managed.googleBusinessAccountId || "").trim();
-    if (!storedAccountId || storedAccountId !== parsed.accountId) {
-      return errorResponse(
-        res,
-        "You do not have access to post to this location with the selected account.",
-        403,
-        "location_account_mismatch"
-      );
+    if (!dryRunEnabled) {
+      locationAccount = await getGoogleBusinessLocationAccount(userId, parsed.locationId);
+      if (!locationAccount || !locationAccount.isConnected) {
+        return errorResponse(
+          res,
+          "You do not have access to this Google Business Profile location, or it is not connected.",
+          403,
+          "location_not_allowed"
+        );
+      }
+
+      const meta = locationAccount.metadata || {};
+      const managed = meta.managedEntity || {};
+      const storedAccountId = String(meta.googleBusinessAccountId || managed.googleBusinessAccountId || "").trim();
+      if (!storedAccountId || storedAccountId !== parsed.accountId) {
+        return errorResponse(
+          res,
+          "You do not have access to post to this location with the selected account.",
+          403,
+          "location_account_mismatch"
+        );
+      }
+    } else {
+      console.info("[googleBusiness:post:dry-run] skipping location access check", {
+        locationId: parsed.locationId,
+        accountId: parsed.accountId,
+      });
     }
 
     let result;
@@ -3612,7 +3624,7 @@ export async function createGoogleBusinessPost(req, res) {
       platformAccountName: tokenAccount.accountName || tokenAccount.username || "",
       targetType: "location",
       targetId: parsed.locationId,
-      targetName: getGoogleBusinessLocationName(locationAccount) || parsed.locationId,
+      targetName: locationAccount ? getGoogleBusinessLocationName(locationAccount) || parsed.locationId : parsed.locationId,
       content: historySummary || parsed.summary,
       mediaType: historyMediaType,
       mediaUrl: parsed.mediaUrl || "",
@@ -3622,7 +3634,14 @@ export async function createGoogleBusinessPost(req, res) {
       apiSnapshot: rawName ? { name: rawName } : { id: postId },
     });
 
-    return successResponse(res, { postId, data: safeClientPayload }, "Post published successfully on Google Business Profile");
+    const dryRun = Boolean(result.raw?.dryRun);
+    return successResponse(
+      res,
+      { postId, data: safeClientPayload, dryRun },
+      dryRun
+        ? "Dry-run: post payload validated (Google API was not called). Set GOOGLE_BUSINESS_DRY_RUN=false to publish for real."
+        : "Post published successfully on Google Business Profile"
+    );
   } catch (error) {
     console.error("[googleBusiness:post:error]", { message: error?.message });
     return errorResponse(

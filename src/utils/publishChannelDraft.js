@@ -16,6 +16,7 @@ import {
   getPlatformKeyFromCreatePostChannelKey,
   parseCreatePostChannelKey,
 } from "./createPostChannels";
+import { FACEBOOK_PROFILE_API_PUBLISH_MESSAGE, isFacebookProfileChannelKey } from "./facebookProfilePublish";
 import { importRemoteMediaAsFile } from "./importRemoteMediaFile";
 import {
   resolveDiscordTarget,
@@ -44,6 +45,9 @@ export function validateChannelDraft(channelKey, draft) {
   }
 
   if (platformKey === "facebook") {
+    if (isFacebookProfileChannelKey(channelKey)) {
+      return FACEBOOK_PROFILE_API_PUBLISH_MESSAGE;
+    }
     const mediaType = typeConfig?.mediaType || "TEXT";
     if (mediaType === "TEXT" && !caption) return "Enter post text.";
     if (mediaType === "LINK" && !linkUrl) return "Enter a link URL.";

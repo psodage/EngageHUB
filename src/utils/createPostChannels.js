@@ -1,5 +1,9 @@
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import { getFacebookConnectionEntities, getLinkedInConnectionEntities } from "./socialAccountEntities";
+import {
+  FACEBOOK_PROFILE_API_PUBLISH_MESSAGE,
+  isFacebookProfileChannelPublishable,
+} from "./facebookProfilePublish";
 
 /**
  * @param {string} channelKey
@@ -97,6 +101,7 @@ function resolveAccountProfileImage(account, entity = null) {
 
 /** @param {string} channelKey */
 export function isMultiChannelPublishable(channelKey) {
+  if (!isFacebookProfileChannelPublishable(channelKey)) return false;
   const { platformKey } = parseCreatePostChannelKey(channelKey);
   return ["instagram", "facebook", "threads", "x", "linkedin", "googleBusiness", "youtube"].includes(
     platformKey
@@ -124,18 +129,21 @@ export function mapAccountsToCreatePostChannelOptions(connectedAccounts) {
           entity.accountName?.trim() ||
           entity.username?.trim()?.replace(/^@/, "") ||
           (isProfile ? "Facebook Profile" : "Facebook Page");
+        const publishDisabled = isProfile && !isFacebookProfileChannelPublishable(buildFacebookCreatePostChannelKey(entity));
         options.push({
           ...config,
           key: buildFacebookCreatePostChannelKey(entity),
           platformKey: "facebook",
           platformName: config.label,
           username: resolveChannelUsername(account, entity) || displayName,
-          accountTypeLabel: isProfile ? "Facebook profile" : "Facebook page",
+          accountTypeLabel: isProfile ? "Facebook profile · view only" : "Facebook page",
           label: displayName,
           profileImage: resolveAccountProfileImage(account, entity),
           accountDisplayName: displayName,
           entityId: String(entity.entityId || entity.platformUserId || "").trim(),
           entityType,
+          publishDisabled,
+          publishDisabledReason: publishDisabled ? FACEBOOK_PROFILE_API_PUBLISH_MESSAGE : "",
         });
       }
       continue;

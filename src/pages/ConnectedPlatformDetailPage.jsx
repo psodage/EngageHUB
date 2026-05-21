@@ -53,11 +53,17 @@ export default function ConnectedPlatformDetailPage() {
 
   const createPostPath = useMemo(() => {
     if (!platformKey) return "/create-post";
-    return buildScopedCreatePostPath({
-      platformKey,
-      entityId: platformKey === "facebook" ? String(displayAccount?.entityId || scopedEntityId || "").trim() : "",
-    });
-  }, [platformKey, displayAccount?.entityId, scopedEntityId]);
+    const entityId =
+      platformKey === "facebook" ? String(displayAccount?.entityId || scopedEntityId || "").trim() : "";
+    const entityType =
+      platformKey === "facebook"
+        ? String(displayAccount?.entityType || (scopedEntityId ? "" : "profile")).trim()
+        : "";
+    return buildScopedCreatePostPath(
+      { platformKey, entityId, entityType },
+      platformKey === "facebook" ? account : null
+    );
+  }, [platformKey, displayAccount?.entityId, displayAccount?.entityType, scopedEntityId, account]);
 
   const setDetailTab = (tabId) => {
     const next = normalizeChannelTab(tabId);

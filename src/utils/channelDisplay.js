@@ -1,4 +1,5 @@
 import { SOCIAL_PLATFORM_CONFIGS, isHiddenConnectPlatform } from "../data/socialPlatforms";
+import { buildFacebookCreatePostPath, resolveFacebookPageCreatePostPath } from "./facebookProfilePublish";
 import { getFacebookConnectionEntities } from "./socialAccountEntities";
 
 /**
@@ -179,7 +180,17 @@ export function buildChannelTabPath(channel, tabId) {
 }
 
 /** @param {{ platformKey: string, entityId?: string }} channel */
-export function buildScopedCreatePostPath(channel) {
+/**
+ * @param {{ platformKey: string, entityId?: string, entityType?: string }} channel
+ * @param {Record<string, unknown> | null | undefined} [groupedAccount] Required for Facebook profile → Page fallback
+ */
+export function buildScopedCreatePostPath(channel, groupedAccount = null) {
+  if (channel.platformKey === "facebook") {
+    const direct = buildFacebookCreatePostPath(channel);
+    if (direct) return direct;
+    if (groupedAccount) return resolveFacebookPageCreatePostPath(groupedAccount, "");
+    return "/create-post?platform=facebook";
+  }
   const params = new URLSearchParams({ platform: channel.platformKey });
   if (channel.entityId) params.set("entity", channel.entityId);
   return `/create-post?${params.toString()}`;

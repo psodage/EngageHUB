@@ -73,7 +73,7 @@ export async function getAccountsForUser(userId) {
     return acc;
   }, {});
 
-  return SOCIAL_PLATFORMS.map((platform) => {
+  const rows = SOCIAL_PLATFORMS.map((platform) => {
     const entities = grouped[platform] || [];
     const primary = entities.find((entity) => entity.isPrimary) || entities[0] || null;
     return {
@@ -91,6 +91,46 @@ export async function getAccountsForUser(userId) {
       entities,
     };
   });
+
+  const dryRun = String(process.env.GOOGLE_BUSINESS_DRY_RUN || "").trim().toLowerCase() === "true";
+  if (dryRun) {
+    const gb = rows.find((row) => row.platform === "googleBusiness");
+    const hasLocation = gb?.entities?.some((entity) => entity.entityType === "location");
+    if (gb?.isConnected && !hasLocation) {
+      const accountId = String(process.env.GOOGLE_BUSINESS_DEBUG_ACCOUNT_ID || "dry-run-account").trim();
+      const locationId = String(process.env.GOOGLE_BUSINESS_DEBUG_LOCATION_ID || "dry-run-location").trim();
+      gb.entities.push({
+        id: "dry-run-google-business-location",
+        platform: "googleBusiness",
+        platformUserId: gb.platformUserId || "",
+        entityType: "location",
+        entityId: locationId,
+        accountName: "Dry-run test location (no real GBP)",
+        username: gb.username || "",
+        email: gb.email || "",
+        profileImage: "",
+        tokenType: gb.entities.find((e) => e.entityType === "profile")?.tokenType || "Bearer",
+        expiresAt: gb.entities.find((e) => e.entityType === "profile")?.expiresAt || null,
+        isTokenExpired: false,
+        scopes: [],
+        capabilities: ["posting"],
+        isConnected: true,
+        isPrimary: false,
+        parentAccountId: null,
+        connectedByUserId: userId,
+        metadata: {
+          googleBusinessAccountId: accountId,
+          dryRunPlaceholder: true,
+          managedEntity: { googleBusinessAccountId: accountId, title: "Dry-run test location" },
+        },
+        lastSyncedAt: null,
+        createdAt: null,
+        updatedAt: null,
+      });
+    }
+  }
+
+  return rows;
 }
 
 export async function getAccountStatus(userId, platform) {
