@@ -4,8 +4,15 @@ import { publishFacebookPagePost, publishFacebookPhotoFromBuffer } from "./faceb
 import { resolveFacebookPublishCredentials } from "./facebookPublishCredentials.service.js";
 import { loadMediaBufferFromUrl } from "./hostedMedia.service.js";
 import { publishInstagramContent } from "./instagram.service.js";
+import linkedinProvider from "./linkedin.service.js";
+import threadsService from "./threads.service.js";
 import { publishTelegramPost } from "./telegramPublish.service.js";
-import { getStoredAccountForProvider } from "./socialAccount.service.js";
+import {
+  getLinkedInAccountForToken,
+  getLinkedInOrganizationAccount,
+  getStoredAccountForProvider,
+} from "./socialAccount.service.js";
+import { getLinkedInAuthorUrn } from "./linkedinAuthor.util.js";
 import {
   buildScheduledChannelResult,
   parseCreatePostChannelKey,
@@ -85,9 +92,111 @@ async function publishTelegram(userId, caption, mediaUrl) {
   });
 }
 
+function assertLinkedInConnected(account) {
+  if (!account?.isConnected) throw new Error("LinkedIn not connected");
+  const accessToken = account.getDecryptedAccessToken?.();
+  if (!accessToken) throw new Error("LinkedIn not connected");
+  const tokenExpired = account.expiresAt && new Date(account.expiresAt).getTime() <= Date.now();
+  if (tokenExpired) throw new Error("LinkedIn token expired. Reconnect your account.");
+  return accessToken;
+}
+
+async function publishLinkedIn(userId, caption, mediaUrl, channelKey) {
+  const parsed = parseCreatePostChannelKey(channelKey);
+  const tokenAccount = await getLinkedInAccountForToken(userId);
+  let accessToken = assertLinkedInConnected(tokenAccount);
+
+  let authorAccount = tokenAccount;
+  if (parsed.entityType === "organization" && parsed.entityId) {
+    const orgAccount = await getLinkedInOrganizationAccount(userId, parsed.entityId);
+    if (!orgAccount) throw new Error("LinkedIn organization not connected");
+    accessToken = assertLinkedInConnected(orgAccount);
+    authorAccount = orgAccount;
+  }
+
+  const authorUrn = getLinkedInAuthorUrn(authorAccount);
+  if (!authorUrn) throw new Error("LinkedIn author identity missing");
+
+  const kind = inferMediaKind(mediaUrl);
+  let apiMediaType = "TEXT";
+  let mediaAssetUrn = "";
+
+  if (mediaUrl && kind === "image") {
+    apiMediaType = "IMAGE";
+    const { buffer, mime } = await loadMediaBufferFromUrl(mediaUrl);
+    const registered = await linkedinProvider.registerFeedshareUpload(
+      accessToken,
+      authorUrn,
+      linkedinProvider.FEEDSHARE_IMAGE_RECIPE
+    );
+    await linkedinProvider.uploadBinaryToLinkedIn(
+      registered.uploadUrl,
+      registered.uploadHeaders,
+      buffer,
+      mime
+    );
+    mediaAssetUrn = registered.assetUrn;
+  } else if (mediaUrl && kind === "video") {
+    apiMediaType = "VIDEO";
+    const { buffer, mime } = await loadMediaBufferFromUrl(mediaUrl);
+    const registered = await linkedinProvider.registerFeedshareUpload(
+      accessToken,
+      authorUrn,
+      linkedinProvider.FEEDSHARE_VIDEO_RECIPE
+    );
+    await linkedinProvider.uploadBinaryToLinkedIn(
+      registered.uploadUrl,
+      registered.uploadHeaders,
+      buffer,
+      mime
+    );
+    mediaAssetUrn = registered.assetUrn;
+  } else if (!caption) {
+    throw new Error("LinkedIn requires post text");
+  }
+
+  await linkedinProvider.createUgcPost(accessToken, {
+    authorUrn,
+    commentary: caption,
+    mediaType: apiMediaType,
+    mediaAssetUrn: mediaAssetUrn || undefined,
+  });
+}
+
+async function publishThreads(userId, caption, mediaUrl) {
+  const account = await getStoredAccountForProvider(userId, "threads");
+  if (!account?.isConnected) throw new Error("Threads not connected");
+
+  const scopes = Array.isArray(account.scopes) ? account.scopes : [];
+  if (!scopes.includes("threads_content_publish")) {
+    throw new Error(
+      "Threads posting permission is missing. Reconnect and approve content publishing."
+    );
+  }
+
+  const accessToken = account.getDecryptedAccessToken?.();
+  if (!accessToken) throw new Error("Threads not connected");
+  const tokenExpired = account.expiresAt && new Date(account.expiresAt).getTime() <= Date.now();
+  if (tokenExpired) throw new Error("Threads token expired. Reconnect your account.");
+
+  const threadsUserId = String(account.platformUserId || "").trim();
+  if (!threadsUserId) throw new Error("Threads profile not configured");
+
+  const kind = inferMediaKind(mediaUrl);
+  const mediaType = !mediaUrl ? "TEXT" : kind === "video" ? "VIDEO" : "IMAGE";
+  if (mediaType === "TEXT" && !caption) throw new Error("Threads requires post text");
+
+  await threadsService.createAndPublishPost(threadsUserId, accessToken, {
+    mediaType,
+    text: caption,
+    mediaUrl: mediaUrl || "",
+  });
+}
+
 const SERVER_PUBLISHERS = {
   instagram: publishInstagram,
   telegram: publishTelegram,
+  threads: publishThreads,
 };
 
 async function publishChannel(userId, channelKey, caption, mediaUrl) {
@@ -98,11 +207,29 @@ async function publishChannel(userId, channelKey, caption, mediaUrl) {
     }
     return publishFacebook(userId, caption, mediaUrl, parsed.entityId);
   }
+  if (parsed.platformKey === "linkedin") {
+    return publishLinkedIn(userId, caption, mediaUrl, channelKey);
+  }
   const publish = SERVER_PUBLISHERS[parsed.platformKey];
   if (!publish) {
-    throw new Error(`${parsed.platformKey} scheduled publish runs from the app when due (open Queue).`);
+    throw new Error(`Scheduled publish is not supported for ${parsed.platformKey} yet.`);
   }
   return publish(userId, caption, mediaUrl);
+}
+
+function mergeChannelResults(existing, channelKeys, freshResults) {
+  const byKey = new Map((existing || []).map((r) => [r.channelKey, r]));
+  for (const result of freshResults) {
+    byKey.set(result.channelKey, result);
+  }
+  return channelKeys.map((k) => byKey.get(k)).filter(Boolean);
+}
+
+function derivePostStatus(channelKeys, results) {
+  const okCount = results.filter((r) => r.status === "success").length;
+  if (okCount === channelKeys.length) return "published";
+  if (okCount > 0) return "partially_published";
+  return "failed";
 }
 
 export async function publishScheduledPostDocument(postDoc) {
@@ -139,9 +266,8 @@ export async function publishScheduledPostDocument(postDoc) {
     }
   }
 
+  const status = derivePostStatus(channelKeys, results);
   const okCount = results.filter((r) => r.status === "success").length;
-  const status =
-    okCount === channelKeys.length ? "published" : okCount > 0 ? "partially_published" : "failed";
 
   doc = await ScheduledPost.findByIdAndUpdate(
     postDoc._id,
@@ -159,10 +285,57 @@ export async function publishScheduledPostDocument(postDoc) {
   return doc;
 }
 
+async function retryFailedChannels(postDoc) {
+  const channelKeys = Array.isArray(postDoc.channelKeys) ? postDoc.channelKeys : [];
+  const failedKeys = (postDoc.channelResults || [])
+    .filter((r) => r.status === "failed")
+    .map((r) => r.channelKey)
+    .filter((k) => channelKeys.includes(k));
+  if (!failedKeys.length) return null;
+
+  const userId = new ObjectId(postDoc.userId);
+  const caption = (postDoc.caption || "").trim();
+  const mediaUrl = (postDoc.mediaUrl || "").trim();
+
+  const freshResults = [];
+  for (const channelKey of failedKeys) {
+    try {
+      await publishChannel(userId, channelKey, caption, mediaUrl);
+      freshResults.push(
+        buildScheduledChannelResult(channelKey, "success", { error: "", publishedAt: new Date() })
+      );
+    } catch (err) {
+      freshResults.push(
+        buildScheduledChannelResult(channelKey, "failed", {
+          error: err?.message || "Failed",
+          publishedAt: null,
+        })
+      );
+    }
+  }
+
+  const results = mergeChannelResults(postDoc.channelResults, channelKeys, freshResults);
+  const status = derivePostStatus(channelKeys, results);
+  const okCount = results.filter((r) => r.status === "success").length;
+
+  return ScheduledPost.findByIdAndUpdate(
+    postDoc._id,
+    {
+      $set: {
+        status,
+        channelResults: results,
+        publishedAt: okCount ? new Date() : postDoc.publishedAt || null,
+        lastError: results.find((r) => r.status === "failed")?.error || "",
+      },
+    },
+    { new: true }
+  );
+}
+
 export async function processDueScheduledPosts() {
   const now = new Date();
   const due = await ScheduledPost.find({
-    status: "scheduled",
+    status: { $in: ["scheduled", "partially_published"] },
     scheduledAt: { $lte: now },
   })
     .limit(20)
@@ -170,7 +343,11 @@ export async function processDueScheduledPosts() {
 
   for (const row of due) {
     try {
-      await publishScheduledPostDocument(row);
+      if (row.status === "partially_published") {
+        await retryFailedChannels(row);
+      } else {
+        await publishScheduledPostDocument(row);
+      }
     } catch (err) {
       await ScheduledPost.findByIdAndUpdate(row._id, {
         $set: { status: "failed", lastError: err?.message || "Scheduler failed" },
