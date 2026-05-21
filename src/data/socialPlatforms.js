@@ -66,6 +66,25 @@ export const SOCIAL_PLATFORM_CONFIGS = [
   },
 ];
 
+/** Display order in the Connect a New Channel modal (3-column grid). */
+export const CONNECT_CHANNEL_MODAL_PLATFORM_ORDER = [
+  "instagram",
+  "threads",
+  "linkedin",
+  "facebook",
+  "googleBusiness",
+  "x",
+  "youtube",
+  "github",
+  "reddit",
+];
+
+/** @param {Array<{ key: string }>} platforms */
+export function sortPlatformsForConnectModal(platforms) {
+  const order = new Map(CONNECT_CHANNEL_MODAL_PLATFORM_ORDER.map((key, index) => [key, index]));
+  return [...platforms].sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999));
+}
+
 /** Platforms removed from Connect channels UI (legacy accounts may still exist in the database). */
 export const HIDDEN_CONNECT_PLATFORM_KEYS = new Set(["pinterest", "telegram", "discord"]);
 

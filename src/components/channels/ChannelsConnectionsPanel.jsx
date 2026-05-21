@@ -7,7 +7,7 @@ import DisconnectConfirmationDialog from "../social/DisconnectConfirmationDialog
 import ConnectChannelModal from "./ConnectChannelModal";
 import { useSocialConnections } from "../../hooks/useSocialConnections";
 import { useApp } from "../../context/AppContext";
-import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
+import { SOCIAL_PLATFORM_CONFIGS, sortPlatformsForConnectModal } from "../../data/socialPlatforms";
 import { listConnectionCardsFromAccounts } from "../../utils/socialAccountEntities";
 
 export default function ChannelsConnectionsPanel({ variant = "channels", showHeader = true }) {
@@ -56,7 +56,7 @@ export default function ChannelsConnectionsPanel({ variant = "channels", showHea
       ...availablePlatforms.map((p) => p.key),
       ...temporarilyDisabledPlatforms.map((p) => p.key),
     ]);
-    return SOCIAL_PLATFORM_CONFIGS.filter((p) => keys.has(p.key));
+    return sortPlatformsForConnectModal(SOCIAL_PLATFORM_CONFIGS.filter((p) => keys.has(p.key)));
   }, [availablePlatforms, temporarilyDisabledPlatforms]);
 
   const handleStartConnectQueue = async (platformKeys) => {
