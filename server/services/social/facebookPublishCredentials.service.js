@@ -32,19 +32,6 @@ export function isMetaPermissionOrCapabilityError(apiError) {
   return false;
 }
 
-export function messageForFacebookProfilePublishError(apiError) {
-  if (isMetaPermissionOrCapabilityError(apiError)) {
-    return (
-      "Facebook does not allow this app to post to your personal profile with the current permissions. " +
-      "Post to a Facebook Page instead, or reconnect Facebook and ensure profile access was granted."
-    );
-  }
-  if (isMetaTokenAuthError(apiError)) {
-    return "Facebook profile access expired. Reconnect Facebook under Channels and select your profile again.";
-  }
-  return apiError?.message || "Could not publish to your Facebook profile.";
-}
-
 export async function getFacebookProfileAccountDoc(userId) {
   const profile = await SocialAccount.findOne({
     userId,
@@ -131,50 +118,9 @@ export async function persistPagePublishingToken(userId, pageId, pageAccessToken
 }
 
 /**
- * Exchange for a fresh long-lived user token before profile posts.
- * @param {import("mongoose").HydratedDocument} profileAccount
- * @param {import("./meta.service.js").default} facebookProvider
- */
-export async function refreshFacebookProfileAccessToken(profileAccount, facebookProvider) {
-  if (!profileAccount) return "";
-
-  let userToken = profileAccount.getDecryptedAccessToken?.() || "";
-  if (!userToken) return "";
-
-  try {
-    const refreshed = await facebookProvider.refreshTokenIfNeeded({
-      ...profileAccount.toObject?.(),
-      expiresAt: new Date(Date.now() - 60_000),
-    });
-    if (refreshed?.accessToken) {
-      profileAccount.setEncryptedAccessToken(refreshed.accessToken);
-      if (refreshed.expiresIn) {
-        profileAccount.expiresAt = new Date(Date.now() + refreshed.expiresIn * 1000);
-      }
-      profileAccount.lastSyncedAt = new Date();
-      await profileAccount.save();
-      userToken = refreshed.accessToken;
-    }
-  } catch {
-    /* keep existing token and let Graph validate */
-  }
-
-  try {
-    const { data } = await axios.get(`${META_GRAPH_BASE_URL}/me`, {
-      params: { fields: "id", access_token: userToken },
-    });
-    if (!data?.id) return "";
-  } catch {
-    return "";
-  }
-
-  return userToken;
-}
-
-/**
  * @param {import("mongodb").ObjectId} userId
  * @param {string | null | undefined} entityId
- * @param {"profile" | "page" | ""} [entityTypeHint]
+ * @param {"page" | ""} [entityTypeHint]
  */
 export async function resolveFacebookPublishCredentials(userId, entityId, entityTypeHint = "") {
   const account = await getFacebookAccountForPublish(userId, entityId, entityTypeHint);
@@ -182,8 +128,11 @@ export async function resolveFacebookPublishCredentials(userId, entityId, entity
     return { ok: false, code: "not_connected", account: null };
   }
 
-  const entityType = String(entityTypeHint || account.entityType || "profile").trim().toLowerCase();
-  const isPage = entityType === "page";
+  const entityType = String(entityTypeHint || account.entityType || "page").trim().toLowerCase();
+  if (entityType === "profile") {
+    return { ok: false, code: "profile_not_supported", account: null };
+  }
+  const isPage = entityType === "page" || account.entityType === "page";
   const pageId = isPage ? String(account.entityId || account.platformUserId || "").trim() : "";
   const profileId = isPage ? "" : String(account.entityId || account.platformUserId || "").trim();
 
@@ -252,21 +201,16 @@ export async function resolveFacebookPublishCredentials(userId, entityId, entity
     }
     await persistPagePublishingToken(userId, pageId, accessToken);
   } else {
-    if (!profileAccount) {
-      return { ok: false, code: "not_connected", account: null };
-    }
-    if (!accessToken) {
-      return { ok: false, code: "token_missing", account: profileAccount };
-    }
+    return { ok: false, code: "profile_not_supported", account: null };
   }
 
   return {
     ok: true,
-    account: isPage ? account : profileAccount || account,
+    account,
     profileAccount: profileAccount || account,
     accessToken,
-    entityType,
-    targetType: isPage ? "page" : "profile",
+    entityType: "page",
+    targetType: "page",
     pageId,
     profileId,
     platformAccountId: isPage ? pageId : profileId,

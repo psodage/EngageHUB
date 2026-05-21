@@ -46,25 +46,22 @@ function filenameForMime(mime) {
  * Upload a photo via multipart `source` so Meta never fetches an external image URL.
  * @param {{
  *   pageId?: string,
- *   pageAccessToken?: string,
- *   userAccessToken?: string,
+ *   pageAccessToken: string,
  *   buffer: Buffer,
  *   mime: string,
  *   message: string,
- *   targetType: 'page' | 'profile',
+ *   targetType: 'page',
  * }} opts
  */
 export async function publishFacebookPhotoFromBuffer(opts) {
-  const { buffer, mime, message, targetType, pageId, pageAccessToken, userAccessToken } = opts;
-  const token = targetType === "page" ? pageAccessToken : userAccessToken;
-  if (!token) {
-    throw createPublishError("Missing access token.", "facebook_publish_invalid", 400);
+  const { buffer, mime, message, pageId, pageAccessToken } = opts;
+  const token = pageAccessToken;
+  const pid = String(pageId || "").trim();
+  if (!pid || !token) {
+    throw createPublishError("Missing Facebook Page id or access token.", "facebook_publish_invalid", 400);
   }
 
-  const endpoint =
-    targetType === "page"
-      ? `${META_GRAPH_BASE_URL}/${encodeURIComponent(String(pageId || "").trim())}/photos`
-      : `${META_GRAPH_BASE_URL}/me/photos`;
+  const endpoint = `${META_GRAPH_BASE_URL}/${encodeURIComponent(pid)}/photos`;
 
   const form = new FormData();
   form.append("source", new Blob([buffer], { type: mime || "image/jpeg" }), filenameForMime(mime));
@@ -77,70 +74,6 @@ export async function publishFacebookPhotoFromBuffer(opts) {
     const postId = data?.post_id ? String(data.post_id) : data?.id ? String(data.id) : "";
     return { postId, raw: { id: data?.id, post_id: data?.post_id } };
   } catch (error) {
-    throw normalizeAxiosError(error);
-  }
-}
-
-/**
- * @param {{
- *   userAccessToken: string,
- *   mediaType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'LINK',
- *   message: string,
- *   mediaUrl: string,
- *   linkUrl: string,
- * }} opts
- */
-export async function publishFacebookProfilePost(opts) {
-  const { userAccessToken, mediaType, message, mediaUrl, linkUrl } = opts;
-  const token = userAccessToken;
-  if (!token) {
-    throw createPublishError("Missing access token.", "facebook_publish_invalid", 400);
-  }
-
-  try {
-    if (mediaType === "TEXT") {
-      const body = formBody({ message, access_token: token });
-      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/me/feed`, body, { headers: formHeaders });
-      return { postId: data?.id ? String(data.id) : "", raw: { id: data?.id } };
-    }
-
-    if (mediaType === "LINK") {
-      const body = formBody({
-        message: message || undefined,
-        link: linkUrl,
-        access_token: token,
-      });
-      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/me/feed`, body, { headers: formHeaders });
-      return { postId: data?.id ? String(data.id) : "", raw: { id: data?.id } };
-    }
-
-    if (mediaType === "IMAGE") {
-      const body = formBody({
-        url: mediaUrl,
-        caption: message || undefined,
-        published: true,
-        access_token: token,
-      });
-      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/me/photos`, body, { headers: formHeaders });
-      const postId = data?.post_id ? String(data.post_id) : data?.id ? String(data.id) : "";
-      return { postId, raw: { id: data?.id, post_id: data?.post_id } };
-    }
-
-    if (mediaType === "VIDEO") {
-      const body = formBody({
-        file_url: mediaUrl,
-        description: message || undefined,
-        access_token: token,
-      });
-      const { data } = await axios.post(`${META_GRAPH_BASE_URL}/me/videos`, body, { headers: formHeaders });
-      return { postId: data?.id ? String(data.id) : "", raw: data };
-    }
-
-    throw createPublishError("Unsupported media type.", "unsupported_media", 400);
-  } catch (error) {
-    if (error?.code === "unsupported_media" || error?.code === "facebook_publish_invalid") {
-      throw error;
-    }
     throw normalizeAxiosError(error);
   }
 }

@@ -23,7 +23,6 @@ function InstagramChip({ ig }) {
 
 function AccountCard({ account, selected, disabled, onSelect }) {
   const ig = account?.instagram_business_account;
-  const isProfile = account?.entityType === "profile";
   return (
     <button
       type="button"
@@ -42,18 +41,18 @@ function AccountCard({ account, selected, disabled, onSelect }) {
       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
         {account.pictureUrl ? (
           <img src={account.pictureUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-        ) : isProfile ? (
+        ) : (
           <User size={22} className="text-slate-400" aria-hidden />
-        ) : null}
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-              {account.name || (isProfile ? "Facebook Profile" : "Facebook Page")}
+              {account.name || "Facebook Page"}
             </p>
             <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
-              {account.category || (isProfile ? "Personal profile" : "Page")}
+              {account.category || "Page"}
             </p>
           </div>
           <div className="shrink-0">
@@ -89,13 +88,8 @@ export default function FacebookPageSelectPage() {
   const [alreadyConnectedKeys, setAlreadyConnectedKeys] = useState(() => new Set());
 
   const destinations = useMemo(() => {
-    const list = [];
-    if (profile?.id) list.push(profile);
-    for (const page of pages) {
-      if (page?.id) list.push(page);
-    }
-    return list;
-  }, [profile, pages]);
+    return pages.filter((page) => page?.id).map((page) => ({ ...page, entityType: "page" }));
+  }, [pages]);
 
   const loadSession = async () => {
     if (!sessionId) {
@@ -119,23 +113,20 @@ export default function FacebookPageSelectPage() {
       if (fbAccount?.entities) {
         for (const entity of fbAccount.entities) {
           if (entity?.isConnected === false) continue;
-          const type = entity.entityType || "profile";
+          const type = entity.entityType || "page";
           const id = String(entity.entityId || entity.platformUserId || "").trim();
-          if (id && (type === "profile" || type === "page")) connected.add(`${type}:${id}`);
+          if (id && type === "page") connected.add(`page:${id}`);
         }
       }
       setAlreadyConnectedKeys(connected);
 
       const defaultSelectable = [];
-      if (nextProfile?.id && !connected.has(`profile:${nextProfile.id}`)) {
-        defaultSelectable.push(String(nextProfile.id));
-      }
       for (const page of nextPages) {
         if (page?.id && !connected.has(`page:${page.id}`)) defaultSelectable.push(String(page.id));
       }
       setSelectedIds((prev) => (prev.size ? prev : new Set(defaultSelectable)));
-      if (!nextProfile?.id && !nextPages.length) {
-        setError("No Facebook Profile or Pages were found for this account.");
+      if (!nextPages.length) {
+        setError("No Facebook Pages were found for this account. Create a Page on Facebook first, then reconnect.");
       }
     } catch (err) {
       setError(err?.message || "Unable to load Facebook Pages.");
@@ -162,8 +153,7 @@ export default function FacebookPageSelectPage() {
     const key = String(id || "").trim();
     if (!key) return;
     const account = destinations.find((d) => String(d.id) === key);
-    const entityType = account?.entityType === "profile" ? "profile" : "page";
-    if (alreadyConnectedKeys.has(`${entityType}:${key}`)) return;
+    if (alreadyConnectedKeys.has(`page:${key}`)) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -225,7 +215,7 @@ export default function FacebookPageSelectPage() {
           <div className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800 dark:bg-slate-950/30">
             <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Confirm your Account</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Select your Facebook Profile, one or more Pages, or both. Existing connections stay linked.
+              Select one or more Facebook Pages to publish from EngageHub.
             </p>
           </div>
 
@@ -261,8 +251,7 @@ export default function FacebookPageSelectPage() {
             ) : (
               <div className="grid gap-3">
                 {destinations.map((account) => {
-                  const entityType = account?.entityType === "profile" ? "profile" : "page";
-                  const alreadyConnected = alreadyConnectedKeys.has(`${entityType}:${account.id}`);
+                  const alreadyConnected = alreadyConnectedKeys.has(`page:${account.id}`);
                   return (
                     <AccountCard
                       key={`${account.entityType || "page"}-${account.id}`}

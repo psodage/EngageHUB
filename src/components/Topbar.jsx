@@ -29,11 +29,10 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
         ? entities.find((e) => String(e.entityId || e.platformUserId || "") === entityId)
         : entities[0];
       if (entity) {
-        const isProfile = (entity.entityType || "profile") === "profile";
         label =
           entity.accountName?.trim() ||
           entity.username?.trim()?.replace(/^@/, "") ||
-          (isProfile ? "Facebook Profile" : "Facebook Page");
+          "Facebook Page";
       }
     }
     const tabId = getChannelTabFromSearch(location.search);

@@ -10,11 +10,7 @@ import {
   mapAccountsToCreatePostChannelOptions,
   parseCreatePostChannelKey,
 } from "../utils/createPostChannels";
-import {
-  FACEBOOK_PROFILE_API_PUBLISH_MESSAGE,
-  isFacebookProfileChannelPublishable,
-  resolveFacebookPageCreatePostPath,
-} from "../utils/facebookProfilePublish";
+import { resolveFacebookPageCreatePostPath } from "../utils/createPostChannels";
 
 export default function CreatePostPage() {
   const navigate = useNavigate();
@@ -71,20 +67,15 @@ export default function CreatePostPage() {
           (key) => parseCreatePostChannelKey(key).entityId === scopedEntityId
         );
         if (!match) return;
-        if (!isFacebookProfileChannelPublishable(match)) {
-          setSelectedChannelKeys([]);
-          setDrafts({});
-          setStep("facebook-profile-blocked");
-          return;
-        }
         keys = [match];
       } else if (scopedPlatformKey === "linkedin") {
         const profileKey = platformChannelKeys.find(
           (key) => parseCreatePostChannelKey(key).entityType === "profile"
         );
         keys = profileKey ? [profileKey] : platformChannelKeys.slice(0, 1);
-      } else {
-        return;
+      } else if (scopedPlatformKey === "facebook") {
+        keys = platformChannelKeys.length ? [platformChannelKeys[0]] : [];
+        if (!keys.length) return;
       }
     }
 
@@ -159,36 +150,9 @@ export default function CreatePostPage() {
   }, [step, selectedChannelKeys.length]);
 
   const isComposeStep = step === "compose" && selectedChannelKeys.length > 0;
-  const facebookAccount = connectedByPlatform.facebook;
-  const facebookPageCreatePath = facebookAccount
-    ? resolveFacebookPageCreatePostPath(facebookAccount)
-    : "/create-post?platform=facebook";
 
   let content;
-  if (step === "facebook-profile-blocked") {
-    content = (
-      <section className="buffer-card mx-auto w-full max-w-lg p-6">
-        <p className="font-semibold text-slate-900 dark:text-white">Personal Facebook profile</p>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{FACEBOOK_PROFILE_API_PUBLISH_MESSAGE}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(facebookPageCreatePath)}
-            className="rounded-lg bg-buffer-600 px-4 py-2 text-sm font-semibold text-white hover:bg-buffer-700"
-          >
-            Create post on a Page
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(`/channels/facebook${scopedEntityId ? `?entity=${encodeURIComponent(scopedEntityId)}` : ""}`)}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200"
-          >
-            Back to channel
-          </button>
-        </div>
-      </section>
-    );
-  } else if (!channelOptions.length) {
+  if (!channelOptions.length) {
     content = (
       <section className="buffer-card mx-auto w-full max-w-lg p-6">
         <p className="font-semibold text-slate-900 dark:text-white">No connected platforms</p>

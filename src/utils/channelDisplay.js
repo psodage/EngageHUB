@@ -1,5 +1,5 @@
 import { SOCIAL_PLATFORM_CONFIGS, isHiddenConnectPlatform } from "../data/socialPlatforms";
-import { buildFacebookCreatePostPath, resolveFacebookPageCreatePostPath } from "./facebookProfilePublish";
+import { resolveFacebookPageCreatePostPath } from "./createPostChannels";
 import { getFacebookConnectionEntities } from "./socialAccountEntities";
 
 /**
@@ -15,7 +15,7 @@ export function findFacebookEntityById(entities, entityId) {
 }
 
 /**
- * Shape a grouped Facebook account for a single profile or Page destination.
+ * Shape a grouped Facebook account for a single Page destination.
  * @param {Record<string, unknown>} groupedAccount
  * @param {string} [entityId]
  */
@@ -27,14 +27,10 @@ export function resolveFacebookDisplayAccount(groupedAccount, entityId) {
   const entities = getFacebookConnectionEntities(groupedAccount);
   if (!entities.length) return groupedAccount;
 
-  const entity =
-    findFacebookEntityById(entities, entityId) ||
-    entities.find((e) => e.entityType === "profile") ||
-    entities[0];
+  const entity = findFacebookEntityById(entities, entityId) || entities[0];
 
-  const entityType = entity.entityType || "profile";
+  const entityType = "page";
   const resolvedEntityId = String(entity.entityId || entity.platformUserId || "").trim();
-  const isProfile = entityType === "profile";
   const entityMeta =
     entity.metadata && typeof entity.metadata === "object" && !Array.isArray(entity.metadata)
       ? entity.metadata
@@ -42,10 +38,7 @@ export function resolveFacebookDisplayAccount(groupedAccount, entityId) {
 
   return {
     ...groupedAccount,
-    accountName:
-      entity.accountName?.trim() ||
-      entity.name?.trim() ||
-      (isProfile ? "Facebook Profile" : "Facebook Page"),
+    accountName: entity.accountName?.trim() || entity.name?.trim() || "Facebook Page",
     username: entity.username || groupedAccount.username || "",
     profileImage:
       entity.profileImage ||
@@ -71,14 +64,7 @@ export function getChannelDisplayInfo(account) {
   let handle = rawUsername ? `@${rawUsername.replace(/^@/, "")}` : null;
   if (platformKey === "facebook" && account?.entityType) {
     const entityId = String(account.entityId || "").trim();
-    handle =
-      account.entityType === "profile"
-        ? entityId
-          ? `Profile · ${entityId}`
-          : "Profile"
-        : entityId
-          ? `Page · ${entityId}`
-          : "Page";
+    handle = entityId ? `Page · ${entityId}` : "Page";
   }
   const profileImage =
     account?.profileImage ||
@@ -100,13 +86,11 @@ export function getChannelDisplayInfo(account) {
  * @param {Record<string, unknown>} entity
  */
 function buildFacebookSidebarChannel(account, entity) {
-  const entityType = entity.entityType || "profile";
   const entityId = String(entity.entityId || entity.platformUserId || "").trim();
-  const isProfile = entityType === "profile";
   const displayName =
     entity.accountName?.trim() ||
     entity.username?.trim()?.replace(/^@/, "") ||
-    (isProfile ? "Facebook Profile" : "Facebook Page");
+    "Facebook Page";
   const entityMeta =
     entity.metadata && typeof entity.metadata === "object" && !Array.isArray(entity.metadata)
       ? entity.metadata
@@ -120,16 +104,16 @@ function buildFacebookSidebarChannel(account, entity) {
   return {
     account,
     entity,
-    sidebarKey: entityId ? `facebook:${entityType}:${entityId}` : `facebook:${entityType}`,
+    sidebarKey: entityId ? `facebook:page:${entityId}` : "facebook:page",
     platformKey: "facebook",
     entityId,
-    entityType,
+    entityType: "page",
     platformLabel: "Facebook",
     displayName,
-    handle: isProfile ? "Profile" : "Page",
+    handle: "Page",
     profileImage,
     path: `/channels/facebook${search}`,
-    sortKey: `${isProfile ? "0" : "1"}:${displayName.toLowerCase()}`,
+    sortKey: displayName.toLowerCase(),
   };
 }
 
@@ -182,13 +166,15 @@ export function buildChannelTabPath(channel, tabId) {
 /** @param {{ platformKey: string, entityId?: string }} channel */
 /**
  * @param {{ platformKey: string, entityId?: string, entityType?: string }} channel
- * @param {Record<string, unknown> | null | undefined} [groupedAccount] Required for Facebook profile → Page fallback
+ * @param {Record<string, unknown> | null | undefined} [groupedAccount] Used for Facebook Page fallback when no entity is scoped
  */
 export function buildScopedCreatePostPath(channel, groupedAccount = null) {
   if (channel.platformKey === "facebook") {
-    const direct = buildFacebookCreatePostPath(channel);
-    if (direct) return direct;
-    if (groupedAccount) return resolveFacebookPageCreatePostPath(groupedAccount, "");
+    if (channel.entityType === "page" && channel.entityId) {
+      const params = new URLSearchParams({ platform: "facebook", entity: channel.entityId });
+      return `/create-post?${params.toString()}`;
+    }
+    if (groupedAccount) return resolveFacebookPageCreatePostPath(groupedAccount);
     return "/create-post?platform=facebook";
   }
   const params = new URLSearchParams({ platform: channel.platformKey });

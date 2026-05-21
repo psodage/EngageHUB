@@ -11,7 +11,6 @@ import { decryptToken, encryptToken } from "../utils/crypto.js";
 import {
   publishFacebookPagePost,
   publishFacebookPhotoFromBuffer,
-  publishFacebookProfilePost,
 } from "../services/social/facebookPublish.service.js";
 import {
   ingestRemoteUrlToUploads,
@@ -23,9 +22,6 @@ import {
   persistPagePublishingToken,
   refreshFacebookPageAccessToken,
   resolveFacebookPublishCredentials,
-  refreshFacebookProfileAccessToken,
-  messageForFacebookProfilePublishError,
-  isMetaPermissionOrCapabilityError,
 } from "../services/social/facebookPublishCredentials.service.js";
 import facebookService from "../services/social/facebook.service.js";
 import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/providerConfig.util.js";
@@ -323,6 +319,45 @@ export async function facebookPagesSession(req, res) {
   }
 }
 
+/** Stores Meta user token (not a posting destination) so Page tokens can be refreshed. */
+async function ensureFacebookOAuthUserRow(userId, doc, sessionProfile) {
+  const profileId = sessionProfile?.id ? String(sessionProfile.id).trim() : "";
+  const userToken = doc?.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
+  if (!profileId || !userToken) return;
+
+  const tokenExpiresIn = doc.expiresAt
+    ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
+    : null;
+
+  await upsertConnectedAccount({
+    userId,
+    platform: "facebook",
+    profile: {
+      platformUserId: profileId,
+      entityType: "profile",
+      entityId: profileId,
+      accountName: sessionProfile.name || "",
+      username: "",
+      email: sessionProfile.email || "",
+      profileImage: sessionProfile.pictureUrl || "",
+      isPrimary: false,
+      capabilities: [],
+      metadata: {
+        oauthOnly: true,
+        category: "Meta login (not a posting destination)",
+        pictureUrl: sessionProfile.pictureUrl || "",
+      },
+    },
+    tokenData: {
+      accessToken: userToken,
+      refreshToken: "",
+      tokenType: doc.tokenType || "Bearer",
+      expiresIn: tokenExpiresIn,
+      scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
+    },
+  });
+}
+
 async function connectFacebookDestinationFromSession({
   userId,
   doc,
@@ -333,43 +368,34 @@ async function connectFacebookDestinationFromSession({
 }) {
   const profileId = sessionProfile?.id ? String(sessionProfile.id).trim() : "";
   const pageId = String(destinationId || "").trim();
-  const isProfileSelection = profileId && pageId === profileId;
+
+  if (profileId && pageId === profileId) {
+    const err = new Error("Personal Facebook profiles cannot be connected for publishing. Select a Facebook Page.");
+    err.status = 400;
+    err.code = "facebook_profile_not_supported";
+    throw err;
+  }
 
   const tokenExpiresIn = doc.expiresAt
     ? Math.max(1, Math.floor((new Date(doc.expiresAt).getTime() - Date.now()) / 1000))
     : null;
 
-  let accessToken = "";
-  let selected = null;
-  let entityType = "page";
-
-  if (isProfileSelection) {
-    entityType = "profile";
-    selected = sessionProfile;
-    accessToken = doc.accessTokenEnc ? decryptToken(doc.accessTokenEnc) : "";
-    if (!accessToken) {
-      const err = new Error("Facebook access token is unavailable. Please reconnect.");
-      err.status = 400;
-      err.code = "token_missing";
-      throw err;
-    }
-  } else {
-    selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
-    if (!selected) {
-      const err = new Error("Selected Facebook account not found.");
-      err.status = 404;
-      err.code = "selected_page_not_found";
-      throw err;
-    }
-    const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
-    accessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : "";
-    if (!accessToken) {
-      const err = new Error("Page access token is unavailable. Please reconnect.");
-      err.status = 400;
-      err.code = "token_missing";
-      throw err;
-    }
+  const selected = pages.find((p) => String(p?.id || "").trim() === pageId) || null;
+  if (!selected) {
+    const err = new Error("Selected Facebook Page not found.");
+    err.status = 404;
+    err.code = "selected_page_not_found";
+    throw err;
   }
+  const pageAccessTokenEnc = selected?.pageAccessTokenEnc || null;
+  const accessToken = pageAccessTokenEnc ? decryptToken(pageAccessTokenEnc) : "";
+  if (!accessToken) {
+    const err = new Error("Page access token is unavailable. Please reconnect.");
+    err.status = 400;
+    err.code = "token_missing";
+    throw err;
+  }
+  const entityType = "page";
 
   const facebookAccount = await upsertConnectedAccount({
     userId,
@@ -386,7 +412,7 @@ async function connectFacebookDestinationFromSession({
       capabilities: ["posting", "analytics"],
       metadata: {
         metaUserId: profileId,
-        category: selected.category || (entityType === "profile" ? "Personal profile" : ""),
+        category: selected.category || "Page",
         pageId: entityType === "page" ? String(selected.id || "").trim() : "",
         pageName: entityType === "page" ? selected.name || "" : "",
         pictureUrl: selected.pictureUrl || "",
@@ -510,6 +536,8 @@ export async function selectFacebookPage(req, res) {
     const connectedInstagram = [];
     const warnings = [];
 
+    await ensureFacebookOAuthUserRow(userId, doc, sessionProfile);
+
     for (const destinationId of pageIds) {
       const result = await connectFacebookDestinationFromSession({
         userId,
@@ -531,10 +559,8 @@ export async function selectFacebookPage(req, res) {
     const connectedCount = connectedFacebook.length;
     const message =
       connectedCount === 1
-        ? connectedFacebook[0]?.entityType === "profile"
-          ? "Facebook Profile connected successfully."
-          : "Facebook Page connected successfully."
-        : `${connectedCount} Facebook destinations connected successfully.`;
+        ? "Facebook Page connected successfully."
+        : `${connectedCount} Facebook Pages connected successfully.`;
 
     return successResponse(
       res,
@@ -2483,8 +2509,8 @@ function parseFacebookPostBody(body) {
   const entityId = typeof body.entityId === "string" ? body.entityId.trim() : "";
   const entityType =
     typeof body.entityType === "string" ? body.entityType.trim().toLowerCase() : "";
-  if (entityType && entityType !== "profile" && entityType !== "page") {
-    const err = new Error("entityType must be profile or page when provided.");
+  if (entityType && entityType !== "page") {
+    const err = new Error("entityType must be page when provided.");
     err.status = 400;
     err.code = "validation_error";
     throw err;
@@ -2593,9 +2619,9 @@ export async function createFacebookPost(req, res) {
   if (parsed.entityType === "profile") {
     return errorResponse(
       res,
-      "Facebook no longer allows third-party apps to publish to personal profiles via API. Post to a connected Facebook Page instead.",
-      403,
-      "facebook_profile_api_unsupported"
+      "Personal Facebook profiles are not supported. Post to a connected Facebook Page.",
+      400,
+      "facebook_profile_not_supported"
     );
   }
 
@@ -2617,12 +2643,12 @@ export async function createFacebookPost(req, res) {
       return errorResponse(res, "Invalid Facebook Page destination. Reconnect the Page under Channels.", 400, ctx.code);
     }
 
-    if (ctx.targetType === "profile") {
+    if (ctx.targetType !== "page") {
       return errorResponse(
         res,
-        "Facebook no longer allows third-party apps to publish to personal profiles via API. Post to a connected Facebook Page instead.",
-        403,
-        "facebook_profile_not_supported"
+        "Invalid Facebook Page destination. Reconnect a Facebook Page under Channels.",
+        400,
+        "invalid_page"
       );
     }
 
@@ -2650,28 +2676,18 @@ export async function createFacebookPost(req, res) {
       if (parsed.mediaType === "IMAGE" && parsed.mediaUrl) {
         const { buffer, mime } = await loadMediaBufferFromUrl(parsed.mediaUrl);
         return publishFacebookPhotoFromBuffer({
-          targetType,
+          targetType: "page",
           pageId,
-          pageAccessToken: targetType === "page" ? token : undefined,
-          userAccessToken: targetType === "profile" ? token : undefined,
+          pageAccessToken: token,
           buffer,
           mime,
           message: parsed.message,
         });
       }
 
-      if (targetType === "page") {
-        return publishFacebookPagePost({
-          pageId,
-          pageAccessToken: token,
-          mediaType: parsed.mediaType,
-          message: parsed.message,
-          mediaUrl: parsed.mediaUrl,
-          linkUrl: parsed.linkUrl,
-        });
-      }
-      return publishFacebookProfilePost({
-        userAccessToken: token,
+      return publishFacebookPagePost({
+        pageId,
+        pageAccessToken: token,
         mediaType: parsed.mediaType,
         message: parsed.message,
         mediaUrl: parsed.mediaUrl,
@@ -2693,52 +2709,23 @@ export async function createFacebookPost(req, res) {
 
       if (isMetaTokenAuthError(apiError)) {
         try {
-          if (targetType === "page" && pageId) {
-            const pageToken = await refreshFacebookPageAccessToken(userId, pageId, facebookService);
-            if (pageToken) {
-              result = await runPublish(pageToken);
-            } else {
-              return errorResponse(res, reconnectMessage, 401, "token_expired");
-            }
+          const pageToken = await refreshFacebookPageAccessToken(userId, pageId, facebookService);
+          if (pageToken) {
+            result = await runPublish(pageToken);
           } else {
-            const freshUserToken = await refreshFacebookProfileAccessToken(ctx.profileAccount, facebookService);
-            if (freshUserToken) {
-              result = await runPublish(freshUserToken);
-            } else {
-              return errorResponse(
-                res,
-                messageForFacebookProfilePublishError(apiError),
-                isMetaPermissionOrCapabilityError(apiError) ? 403 : 401,
-                isMetaPermissionOrCapabilityError(apiError) ? "facebook_profile_permission" : "token_expired"
-              );
-            }
+            return errorResponse(res, reconnectMessage, 401, "token_expired");
           }
         } catch (retryErr) {
           console.warn("[facebook:post:retry-refresh-failed]", { message: retryErr?.message });
-          const clientMessage =
-            targetType === "profile"
-              ? messageForFacebookProfilePublishError(retryErr)
-              : reconnectMessage;
-          const status =
-            targetType === "profile" && isMetaPermissionOrCapabilityError(retryErr) ? 403 : 401;
-          return errorResponse(res, clientMessage, status, status === 403 ? "facebook_profile_permission" : "token_expired");
+          return errorResponse(res, reconnectMessage, 401, "token_expired");
         }
       } else {
-        const clientMessage =
-          targetType === "profile"
-            ? messageForFacebookProfilePublishError(apiError)
-            : apiError.message || "Could not publish post on Facebook.";
-        const status =
-          targetType === "profile" && isMetaPermissionOrCapabilityError(apiError)
-            ? 403
-            : apiError.status >= 400 && apiError.status < 600
-              ? apiError.status
-              : 502;
+        const clientMessage = apiError.message || "Could not publish post on Facebook.";
         return errorResponse(
           res,
           clientMessage,
-          status,
-          status === 403 ? "facebook_profile_permission" : apiError.code || "facebook_post_failed"
+          apiError.status >= 400 && apiError.status < 600 ? apiError.status : 502,
+          apiError.code || "facebook_post_failed"
         );
       }
     }

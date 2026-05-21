@@ -2,10 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { X as CloseIcon } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { postToFacebook, uploadSocialPublicMedia } from "../../services/socialApi";
-import {
-  FACEBOOK_PROFILE_API_PUBLISH_MESSAGE,
-  openFacebookProfileShareDialog,
-} from "../../utils/facebookProfilePublish";
 
 const MAX_MESSAGE = 63206;
 
@@ -23,7 +19,7 @@ function isValidHttpUrl(value) {
  * @param {object} props
  * @param {boolean} props.open
  * @param {() => void} props.onClose
- * @param {object | null | undefined} props.account Grouped Facebook account from AppContext
+ * @param {object | null | undefined} props.account Facebook Page account from AppContext
  */
 export default function FacebookCreatePostModal({ open, onClose, account, onPublishSuccess }) {
   const { setToast } = useApp();
@@ -38,8 +34,7 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
   const prevOpen = useRef(false);
 
   const connected = Boolean(account?.isConnected);
-  const isProfileTarget = account?.entityType !== "page";
-  const profilePublishBlocked = isProfileTarget;
+  const pageId = String(account?.entityId || account?.platformUserId || "").trim();
 
   useEffect(() => {
     if (open && !prevOpen.current) {
@@ -64,7 +59,10 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
   const validate = () => {
     const next = {};
     if (!connected) {
-      next.account = "Connect Facebook before publishing.";
+      next.account = "Connect a Facebook Page before publishing.";
+    }
+    if (!pageId) {
+      next.account = "Select a Facebook Page to publish to.";
     }
 
     if (mediaType === "TEXT") {
@@ -109,7 +107,7 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
   const submitDisabled =
     posting ||
     !connected ||
-    profilePublishBlocked ||
+    !pageId ||
     msgLen > MAX_MESSAGE ||
     (mediaType === "TEXT" && (!trimmedMessage || trimmedMediaUrl || trimmedLink)) ||
     (mediaType === "LINK" && (!trimmedLink || !isValidHttpUrl(trimmedLink) || trimmedMediaUrl)) ||
@@ -132,21 +130,18 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
           return;
         }
       } catch (uploadErr) {
-        const msg = uploadErr?.message || "Could not upload media.";
-        setSubmitError(msg);
+        setSubmitError(uploadErr?.message || "Could not upload media.");
         return;
       }
     }
 
-    const entityId = String(account?.entityId || account?.platformUserId || "").trim();
-    const entityType = account?.entityType === "page" ? "page" : "profile";
     const payload = {
       message: trimmedMessage,
       mediaType,
       mediaUrl: mediaType === "IMAGE" || mediaType === "VIDEO" ? resolvedMediaUrl : "",
       linkUrl: mediaType === "LINK" ? trimmedLink : "",
-      entityType,
-      ...(entityId ? { entityId } : {}),
+      entityType: "page",
+      entityId: pageId,
     };
 
     setPosting(true);
@@ -163,19 +158,13 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
     } catch (err) {
       const msg = err?.message || "Could not publish post on Facebook.";
       const lower = msg.toLowerCase();
-      if (lower.includes("personal profile") || lower.includes("facebook page instead")) {
-        setSubmitError(msg);
-      } else if (
+      if (
         lower.includes("reconnect") ||
         lower.includes("not connected") ||
         lower.includes("token expired") ||
         lower.includes("facebook is not connected")
       ) {
-        setSubmitError(
-          entityType === "profile"
-            ? "Facebook profile access expired. Reconnect Facebook and select your personal profile again."
-            : "Facebook is not connected or token expired. Please reconnect Facebook."
-        );
+        setSubmitError("Facebook is not connected or token expired. Reconnect your Facebook Page under Channels.");
       } else {
         setSubmitError(msg);
       }
@@ -211,20 +200,13 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
           Create post on Facebook
         </h2>
         <p className="mt-1 text-xs text-slate-400">
-          {isProfileTarget
-            ? `Personal profile (${account?.accountName || account?.username || "profile"}) — API posting not supported.`
-            : `Posts are published to ${account?.accountName || account?.username || "this Page"}.`}
+          Posts are published to {account?.accountName || account?.username || "this Page"}.
         </p>
 
         <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
-          {profilePublishBlocked ? (
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100/90">
-              {FACEBOOK_PROFILE_API_PUBLISH_MESSAGE}
-            </p>
-          ) : null}
           {!connected ? (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100/90">
-              Connect Facebook first from Connect channels.
+              Connect a Facebook Page first from Connect channels.
             </p>
           ) : null}
           {errors.account ? (
@@ -386,47 +368,13 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
             >
               Cancel
             </button>
-            {profilePublishBlocked ? (
-              <button
-                type="button"
-                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={
-                  !connected ||
-                  (mediaType === "LINK" && !trimmedLink) ||
-                  ((mediaType === "IMAGE" || mediaType === "VIDEO") && !trimmedMediaUrl && !file)
-                }
-                onClick={async () => {
-                  setSubmitError("");
-                  try {
-                    let shareUrl = mediaType === "LINK" ? trimmedLink : trimmedMediaUrl;
-                    if (!shareUrl && file && (mediaType === "IMAGE" || mediaType === "VIDEO")) {
-                      shareUrl = await uploadSocialPublicMedia(file);
-                    }
-                    openFacebookProfileShareDialog({
-                      caption: trimmedMessage,
-                      linkUrl: mediaType === "LINK" ? trimmedLink : "",
-                      mediaUrl: shareUrl,
-                    });
-                    setToast({
-                      message:
-                        "Finish your post in the Facebook window that opened. API posting to profiles is not supported by Meta.",
-                    });
-                  } catch (err) {
-                    setSubmitError(err?.message || "Could not open Facebook share.");
-                  }
-                }}
-              >
-                Share to profile on Facebook
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={submitDisabled}
-              >
-                {posting ? "Posting…" : "Publish to Page"}
-              </button>
-            )}
+            <button
+              type="submit"
+              className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={submitDisabled}
+            >
+              {posting ? "Posting…" : "Publish to Page"}
+            </button>
           </div>
         </form>
       </div>

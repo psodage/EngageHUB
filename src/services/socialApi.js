@@ -580,7 +580,7 @@ export async function postToLinkedIn(payload, mediaFile) {
  *   mediaUrl?: string,
  *   linkUrl?: string,
  *   entityId?: string,
- *   entityType?: 'profile' | 'page',
+ *   entityType?: 'page',
  * }} payload
  */
 export async function postToFacebook(payload) {

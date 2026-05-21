@@ -1,4 +1,4 @@
-import { resolveFacebookPageCreatePostPath } from "./facebookProfilePublish";
+import { resolveFacebookPageCreatePostPath } from "./createPostChannels";
 
 /** @typedef {'profile' | 'page' | 'organization' | 'channel' | 'account'} PostingTargetBadge */
 
@@ -66,26 +66,12 @@ export function buildPostingTargetsConfig(platformKey, account) {
   });
 
   if (platformKey === "facebook") {
-    const profileRow =
-      entities.find((e) => e.entityType === "profile" && e.isConnected !== false) || null;
     const pageRows = entities
       .filter((e) => e.entityType === "page" && e.isConnected !== false)
       .sort((a, b) => entityDisplayName(a).localeCompare(entityDisplayName(b)));
 
     /** @type {PostingTargetCard[]} */
     const cards = [];
-    if (profileRow) {
-      const pid = String(profileRow.entityId || profileRow.platformUserId || "").trim();
-      const entityQs = pid ? `?entity=${encodeURIComponent(pid)}` : "";
-      cards.push({
-        key: `profile-${pid}`,
-        badge: "profile",
-        title: entityDisplayName(profileRow),
-        sublabel: pid ? `Facebook profile · ID ${pid}` : "Facebook profile",
-        imageUrl: profileRow.profileImage || placeholderImage("facebook"),
-        path: `/channels/facebook${entityQs}`,
-      });
-    }
     for (const page of pageRows) {
       const pageId = String(page.entityId || page.platformUserId || "").trim();
       const entityQs = pageId ? `?entity=${encodeURIComponent(pageId)}` : "";
@@ -104,7 +90,7 @@ export function buildPostingTargetsConfig(platformKey, account) {
       const entityQs = pid ? `?entity=${encodeURIComponent(pid)}` : "";
       cards.push({
         key: `fallback-${pid}`,
-        badge: account.entityType === "page" ? "page" : "profile",
+        badge: "page",
         title: row.accountName || row.username || "Facebook",
         sublabel: pid ? `ID ${pid}` : "Facebook",
         imageUrl: row.profileImage || placeholderImage("facebook"),
@@ -115,29 +101,24 @@ export function buildPostingTargetsConfig(platformKey, account) {
     const primaryCreatePath = resolveFacebookPageCreatePostPath(account);
 
     return {
-      title: "Facebook destinations",
-      description:
-        "Publish to connected Facebook Pages. Personal profile posting is not available via Meta’s API—use a Page.",
-      primaryCtaLabel: pageRows.length ? "Create post on a Page" : "Connect a Facebook Page",
+      title: "Facebook Pages",
+      description: "Publish to Facebook Pages you manage. Connect at least one Page under Channels.",
+      primaryCtaLabel: pageRows.length ? "Create post" : "Connect a Facebook Page",
       primaryCtaPath: primaryCreatePath,
       cards: cards.map((card) => {
-        if (card.badge === "profile") {
-          return { ...card, createPostDisabled: true };
-        }
         const match = card.key.match(/^page-(.+)$/);
         const entityId = match?.[1] ? decodeURIComponent(match[1]) : "";
         if (!entityId) return card;
         return {
           ...card,
-          createPostPath: `/create-post?platform=facebook&entity=${encodeURIComponent(entityId)}`,
+          path: `/create-post?platform=facebook&entity=${encodeURIComponent(entityId)}`,
         };
       }),
       emptyBanner: pageRows.length
         ? null
         : {
             tone: "amber",
-            text:
-              "Connect at least one Facebook Page to publish from EngageHub. Personal profile posts must be shared manually on Facebook.",
+            text: "Connect at least one Facebook Page to publish from EngageHub.",
           },
     };
   }

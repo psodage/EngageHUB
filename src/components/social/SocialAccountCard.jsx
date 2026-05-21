@@ -22,11 +22,10 @@ export default function SocialAccountCard({
   const isConnected = !!account?.isConnected;
   const openDetailsEnabled = isConnected && typeof onOpenDetails === "function";
   const displayName = isConnected ? account?.accountName || account?.username || "No Account linked" : "No Account linked";
-  const facebookProfile =
+  const facebookPages =
     platformConfig.key === "facebook" && Array.isArray(account?.entities)
-      ? account.entities.find((item) => item.entityType === "profile")
-      : null;
-  const firstPage = Array.isArray(account?.entities) ? account.entities.find((item) => item.entityType === "page") : null;
+      ? account.entities.filter((item) => item.entityType === "page")
+      : [];
   const linkedInOrganizations =
     platformConfig.key === "linkedin" && Array.isArray(account?.entities)
       ? account.entities.filter((item) => item.entityType === "organization")
@@ -135,16 +134,14 @@ export default function SocialAccountCard({
         <div className="mt-4 space-y-1">
           {isConnected && platformConfig.key === "facebook" ? (
             <p className="text-xs text-slate-400">
-              {facebookProfile?.accountName || account?.entityType === "profile"
-                ? `Profile: ${facebookProfile?.accountName || account?.accountName || "Connected"}`
-                : firstPage?.accountName || firstPage?.name || account?.entityType === "page"
-                  ? `Page: ${firstPage?.accountName || firstPage?.name || account?.accountName || "Connected"}`
-                  : "Facebook connected"}
-              {firstPage || linkedInstagram?.username || linkedInstagram?.name
-                ? ` · ${
-                    linkedInstagram?.username || linkedInstagram?.name ? "Instagram linked" : "No Instagram linked"
-                  }`
-                : null}
+              {facebookPages.length
+                ? `${facebookPages.length} Page${facebookPages.length === 1 ? "" : "s"} connected`
+                : "No Facebook Pages connected"}
+              {linkedInstagram?.username || linkedInstagram?.name
+                ? ` · Instagram linked`
+                : facebookPages.length
+                  ? " · No Instagram linked"
+                  : null}
             </p>
           ) : null}
           {isConnected && platformConfig.key === "instagram" ? (

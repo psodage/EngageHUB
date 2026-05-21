@@ -76,10 +76,8 @@ export default function ChannelProfileView({
           description={
             platformKey === "facebook"
               ? scopedFacebookEntity
-                ? scopedFacebookEntity.entityType === "page"
-                  ? "Posts from this channel page publish only to this Page. Switch destination from Linked channels in the sidebar."
-                  : "Posts from this profile publish only to your personal Facebook profile. Switch destination from Linked channels in the sidebar."
-                : "Your Facebook profile and Pages stay connected together. Add more via Connect channels."
+                ? "Posts from this channel publish only to this Facebook Page. Switch destination from Linked channels in the sidebar."
+                : "Connected Facebook Pages for publishing. Add more via Connect channels."
               : "Each login is a separate connection. Use a different account when adding another."
           }
         >

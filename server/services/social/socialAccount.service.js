@@ -76,19 +76,26 @@ export async function getAccountsForUser(userId) {
   const rows = SOCIAL_PLATFORMS.map((platform) => {
     const entities = grouped[platform] || [];
     const primary = entities.find((entity) => entity.isPrimary) || entities[0] || null;
+    const visibleEntities =
+      platform === "facebook"
+        ? entities.filter((entity) => entity.entityType === "page")
+        : entities;
+    const visiblePrimary =
+      visibleEntities.find((entity) => entity.isPrimary) || visibleEntities[0] || primary;
+
     return {
       platform,
       isConnected: entities.some((entity) => entity.isConnected),
       capabilities: getPlatformCapabilities(platform)?.badges || [],
       supportLevel: getPlatformCapabilities(platform)?.supportLevel || "limited",
-      accountName: primary?.accountName || "",
-      username: primary?.username || "",
-      profileImage: primary?.profileImage || "",
-      entityType: primary?.entityType || "profile",
-      platformUserId: primary?.platformUserId || "",
-      metadata: primary?.metadata || {},
-      lastSyncedAt: primary?.lastSyncedAt || null,
-      entities,
+      accountName: visiblePrimary?.accountName || primary?.accountName || "",
+      username: visiblePrimary?.username || primary?.username || "",
+      profileImage: visiblePrimary?.profileImage || primary?.profileImage || "",
+      entityType: visiblePrimary?.entityType || primary?.entityType || "profile",
+      platformUserId: visiblePrimary?.platformUserId || primary?.platformUserId || "",
+      metadata: visiblePrimary?.metadata || primary?.metadata || {},
+      lastSyncedAt: visiblePrimary?.lastSyncedAt || primary?.lastSyncedAt || null,
+      entities: visibleEntities,
     };
   });
 
@@ -361,35 +368,20 @@ export async function getStoredAccountForProvider(userId, platform) {
 }
 
 /**
- * Resolve the Facebook SocialAccount row for publishing (profile or a specific Page).
+ * Resolve the Facebook Page SocialAccount row for publishing.
  * @param {import("mongodb").ObjectId} userId
- * @param {string | null | undefined} entityId Facebook profile or Page id from the client
- * @param {"profile" | "page" | ""} [entityTypeHint] From create-post channel key (`facebook:profile:…` / `facebook:page:…`)
+ * @param {string | null | undefined} entityId Facebook Page id from the client
+ * @param {"page" | ""} [entityTypeHint] From create-post channel key (`facebook:page:…`)
  */
 export async function getFacebookAccountForPublish(userId, entityId, entityTypeHint = "") {
   const normalized = entityId != null && String(entityId).trim() ? String(entityId).trim() : "";
   const typeHint = String(entityTypeHint || "").trim().toLowerCase();
 
   if (typeHint === "profile") {
-    const profile = await SocialAccount.findOne({
-      userId,
-      platform: "facebook",
-      entityType: "profile",
-      isConnected: true,
-      ...(normalized
-        ? { $or: [{ entityId: normalized }, { platformUserId: normalized }] }
-        : {}),
-    });
-    if (profile) return profile;
-    return SocialAccount.findOne({
-      userId,
-      platform: "facebook",
-      entityType: "profile",
-      isConnected: true,
-    });
+    return null;
   }
 
-  if (typeHint === "page" && normalized) {
+  if (normalized) {
     const page = await SocialAccount.findOne({
       userId,
       platform: "facebook",
@@ -408,28 +400,9 @@ export async function getFacebookAccountForPublish(userId, entityId, entityTypeH
     if (byPlatformUserId) return byPlatformUserId;
   }
 
-  if (normalized) {
-    const byEntityId = await SocialAccount.findOne({
-      userId,
-      platform: "facebook",
-      entityId: normalized,
-      isConnected: true,
-    });
-    if (byEntityId) return byEntityId;
-
-    const byPlatformUserId = await SocialAccount.findOne({
-      userId,
-      platform: "facebook",
-      platformUserId: normalized,
-      isConnected: true,
-    });
-    if (byPlatformUserId) return byPlatformUserId;
-  }
-
   return (
-    (await SocialAccount.findOne({ userId, platform: "facebook", entityType: "profile", isConnected: true })) ||
-    (await SocialAccount.findOne({ userId, platform: "facebook", isPrimary: true, isConnected: true })) ||
-    (await SocialAccount.findOne({ userId, platform: "facebook", isConnected: true }))
+    (await SocialAccount.findOne({ userId, platform: "facebook", entityType: "page", isConnected: true })) ||
+    (await SocialAccount.findOne({ userId, platform: "facebook", isPrimary: true, isConnected: true, entityType: "page" }))
   );
 }
 

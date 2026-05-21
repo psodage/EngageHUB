@@ -1,9 +1,11 @@
 import { ObjectId } from "mongodb";
 import ScheduledPost from "../../models/ScheduledPost.js";
-import { getStoredAccountForProvider } from "./socialAccount.service.js";
-import { publishFacebookProfilePost } from "./facebookPublish.service.js";
+import { publishFacebookPagePost, publishFacebookPhotoFromBuffer } from "./facebookPublish.service.js";
+import { resolveFacebookPublishCredentials } from "./facebookPublishCredentials.service.js";
+import { loadMediaBufferFromUrl } from "./hostedMedia.service.js";
 import { publishInstagramContent } from "./instagram.service.js";
 import { publishTelegramPost } from "./telegramPublish.service.js";
+import { getStoredAccountForProvider } from "./socialAccount.service.js";
 
 function inferMediaKind(mediaUrl) {
   const u = (mediaUrl || "").toLowerCase();
@@ -12,15 +14,51 @@ function inferMediaKind(mediaUrl) {
   return null;
 }
 
-async function publishFacebook(userId, caption, mediaUrl) {
-  let account = await getStoredAccountForProvider(userId, "facebook");
-  if (!account?.isConnected) throw new Error("Facebook not connected");
-  let token = account.getDecryptedAccessToken?.();
-  if (!token) throw new Error("Facebook token missing");
+/** @returns {{ platformKey: string, entityType: string, entityId: string }} */
+function parseScheduledChannelKey(channelKey) {
+  const raw = String(channelKey || "").trim();
+  if (raw.startsWith("facebook:")) {
+    const parts = raw.split(":");
+    if (parts.length >= 3) {
+      return {
+        platformKey: "facebook",
+        entityType: parts[1] || "",
+        entityId: parts.slice(2).join(":"),
+      };
+    }
+    return { platformKey: "facebook", entityType: "", entityId: "" };
+  }
+  if (raw.startsWith("linkedin:")) {
+    return { platformKey: "linkedin", entityType: "", entityId: "" };
+  }
+  return { platformKey: raw, entityType: "", entityId: "" };
+}
+
+async function publishFacebook(userId, caption, mediaUrl, entityId = "") {
+  const ctx = await resolveFacebookPublishCredentials(userId, entityId, "page");
+  if (!ctx.ok || ctx.targetType !== "page") {
+    throw new Error("Facebook Page not connected");
+  }
+
   const kind = inferMediaKind(mediaUrl);
   const mediaType = !mediaUrl ? "TEXT" : kind === "video" ? "VIDEO" : "IMAGE";
-  await publishFacebookProfilePost({
-    userAccessToken: token,
+
+  if (mediaType === "IMAGE" && mediaUrl) {
+    const { buffer, mime } = await loadMediaBufferFromUrl(mediaUrl);
+    await publishFacebookPhotoFromBuffer({
+      targetType: "page",
+      pageId: ctx.pageId,
+      pageAccessToken: ctx.accessToken,
+      buffer,
+      mime,
+      message: caption,
+    });
+    return;
+  }
+
+  await publishFacebookPagePost({
+    pageId: ctx.pageId,
+    pageAccessToken: ctx.accessToken,
     mediaType,
     message: caption,
     mediaUrl: mediaUrl || "",
@@ -64,10 +102,24 @@ async function publishTelegram(userId, caption, mediaUrl) {
 }
 
 const SERVER_PUBLISHERS = {
-  facebook: publishFacebook,
   instagram: publishInstagram,
   telegram: publishTelegram,
 };
+
+async function publishChannel(userId, channelKey, caption, mediaUrl) {
+  const parsed = parseScheduledChannelKey(channelKey);
+  if (parsed.platformKey === "facebook") {
+    if (parsed.entityType === "profile") {
+      throw new Error("Personal Facebook profiles are not supported. Use a Facebook Page.");
+    }
+    return publishFacebook(userId, caption, mediaUrl, parsed.entityId);
+  }
+  const publish = SERVER_PUBLISHERS[parsed.platformKey];
+  if (!publish) {
+    throw new Error(`${parsed.platformKey} scheduled publish runs from the app when due (open Queue).`);
+  }
+  return publish(userId, caption, mediaUrl);
+}
 
 export async function publishScheduledPostDocument(postDoc) {
   const userId = new ObjectId(postDoc.userId);
@@ -83,12 +135,8 @@ export async function publishScheduledPostDocument(postDoc) {
 
   const results = [];
   for (const platformKey of channelKeys) {
-    const publish = SERVER_PUBLISHERS[platformKey];
     try {
-      if (!publish) {
-        throw new Error(`${platformKey} scheduled publish runs from the app when due (open Queue).`);
-      }
-      await publish(userId, caption, mediaUrl);
+      await publishChannel(userId, platformKey, caption, mediaUrl);
       results.push({ platformKey, status: "success", error: "", publishedAt: new Date() });
     } catch (err) {
       results.push({ platformKey, status: "failed", error: err?.message || "Failed", publishedAt: null });
