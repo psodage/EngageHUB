@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import ScheduledPost from "../models/ScheduledPost.js";
 import { createScheduleEntry } from "../services/social/socialScheduler.service.js";
+import { buildScheduledChannelResult } from "../utils/createPostChannelKey.js";
 
 function success(res, data, status = 200) {
   return res.status(status).json({ success: true, data });
@@ -53,7 +54,7 @@ export async function createScheduledPost(req, res) {
       scheduledAt: entry.scheduledAt,
       timezone: entry.timezone,
       status: "scheduled",
-      channelResults: channelKeys.map((platformKey) => ({ platformKey, status: "scheduled" })),
+      channelResults: channelKeys.map((channelKey) => buildScheduledChannelResult(channelKey, "scheduled")),
     });
 
     return success(res, { post: doc }, 201);

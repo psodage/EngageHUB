@@ -3,6 +3,7 @@ import { POST_HISTORY_PLATFORMS } from "./PostHistory.js";
 
 const channelResultSchema = new mongoose.Schema(
   {
+    channelKey: { type: String, required: true },
     platformKey: { type: String, required: true, enum: POST_HISTORY_PLATFORMS },
     status: { type: String, default: "pending" },
     error: { type: String, default: "" },

@@ -4,6 +4,7 @@ import { CalendarClock, Filter, LayoutGrid, List, Loader2 } from "lucide-react";
 import DashboardPageShell from "../components/layout/DashboardPageShell";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
 import { deleteScheduledPost, listScheduledPosts } from "../services/scheduleApi";
+import { getPlatformKeyFromCreatePostChannelKey } from "../utils/createPostChannels";
 
 const statusClass = {
   scheduled: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
@@ -28,7 +29,10 @@ function formatScheduledAt(iso, timezone) {
 
 function channelLabels(keys) {
   return (keys || [])
-    .map((k) => SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === k)?.label || k)
+    .map((k) => {
+      const platformKey = getPlatformKeyFromCreatePostChannelKey(k);
+      return SOCIAL_PLATFORM_CONFIGS.find((c) => c.key === platformKey)?.label || k;
+    })
     .join(", ");
 }
 

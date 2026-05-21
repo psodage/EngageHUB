@@ -6,32 +6,16 @@ import { loadMediaBufferFromUrl } from "./hostedMedia.service.js";
 import { publishInstagramContent } from "./instagram.service.js";
 import { publishTelegramPost } from "./telegramPublish.service.js";
 import { getStoredAccountForProvider } from "./socialAccount.service.js";
+import {
+  buildScheduledChannelResult,
+  parseCreatePostChannelKey,
+} from "../../utils/createPostChannelKey.js";
 
 function inferMediaKind(mediaUrl) {
   const u = (mediaUrl || "").toLowerCase();
   if (/\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(u)) return "video";
   if (/\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(u)) return "image";
   return null;
-}
-
-/** @returns {{ platformKey: string, entityType: string, entityId: string }} */
-function parseScheduledChannelKey(channelKey) {
-  const raw = String(channelKey || "").trim();
-  if (raw.startsWith("facebook:")) {
-    const parts = raw.split(":");
-    if (parts.length >= 3) {
-      return {
-        platformKey: "facebook",
-        entityType: parts[1] || "",
-        entityId: parts.slice(2).join(":"),
-      };
-    }
-    return { platformKey: "facebook", entityType: "", entityId: "" };
-  }
-  if (raw.startsWith("linkedin:")) {
-    return { platformKey: "linkedin", entityType: "", entityId: "" };
-  }
-  return { platformKey: raw, entityType: "", entityId: "" };
 }
 
 async function publishFacebook(userId, caption, mediaUrl, entityId = "") {
@@ -107,7 +91,7 @@ const SERVER_PUBLISHERS = {
 };
 
 async function publishChannel(userId, channelKey, caption, mediaUrl) {
-  const parsed = parseScheduledChannelKey(channelKey);
+  const parsed = parseCreatePostChannelKey(channelKey);
   if (parsed.platformKey === "facebook") {
     if (parsed.entityType === "profile") {
       throw new Error("Personal Facebook profiles are not supported. Use a Facebook Page.");
@@ -129,17 +113,29 @@ export async function publishScheduledPostDocument(postDoc) {
 
   let doc = await ScheduledPost.findByIdAndUpdate(
     postDoc._id,
-    { $set: { status: "publishing", channelResults: channelKeys.map((k) => ({ platformKey: k, status: "publishing" })) } },
+    {
+      $set: {
+        status: "publishing",
+        channelResults: channelKeys.map((k) => buildScheduledChannelResult(k, "publishing")),
+      },
+    },
     { new: true }
   );
 
   const results = [];
-  for (const platformKey of channelKeys) {
+  for (const channelKey of channelKeys) {
     try {
-      await publishChannel(userId, platformKey, caption, mediaUrl);
-      results.push({ platformKey, status: "success", error: "", publishedAt: new Date() });
+      await publishChannel(userId, channelKey, caption, mediaUrl);
+      results.push(
+        buildScheduledChannelResult(channelKey, "success", { error: "", publishedAt: new Date() })
+      );
     } catch (err) {
-      results.push({ platformKey, status: "failed", error: err?.message || "Failed", publishedAt: null });
+      results.push(
+        buildScheduledChannelResult(channelKey, "failed", {
+          error: err?.message || "Failed",
+          publishedAt: null,
+        })
+      );
     }
   }
 
