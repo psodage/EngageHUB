@@ -10,7 +10,7 @@ import { findLinkedInEntityById } from "../utils/channelDisplay";
 import { getDashboardContentMaxClass } from "../utils/pageLayout";
 import { useApp } from "../context/AppContext";
 
-export default function Topbar({ contentLayout = "default", onOpenSidebar, className = "" }) {
+export default function Topbar({ contentLayout = "default", onOpenSidebar }) {
   const { toggleTheme, theme, connectedAccounts } = useApp();
   const location = useLocation();
   const title = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
@@ -50,10 +50,9 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar, class
   }, [location.pathname, location.search, connectedAccounts]);
 
   const contentMaxClass = getDashboardContentMaxClass(contentLayout);
-  const showPageTitle = contentLayout !== "composer";
 
   return (
-    <header className={`dashboard-topbar ${className}`.trim()}>
+    <header className="dashboard-topbar">
       <div className={`dashboard-topbar-inner ${contentMaxClass}`}>
         <div className="dashboard-topbar-start">
           <button
@@ -64,27 +63,25 @@ export default function Topbar({ contentLayout = "default", onOpenSidebar, class
           >
             <Menu size={20} />
           </button>
-          {showPageTitle ? (
-            channelBreadcrumb ? (
-              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
-                <Link
-                  to="/channels"
-                  className="truncate font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                >
-                  Channels
-                </Link>
-                <ChevronRight size={14} className="shrink-0 text-slate-400" aria-hidden />
-                <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
-                  {channelBreadcrumb.label}
-                  {channelBreadcrumb.tabLabel ? (
-                    <span className="font-medium text-slate-500 dark:text-slate-400"> · {channelBreadcrumb.tabLabel}</span>
-                  ) : null}
-                </h1>
-              </nav>
-            ) : (
-              <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
-            )
-          ) : null}
+          {channelBreadcrumb ? (
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
+              <Link
+                to="/channels"
+                className="truncate font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Channels
+              </Link>
+              <ChevronRight size={14} className="shrink-0 text-slate-400" aria-hidden />
+              <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
+                {channelBreadcrumb.label}
+                {channelBreadcrumb.tabLabel ? (
+                  <span className="font-medium text-slate-500 dark:text-slate-400"> · {channelBreadcrumb.tabLabel}</span>
+                ) : null}
+              </h1>
+            </nav>
+          ) : (
+            <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
+          )}
         </div>
 
         <div className="dashboard-topbar-actions">

@@ -19,9 +19,9 @@ import {
   parseLocalDateTime,
 } from "../../utils/scheduleDateTime";
 import {
-  WORKSPACE_BODY,
   WORKSPACE_CARD,
   WORKSPACE_COMPOSER_COLUMN,
+  WORKSPACE_COMPOSER_SCROLL,
   WORKSPACE_FOOTER,
   WORKSPACE_GRID,
   WORKSPACE_PREVIEW_ASIDE,
@@ -182,13 +182,9 @@ export default function SchedulePostWorkspace({
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-slate-100 p-4 dark:bg-slate-950 md:p-6"
     : null;
 
-  const workspaceCardClass = isFullscreen
-    ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900"
-    : WORKSPACE_CARD;
-
   return (
     <section className={isFullscreen ? cardShell : WORKSPACE_SHELL}>
-      <article className={workspaceCardClass}>
+      <article className={WORKSPACE_CARD}>
         <CreatePostWorkspaceHeader
           title="Schedule post"
           selectedChannelKeys={selectedChannelKeys}
@@ -204,58 +200,59 @@ export default function SchedulePostWorkspace({
           onPreviewClick={() => setPreviewPanelMode("previews")}
         />
 
-        <div className={WORKSPACE_BODY}>
-          <div className={WORKSPACE_GRID}>
-            <div className={WORKSPACE_COMPOSER_COLUMN}>
-              <SharedPostComposer
+        <div className={WORKSPACE_GRID}>
+          <div className={WORKSPACE_COMPOSER_COLUMN}>
+            <div className={WORKSPACE_COMPOSER_SCROLL}>
+            <SharedPostComposer
+              caption={sharedCaption}
+              file={sharedFile}
+              mediaUrl={sharedMediaUrl}
+              captionLimit={captionLimit}
+              onCaptionChange={handleCaptionChange}
+              onFileChange={handleFileChange}
+              onSuggestedImageSelect={handleSuggestedImageSelect}
+              onClearSuggestedMedia={handleClearSuggestedMedia}
+            />
+
+            <div id="workspace-schedule-options" className="border-t border-slate-100 p-5 dark:border-slate-800">
+              <SchedulePostOptions
+                scheduledAt={scheduledAt}
+                onScheduledAtChange={setScheduledAt}
+                timezone={timezone}
+                onTimezoneChange={setTimezone}
+                scheduleTitle={scheduleTitle}
+                onScheduleTitleChange={setScheduleTitle}
+                selectedChannelKeys={selectedChannelKeys}
                 caption={sharedCaption}
-                file={sharedFile}
-                mediaUrl={sharedMediaUrl}
-                captionLimit={captionLimit}
-                onCaptionChange={handleCaptionChange}
-                onFileChange={handleFileChange}
-                onSuggestedImageSelect={handleSuggestedImageSelect}
-                onClearSuggestedMedia={handleClearSuggestedMedia}
+                disabled={scheduling}
               />
-
-              <div id="workspace-schedule-options" className="border-t border-slate-100 p-5 dark:border-slate-800">
-                <SchedulePostOptions
-                  scheduledAt={scheduledAt}
-                  onScheduledAtChange={setScheduledAt}
-                  timezone={timezone}
-                  onTimezoneChange={setTimezone}
-                  scheduleTitle={scheduleTitle}
-                  onScheduleTitleChange={setScheduleTitle}
-                  selectedChannelKeys={selectedChannelKeys}
-                  caption={sharedCaption}
-                  disabled={scheduling}
-                />
-              </div>
             </div>
-
-            <aside className={WORKSPACE_PREVIEW_ASIDE}>
-              {previewPanelMode === "previews" ? (
-                <ChannelPreviewPanel
-                  selectedChannelKeys={previewChannelKeys}
-                  connectedByPlatform={connectedByPlatform}
-                  sharedCaption={sharedCaption}
-                  sharedFile={sharedFile}
-                  drafts={drafts}
-                />
-              ) : (
-                <PreviewIdeasBoard
-                  focus={previewPanelMode}
-                  caption={sharedCaption}
-                  onApplyCaption={applyCaption}
-                  selectedPlatform={ideasPlatformKey}
-                  topic={ideaTopic}
-                  onTopicChange={setIdeaTopic}
-                  onClose={() => setPreviewPanelMode("previews")}
-                  onApplied={() => setPreviewPanelMode("previews")}
-                />
-              )}
-            </aside>
+            </div>
           </div>
+
+          <aside className={WORKSPACE_PREVIEW_ASIDE}>
+            {previewPanelMode === "previews" ? (
+              <ChannelPreviewPanel
+                selectedChannelKeys={previewChannelKeys}
+                connectedByPlatform={connectedByPlatform}
+                sharedCaption={sharedCaption}
+                sharedFile={sharedFile}
+                drafts={drafts}
+                className="h-full min-h-0"
+              />
+            ) : (
+              <PreviewIdeasBoard
+                focus={previewPanelMode}
+                caption={sharedCaption}
+                onApplyCaption={applyCaption}
+                selectedPlatform={ideasPlatformKey}
+                topic={ideaTopic}
+                onTopicChange={setIdeaTopic}
+                onClose={() => setPreviewPanelMode("previews")}
+                onApplied={() => setPreviewPanelMode("previews")}
+              />
+            )}
+          </aside>
         </div>
 
         <footer className={`${WORKSPACE_FOOTER} flex-wrap`}>

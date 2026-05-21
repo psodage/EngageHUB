@@ -1,5 +1,6 @@
 import { ArrowLeft, X } from "lucide-react";
 import PostIdeasPanel from "./PostIdeasPanel";
+import { WORKSPACE_PREVIEW_SCROLL } from "./workspaceLayout";
 
 export default function PreviewIdeasBoard({
   focus = "both",
@@ -20,7 +21,8 @@ export default function PreviewIdeasBoard({
     focus === "templates" ? "Templates" : focus === "ai" ? "AI Assistant" : "Ideas & AI";
 
   return (
-    <div className="flex flex-col">
+    <aside className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className={`${WORKSPACE_PREVIEW_SCROLL} flex min-h-0 flex-1 flex-col`}>
         <div className="sticky top-0 z-10 -mx-1 mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-1 pb-3 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95">
           <button
             type="button"
@@ -52,6 +54,7 @@ export default function PreviewIdeasBoard({
           topic={topic}
           onTopicChange={onTopicChange}
         />
-    </div>
+      </div>
+    </aside>
   );
 }
