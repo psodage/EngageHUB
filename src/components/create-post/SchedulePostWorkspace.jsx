@@ -15,6 +15,10 @@ import ChannelPreviewPanel from "./ChannelPreviewPanel";
 import SchedulePostOptions from "./SchedulePostOptions";
 import SharedPostComposer from "./SharedPostComposer";
 import {
+  defaultScheduleDateTime,
+  parseLocalDateTime,
+} from "../../utils/scheduleDateTime";
+import {
   WORKSPACE_CARD,
   WORKSPACE_COMPOSER_COLUMN,
   WORKSPACE_COMPOSER_SCROLL,
@@ -25,14 +29,6 @@ import {
 } from "./workspaceLayout";
 
 const defaultTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-
-function defaultScheduleDateTime() {
-  const next = new Date();
-  next.setDate(next.getDate() + 1);
-  next.setHours(9, 0, 0, 0);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}T09:00`;
-}
 
 export default function SchedulePostWorkspace({
   selectedChannelKeys,
@@ -135,8 +131,8 @@ export default function SchedulePostWorkspace({
       setToast({ message: "Choose a date and time to schedule.", error: true });
       return;
     }
-    const scheduledDate = new Date(scheduledAt);
-    if (Number.isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now()) {
+    const scheduledDate = parseLocalDateTime(scheduledAt);
+    if (!scheduledDate || scheduledDate.getTime() <= Date.now()) {
       setToast({ message: "Pick a date and time in the future.", error: true });
       return;
     }

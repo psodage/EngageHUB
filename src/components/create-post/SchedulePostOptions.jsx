@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Globe } from "lucide-react";
 import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
+import {
+  pad,
+  parseLocalDateTime,
+  toLocalDateTimeFromParts,
+  toLocalDateTimeValue,
+} from "../../utils/scheduleDateTime";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -17,20 +23,6 @@ const COMMON_TIMEZONES = [
   "Asia/Tokyo",
   "Australia/Sydney",
 ];
-
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-
-function toLocalDateTimeValue(date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function parseLocalDateTime(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
 
 function startOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -169,11 +161,7 @@ export default function SchedulePostOptions({
   const summary = formatScheduleSummary(scheduledAt, timezone, selectedChannelKeys.length);
 
   const applyDateTime = (dateObj, timeStr) => {
-    const [hh, mm] = (timeStr || "09:00").split(":").map(Number);
-    const next = new Date(dateObj);
-    next.setHours(hh || 9, mm || 0, 0, 0);
-    if (next.getTime() <= Date.now()) return;
-    onScheduledAtChange(toLocalDateTimeValue(next));
+    onScheduledAtChange(toLocalDateTimeFromParts(dateObj, timeStr));
   };
 
   const applyQuick = (hoursFromNow) => {
@@ -275,9 +263,7 @@ export default function SchedulePostOptions({
                 disabled={disabled}
                 onChange={(e) => {
                   if (!parsed && !datePart) {
-                    const today = new Date();
-                    today.setDate(today.getDate() + 1);
-                    applyDateTime(today, e.target.value);
+                    applyDateTime(new Date(), e.target.value);
                     return;
                   }
                   const base = parsed || new Date();
