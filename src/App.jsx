@@ -11,6 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import CreatePostPage from "./pages/CreatePostPage";
 import SchedulePage from "./pages/SchedulePage";
 import SchedulePostPage from "./pages/SchedulePostPage";
+import ScheduledPostDetailPage from "./pages/ScheduledPostDetailPage";
 import SettingsLayout from "./layouts/SettingsLayout";
 import SettingsAccountPage from "./pages/settings/SettingsAccountPage";
 import SettingsChannelsPage from "./pages/settings/SettingsChannelsPage";
@@ -92,6 +93,7 @@ function RootRouter() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="create-post" element={<CreatePostPage />} />
           <Route path="schedule/new" element={<SchedulePostPage />} />
+          <Route path="schedule/:id" element={<ScheduledPostDetailPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="channels" element={<ChannelsPage />} />
           <Route path="channels/:platformKey" element={<ConnectedPlatformDetailPage />} />

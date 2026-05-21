@@ -73,6 +73,19 @@ export async function listScheduledPosts(req, res) {
   }
 }
 
+export async function getScheduledPost(req, res) {
+  try {
+    const userId = new ObjectId(req.auth.userId);
+    const id = req.params?.id;
+    if (!ObjectId.isValid(id)) return error(res, "Invalid post id.");
+    const post = await ScheduledPost.findOne({ _id: new ObjectId(id), userId }).lean();
+    if (!post) return error(res, "Scheduled post not found.", 404);
+    return success(res, { post });
+  } catch (err) {
+    return error(res, err?.message || "Could not load scheduled post.", 500);
+  }
+}
+
 export async function deleteScheduledPost(req, res) {
   try {
     const userId = new ObjectId(req.auth.userId);

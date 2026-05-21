@@ -46,6 +46,15 @@ export async function listScheduledPosts() {
   }
 }
 
+export async function getScheduledPost(id) {
+  try {
+    const { data } = await client.get(`/api/schedule/${id}`);
+    return data.data?.post || data.post;
+  } catch (error) {
+    throw new Error(parseError(error, "Unable to load scheduled post."));
+  }
+}
+
 export async function deleteScheduledPost(id) {
   try {
     await client.delete(`/api/schedule/${id}`);

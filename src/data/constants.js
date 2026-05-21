@@ -60,6 +60,7 @@ export function getPageTitle(pathname) {
   if (pathname.startsWith("/settings")) return "Settings";
   if (pathname.startsWith("/channels")) return "Connect channels";
   if (pathname.startsWith("/schedule/new")) return "Schedule post";
+  if (/^\/schedule\/[^/]+$/.test(pathname)) return "Scheduled post";
   if (pathname.startsWith("/schedule")) return "Schedule";
   if (pathname.startsWith("/create-post")) return "Create";
   if (pathname === "/" || pathname === "/dashboard") return "Home";

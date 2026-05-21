@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CalendarClock, Filter, LayoutGrid, List, Loader2 } from "lucide-react";
 import DashboardPageShell from "../components/layout/DashboardPageShell";
 import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
@@ -37,6 +37,7 @@ function channelLabels(keys) {
 }
 
 export default function SchedulePage() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -133,7 +134,16 @@ export default function SchedulePage() {
                 posts.map((row) => (
                   <tr
                     key={row._id}
-                    className="border-b border-slate-100 transition hover:bg-slate-50/80 dark:border-slate-800 dark:hover:bg-slate-800/30"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/schedule/${row._id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/schedule/${row._id}`);
+                      }
+                    }}
+                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/80 dark:border-slate-800 dark:hover:bg-slate-800/30"
                   >
                     <td className="p-5 font-medium text-slate-900 dark:text-white">
                       {row.title || row.caption?.slice(0, 60) || "Untitled"}
@@ -149,7 +159,7 @@ export default function SchedulePage() {
                         {(row.status || "scheduled").replace(/_/g, " ")}
                       </span>
                     </td>
-                    <td className="p-5 text-right">
+                    <td className="p-5 text-right" onClick={(e) => e.stopPropagation()}>
                       {row.status === "scheduled" ? (
                         <button
                           type="button"
@@ -159,7 +169,12 @@ export default function SchedulePage() {
                           Delete
                         </button>
                       ) : (
-                        <span className="text-xs text-slate-400">—</span>
+                        <Link
+                          to={`/schedule/${row._id}`}
+                          className="text-xs font-semibold text-buffer-700 hover:text-buffer-800 dark:text-buffer-400"
+                        >
+                          View
+                        </Link>
                       )}
                     </td>
                   </tr>
