@@ -9,6 +9,10 @@ const PUBLISH_ERROR_CODE_HINTS = {
   validation_error: "Check the post content and media for this platform’s requirements.",
   facebook_profile_text_unsupported:
     "Facebook personal profiles only support photo or video posts through the API. Use a Facebook Page or attach media.",
+  facebook_profile_permission:
+    "Facebook does not allow this app to post to your personal profile with the current permissions. Use a Facebook Page instead.",
+  token_expired:
+    "This account’s access token expired. Reconnect the platform under Channels.",
   media_not_public:
     "Media must be hosted on a public URL Facebook can download. Set APP_BASE_URL to your public HTTPS domain (not localhost).",
   remote_ingest_failed:

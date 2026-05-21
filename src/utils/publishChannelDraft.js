@@ -136,13 +136,14 @@ export async function publishChannelDraft(channelKey, draft, options = {}) {
     if (!resolvedMediaUrl && originalFile && (mediaType === "IMAGE" || mediaType === "VIDEO")) {
       resolvedMediaUrl = await uploadSocialPublicMedia(originalFile);
     }
-    const { entityId: channelEntityId } = parseCreatePostChannelKey(channelKey);
+    const { entityType: channelEntityType, entityId: channelEntityId } = parseCreatePostChannelKey(channelKey);
     const result = await postToFacebook({
       message: caption,
       mediaType,
       mediaUrl: resolvedMediaUrl || undefined,
       linkUrl: mediaType === "LINK" ? linkUrl : undefined,
       entityId: (draft.entityId || channelEntityId || "").trim() || undefined,
+      entityType: channelEntityType === "page" || channelEntityType === "profile" ? channelEntityType : undefined,
     });
     return result?.message || "Published to Facebook.";
   }

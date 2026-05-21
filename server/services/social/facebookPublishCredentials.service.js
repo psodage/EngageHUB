@@ -6,16 +6,43 @@ import { getFacebookAccountForPublish } from "./socialAccount.service.js";
 const META_GRAPH_BASE_URL = "https://graph.facebook.com/v20.0";
 
 export function isMetaTokenAuthError(apiError) {
+  if (isMetaPermissionOrCapabilityError(apiError)) return false;
   const code = apiError?.details?.error?.code;
   const sub = apiError?.details?.error?.error_subcode;
   return (
     apiError?.status === 401 ||
-    apiError?.status === 403 ||
     code === 190 ||
     code === 102 ||
     sub === 463 ||
     sub === 467
   );
+}
+
+/** Permission / capability errors (often 403) — not fixed by reconnecting. */
+export function isMetaPermissionOrCapabilityError(apiError) {
+  const code = apiError?.details?.error?.code;
+  const sub = apiError?.details?.error?.error_subcode;
+  const msg = String(
+    apiError?.details?.error?.error_user_msg || apiError?.details?.error?.message || apiError?.message || ""
+  ).toLowerCase();
+  if (code === 10 || code === 200 || code === 294) return true;
+  if (sub === 1366051 || sub === 1366046) return true;
+  if (msg.includes("permission") || msg.includes("publish") || msg.includes("capability")) return true;
+  if (msg.includes("used in an ad") || msg.includes("does not have")) return true;
+  return false;
+}
+
+export function messageForFacebookProfilePublishError(apiError) {
+  if (isMetaPermissionOrCapabilityError(apiError)) {
+    return (
+      "Facebook does not allow this app to post to your personal profile with the current permissions. " +
+      "Post to a Facebook Page instead, or reconnect Facebook and ensure profile access was granted."
+    );
+  }
+  if (isMetaTokenAuthError(apiError)) {
+    return "Facebook profile access expired. Reconnect Facebook under Channels and select your profile again.";
+  }
+  return apiError?.message || "Could not publish to your Facebook profile.";
 }
 
 export async function getFacebookProfileAccountDoc(userId) {
@@ -104,16 +131,58 @@ export async function persistPagePublishingToken(userId, pageId, pageAccessToken
 }
 
 /**
+ * Exchange for a fresh long-lived user token before profile posts.
+ * @param {import("mongoose").HydratedDocument} profileAccount
+ * @param {import("./meta.service.js").default} facebookProvider
+ */
+export async function refreshFacebookProfileAccessToken(profileAccount, facebookProvider) {
+  if (!profileAccount) return "";
+
+  let userToken = profileAccount.getDecryptedAccessToken?.() || "";
+  if (!userToken) return "";
+
+  try {
+    const refreshed = await facebookProvider.refreshTokenIfNeeded({
+      ...profileAccount.toObject?.(),
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    if (refreshed?.accessToken) {
+      profileAccount.setEncryptedAccessToken(refreshed.accessToken);
+      if (refreshed.expiresIn) {
+        profileAccount.expiresAt = new Date(Date.now() + refreshed.expiresIn * 1000);
+      }
+      profileAccount.lastSyncedAt = new Date();
+      await profileAccount.save();
+      userToken = refreshed.accessToken;
+    }
+  } catch {
+    /* keep existing token and let Graph validate */
+  }
+
+  try {
+    const { data } = await axios.get(`${META_GRAPH_BASE_URL}/me`, {
+      params: { fields: "id", access_token: userToken },
+    });
+    if (!data?.id) return "";
+  } catch {
+    return "";
+  }
+
+  return userToken;
+}
+
+/**
  * @param {import("mongodb").ObjectId} userId
  * @param {string | null | undefined} entityId
+ * @param {"profile" | "page" | ""} [entityTypeHint]
  */
-export async function resolveFacebookPublishCredentials(userId, entityId) {
-  const account = await getFacebookAccountForPublish(userId, entityId);
+export async function resolveFacebookPublishCredentials(userId, entityId, entityTypeHint = "") {
+  const account = await getFacebookAccountForPublish(userId, entityId, entityTypeHint);
   if (!account || !account.isConnected) {
     return { ok: false, code: "not_connected", account: null };
   }
 
-  const entityType = String(account.entityType || "profile").trim().toLowerCase();
+  const entityType = String(entityTypeHint || account.entityType || "profile").trim().toLowerCase();
   const isPage = entityType === "page";
   const pageId = isPage ? String(account.entityId || account.platformUserId || "").trim() : "";
   const profileId = isPage ? "" : String(account.entityId || account.platformUserId || "").trim();
@@ -122,8 +191,8 @@ export async function resolveFacebookPublishCredentials(userId, entityId) {
     return { ok: false, code: "invalid_page", account };
   }
 
-  let accessToken = account.getDecryptedAccessToken?.() || "";
   const profileAccount = isPage ? await getFacebookProfileAccountDoc(userId) : account;
+  let accessToken = isPage ? account.getDecryptedAccessToken?.() || "" : profileAccount?.getDecryptedAccessToken?.() || "";
 
   if (isPage) {
     const storedEnc = profileAccount?.pagePublishingTokens?.[pageId];
@@ -182,13 +251,18 @@ export async function resolveFacebookPublishCredentials(userId, entityId) {
       await account.save();
     }
     await persistPagePublishingToken(userId, pageId, accessToken);
-  } else if (!accessToken) {
-    return { ok: false, code: "token_missing", account };
+  } else {
+    if (!profileAccount) {
+      return { ok: false, code: "not_connected", account: null };
+    }
+    if (!accessToken) {
+      return { ok: false, code: "token_missing", account: profileAccount };
+    }
   }
 
   return {
     ok: true,
-    account,
+    account: isPage ? account : profileAccount || account,
     profileAccount: profileAccount || account,
     accessToken,
     entityType,

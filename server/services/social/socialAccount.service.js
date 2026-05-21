@@ -324,9 +324,50 @@ export async function getStoredAccountForProvider(userId, platform) {
  * Resolve the Facebook SocialAccount row for publishing (profile or a specific Page).
  * @param {import("mongodb").ObjectId} userId
  * @param {string | null | undefined} entityId Facebook profile or Page id from the client
+ * @param {"profile" | "page" | ""} [entityTypeHint] From create-post channel key (`facebook:profile:…` / `facebook:page:…`)
  */
-export async function getFacebookAccountForPublish(userId, entityId) {
+export async function getFacebookAccountForPublish(userId, entityId, entityTypeHint = "") {
   const normalized = entityId != null && String(entityId).trim() ? String(entityId).trim() : "";
+  const typeHint = String(entityTypeHint || "").trim().toLowerCase();
+
+  if (typeHint === "profile") {
+    const profile = await SocialAccount.findOne({
+      userId,
+      platform: "facebook",
+      entityType: "profile",
+      isConnected: true,
+      ...(normalized
+        ? { $or: [{ entityId: normalized }, { platformUserId: normalized }] }
+        : {}),
+    });
+    if (profile) return profile;
+    return SocialAccount.findOne({
+      userId,
+      platform: "facebook",
+      entityType: "profile",
+      isConnected: true,
+    });
+  }
+
+  if (typeHint === "page" && normalized) {
+    const page = await SocialAccount.findOne({
+      userId,
+      platform: "facebook",
+      entityType: "page",
+      entityId: normalized,
+      isConnected: true,
+    });
+    if (page) return page;
+    const byPlatformUserId = await SocialAccount.findOne({
+      userId,
+      platform: "facebook",
+      entityType: "page",
+      platformUserId: normalized,
+      isConnected: true,
+    });
+    if (byPlatformUserId) return byPlatformUserId;
+  }
+
   if (normalized) {
     const byEntityId = await SocialAccount.findOne({
       userId,

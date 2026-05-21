@@ -131,12 +131,14 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
       }
     }
 
-    const entityId = String(account?.entityId || "").trim();
+    const entityId = String(account?.entityId || account?.platformUserId || "").trim();
+    const entityType = account?.entityType === "page" ? "page" : "profile";
     const payload = {
       message: trimmedMessage,
       mediaType,
       mediaUrl: mediaType === "IMAGE" || mediaType === "VIDEO" ? resolvedMediaUrl : "",
       linkUrl: mediaType === "LINK" ? trimmedLink : "",
+      entityType,
       ...(entityId ? { entityId } : {}),
     };
 
@@ -154,13 +156,19 @@ export default function FacebookCreatePostModal({ open, onClose, account, onPubl
     } catch (err) {
       const msg = err?.message || "Could not publish post on Facebook.";
       const lower = msg.toLowerCase();
-      if (
+      if (lower.includes("personal profile") || lower.includes("facebook page instead")) {
+        setSubmitError(msg);
+      } else if (
         lower.includes("reconnect") ||
         lower.includes("not connected") ||
         lower.includes("token expired") ||
         lower.includes("facebook is not connected")
       ) {
-        setSubmitError("Facebook is not connected or token expired. Please reconnect Facebook.");
+        setSubmitError(
+          entityType === "profile"
+            ? "Facebook profile access expired. Reconnect Facebook and select your personal profile again."
+            : "Facebook is not connected or token expired. Please reconnect Facebook."
+        );
       } else {
         setSubmitError(msg);
       }

@@ -23,6 +23,9 @@ import {
   persistPagePublishingToken,
   refreshFacebookPageAccessToken,
   resolveFacebookPublishCredentials,
+  refreshFacebookProfileAccessToken,
+  messageForFacebookProfilePublishError,
+  isMetaPermissionOrCapabilityError,
 } from "../services/social/facebookPublishCredentials.service.js";
 import facebookService from "../services/social/facebook.service.js";
 import { getSafeProviderDebugInfo, validateProviderConfig } from "../utils/providerConfig.util.js";
@@ -2461,6 +2464,14 @@ function parseFacebookPostBody(body) {
   const mediaUrl = typeof body.mediaUrl === "string" ? body.mediaUrl.trim() : "";
   const linkUrl = typeof body.linkUrl === "string" ? body.linkUrl.trim() : "";
   const entityId = typeof body.entityId === "string" ? body.entityId.trim() : "";
+  const entityType =
+    typeof body.entityType === "string" ? body.entityType.trim().toLowerCase() : "";
+  if (entityType && entityType !== "profile" && entityType !== "page") {
+    const err = new Error("entityType must be profile or page when provided.");
+    err.status = 400;
+    err.code = "validation_error";
+    throw err;
+  }
 
   if (message.length > FACEBOOK_MESSAGE_MAX) {
     const err = new Error(`message cannot exceed ${FACEBOOK_MESSAGE_MAX} characters.`);
@@ -2547,6 +2558,7 @@ function parseFacebookPostBody(body) {
     mediaUrl: mediaTypeRaw === "IMAGE" || mediaTypeRaw === "VIDEO" ? mediaUrl : "",
     linkUrl: mediaTypeRaw === "LINK" ? linkUrl : "",
     entityId,
+    entityType,
   };
 }
 
@@ -2571,7 +2583,7 @@ export async function createFacebookPost(req, res) {
   }
 
   try {
-    let ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId);
+    let ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId, parsed.entityType);
     if (!ctx.ok) {
       if (ctx.code === "not_connected" || ctx.code === "token_missing") {
         return errorResponse(res, reconnectMessage, 401, ctx.code);
@@ -2590,29 +2602,28 @@ export async function createFacebookPost(req, res) {
 
     let { account, accessToken, targetType, pageId, platformAccountId, targetName } = ctx;
 
-    const refreshProfileTokenIfNeeded = async () => {
+    if (ctx.targetType === "profile") {
       const profileDoc = ctx.profileAccount;
-      if (!profileDoc?.expiresAt || new Date(profileDoc.expiresAt).getTime() > Date.now()) return;
-      const refreshed = await facebookService.refreshTokenIfNeeded(profileDoc);
-      if (!refreshed?.accessToken) {
-        throw new Error("token_expired");
+      const freshUserToken = await refreshFacebookProfileAccessToken(profileDoc, facebookService);
+      if (!freshUserToken) {
+        return errorResponse(
+          res,
+          "Facebook profile access expired or is missing. Reconnect Facebook under Channels and select your personal profile again.",
+          401,
+          "token_expired"
+        );
       }
-      await refreshAccountTokenById(ctx.profileAccount._id, refreshed);
-      ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId);
-      if (!ctx.ok) throw new Error("token_missing");
+      accessToken = freshUserToken;
+      ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId, parsed.entityType);
+      if (!ctx.ok || !ctx.accessToken) {
+        return errorResponse(res, reconnectMessage, 401, "token_missing");
+      }
       account = ctx.account;
       accessToken = ctx.accessToken;
       targetType = ctx.targetType;
       pageId = ctx.pageId;
       platformAccountId = ctx.platformAccountId;
       targetName = ctx.targetName;
-    };
-
-    try {
-      await refreshProfileTokenIfNeeded();
-    } catch (refreshErr) {
-      console.warn("[facebook:post:refresh-failed]", { message: refreshErr?.message });
-      return errorResponse(res, reconnectMessage, 401, "token_expired");
     }
 
     if (
@@ -2688,33 +2699,44 @@ export async function createFacebookPost(req, res) {
               return errorResponse(res, reconnectMessage, 401, "token_expired");
             }
           } else {
-            const profileDoc = ctx.profileAccount;
-            const refreshed = await facebookService.refreshTokenIfNeeded({
-              ...profileDoc,
-              expiresAt: new Date(Date.now() - 1),
-            });
-            if (refreshed?.accessToken) {
-              await refreshAccountTokenById(ctx.profileAccount._id, refreshed);
-              ctx = await resolveFacebookPublishCredentials(userId, parsed.entityId);
-              if (!ctx.ok || !ctx.accessToken) {
-                return errorResponse(res, reconnectMessage, 401, "token_missing");
-              }
-              result = await runPublish(ctx.accessToken);
+            const freshUserToken = await refreshFacebookProfileAccessToken(ctx.profileAccount, facebookService);
+            if (freshUserToken) {
+              result = await runPublish(freshUserToken);
             } else {
-              return errorResponse(res, reconnectMessage, 401, "token_expired");
+              return errorResponse(
+                res,
+                messageForFacebookProfilePublishError(apiError),
+                isMetaPermissionOrCapabilityError(apiError) ? 403 : 401,
+                isMetaPermissionOrCapabilityError(apiError) ? "facebook_profile_permission" : "token_expired"
+              );
             }
           }
         } catch (retryErr) {
           console.warn("[facebook:post:retry-refresh-failed]", { message: retryErr?.message });
-          return errorResponse(res, reconnectMessage, 401, "token_expired");
+          const clientMessage =
+            targetType === "profile"
+              ? messageForFacebookProfilePublishError(retryErr)
+              : reconnectMessage;
+          const status =
+            targetType === "profile" && isMetaPermissionOrCapabilityError(retryErr) ? 403 : 401;
+          return errorResponse(res, clientMessage, status, status === 403 ? "facebook_profile_permission" : "token_expired");
         }
       } else {
-        const clientMessage = apiError.message || "Could not publish post on Facebook.";
+        const clientMessage =
+          targetType === "profile"
+            ? messageForFacebookProfilePublishError(apiError)
+            : apiError.message || "Could not publish post on Facebook.";
+        const status =
+          targetType === "profile" && isMetaPermissionOrCapabilityError(apiError)
+            ? 403
+            : apiError.status >= 400 && apiError.status < 600
+              ? apiError.status
+              : 502;
         return errorResponse(
           res,
           clientMessage,
-          apiError.status >= 400 && apiError.status < 600 ? apiError.status : 502,
-          apiError.code || "facebook_post_failed"
+          status,
+          status === 403 ? "facebook_profile_permission" : apiError.code || "facebook_post_failed"
         );
       }
     }
