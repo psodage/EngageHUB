@@ -68,7 +68,24 @@ const usersCollection = db.collection("users");
 await usersCollection.createIndex({ email: 1 }, { unique: true });
 await usersCollection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
 
-app.use(cors());
+const corsOrigins = [
+  process.env.CLIENT_BASE_URL || "http://localhost:5173",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || corsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 

@@ -16,12 +16,12 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import { resolveProviderRedirectUri } from "../server/utils/redirectUri.util.js";
-import { buildGoogleBusinessLocalPostRequest } from "../server/services/social/googleBusinessPostBody.util.js";
+import { resolveProviderRedirectUri } from "../utils/redirectUri.util.js";
+import { buildGoogleBusinessLocalPostRequest } from "../services/social/googleBusinessPostBody.util.js";
 
 const MYBUSINESS_V4 = "https://mybusiness.googleapis.com/v4";
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const envPath = path.join(projectRoot, ".env");
+const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const envPath = path.join(backendRoot, ".env");
 
 dotenv.config({ path: envPath });
 

@@ -2,8 +2,8 @@ import { DEPLOYED_API_BASE_URL } from "../data/constants.js";
 
 /**
  * Base URL for browser calls to the Express API.
- * In dev, default is same-origin (empty string) so Vite can proxy /api → port 4000
- * (works when you open the app via LAN IP, not only localhost).
+ * Set VITE_API_URL to the API origin only (no trailing /api).
+ * In dev, an empty value falls back to same-origin /api via the Vite proxy.
  */
 function normalizeApiHost(url) {
   return url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
@@ -12,7 +12,6 @@ function normalizeApiHost(url) {
 export function getClientApiBaseUrl() {
   const fromEnv = normalizeApiHost(import.meta.env.VITE_API_URL || "");
   if (import.meta.env.DEV) {
-    // Empty → same-origin /api (Vite proxy to localhost:4000 when using npm run dev).
     if (!fromEnv) return "";
     return fromEnv;
   }
@@ -21,4 +20,4 @@ export function getClientApiBaseUrl() {
 }
 
 export const apiUnreachableMessage =
-  `Cannot reach the API server. Run \`npm run dev\` (local API + Vite) or set VITE_API_URL to ${DEPLOYED_API_BASE_URL} (or your API host) and restart the dev server.`;
+  `Cannot reach the API server. Run \`npm run dev\` from the repo root (API + Vite) or set VITE_API_URL to ${DEPLOYED_API_BASE_URL} (or your API host) and restart the dev server.`;

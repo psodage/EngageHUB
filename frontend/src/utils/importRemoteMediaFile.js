@@ -1,4 +1,4 @@
-import { getClientApiBaseUrl } from "./apiBaseUrl";
+import { getClientApiBaseUrl } from "../config/api.js";
 import { ingestRemoteSocialMediaUrl } from "../services/socialApi";
 import { fetchUrlAsMediaFile } from "./fetchMediaFile";
 

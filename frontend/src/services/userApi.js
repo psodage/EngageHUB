@@ -1,4 +1,4 @@
-import { apiUnreachableMessage, getClientApiBaseUrl } from "../utils/apiBaseUrl";
+import { apiUnreachableMessage, getClientApiBaseUrl } from "../config/api.js";
 import { isNgrokHttpUrl, ngrokSkipBrowserWarningHeader } from "../utils/tunnelApiHeaders";
 
 const API_BASE_URL = getClientApiBaseUrl();

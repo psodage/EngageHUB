@@ -2,10 +2,10 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import { resolveProviderRedirectUri } from "../server/utils/redirectUri.util.js";
+import { resolveProviderRedirectUri } from "../utils/redirectUri.util.js";
 
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const envPath = path.join(projectRoot, ".env");
+const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const envPath = path.join(backendRoot, ".env");
 
 dotenv.config({ path: envPath });
 

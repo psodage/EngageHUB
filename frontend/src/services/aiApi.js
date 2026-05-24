@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getClientApiBaseUrl } from "../utils/apiBaseUrl";
+import { getClientApiBaseUrl } from "../config/api.js";
 import { STORAGE_KEYS } from "../data/constants";
 import { generateLocalCaptions } from "../utils/aiPostGenerator";
 

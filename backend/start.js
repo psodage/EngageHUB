@@ -1,7 +1,7 @@
 import dns from "node:dns";
 import dotenv from "dotenv";
 
-dotenv.config({ path: new URL("../.env", import.meta.url) });
+dotenv.config({ path: new URL("./.env", import.meta.url) });
 
 const mongoUri = process.env.MONGODB_URI || "";
 if (mongoUri.startsWith("mongodb+srv://")) {

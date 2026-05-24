@@ -1,6 +1,6 @@
 import axios from "axios";
 import { STORAGE_KEYS } from "../data/constants";
-import { getClientApiBaseUrl } from "../utils/apiBaseUrl";
+import { getClientApiBaseUrl } from "../config/api.js";
 import { formatHttpApiError } from "../utils/httpApiError";
 
 const client = axios.create({

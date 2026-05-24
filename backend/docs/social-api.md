@@ -3,7 +3,7 @@
 ## Folder Structure
 
 ```txt
-server/
+backend/
   controllers/social.controller.js
   models/SocialAccount.js
   routes/social.routes.js
