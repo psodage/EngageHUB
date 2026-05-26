@@ -117,22 +117,38 @@ npm run dev
 
 ## Deployment
 
-### Frontend (Vercel / Netlify)
+### Frontend (Vercel / Netlify / Render static site)
 
-1. Set the project root to `frontend/` (or deploy from that directory).
-2. Build command: `npm run build`
-3. Output directory: `dist`
-4. Environment variable: `VITE_API_URL=https://your-api.example.com`
+**Option A — repo root (monorepo)**
+
+| Setting | Value |
+|---------|--------|
+| Build command | `npm install && npm run build` |
+| Publish directory | `frontend/dist` |
+| Env | `VITE_API_URL=https://your-api.example.com` |
+
+Root `npm run build` runs `npm install` inside `frontend/` so Vite is available on CI.
+
+**Option B — `frontend/` as service root**
+
+| Setting | Value |
+|---------|--------|
+| Root directory | `frontend` |
+| Build command | `npm install && npm run build` |
+| Publish directory | `dist` |
 
 `vercel.json` is included for SPA routing.
 
 ### Backend (Render / Railway / VPS)
 
-1. Set the project root to `backend/`.
-2. Start command: `npm start`
-3. Set all variables from `backend/.env.example` in the host dashboard.
-4. Ensure `APP_BASE_URL` matches your API URL and OAuth redirect URIs are registered with each provider.
-5. Set `CLIENT_BASE_URL` to your frontend URL for CORS.
+1. Set the **root directory** to `backend/` (not the repo root).
+2. Build command: `npm install`
+3. Start command: `npm start`
+4. Set all variables from `backend/.env.example` in the host dashboard.
+5. Ensure `APP_BASE_URL` matches your API URL and OAuth redirect URIs are registered with each provider.
+6. Set `CLIENT_BASE_URL` to your frontend URL for CORS.
+
+Do **not** use `npm run build` at the repo root for a backend-only Render service — that builds the Vite frontend.
 
 ### CORS
 
