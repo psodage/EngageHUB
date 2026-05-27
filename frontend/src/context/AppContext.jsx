@@ -94,6 +94,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const applyAuthPayload = useCallback((payload) => {
+    console.log("[auth:applyAuthPayload] payload:", payload);
     localStorage.setItem(STORAGE_KEYS.auth, "1");
     localStorage.setItem(STORAGE_KEYS.authToken, payload.token);
     localStorage.setItem(STORAGE_KEYS.email, payload.user.email);

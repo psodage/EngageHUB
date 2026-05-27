@@ -34,8 +34,11 @@ export default function AuthGoogleCallbackPage() {
     completeGoogleLogin(code)
       .then((signedInUser) => {
         if (cancelled) return;
+        console.log("[auth:google:callback] signedInUser:", signedInUser);
         setToast({ message: "Login successful." });
-        navigate(signedInUser?.onboardingCompleted ? "/dashboard" : "/onboarding/platforms", { replace: true });
+        const nextRoute = signedInUser?.onboardingCompleted ? "/dashboard" : "/onboarding/platforms";
+        console.log("[auth:google:callback] navigating to:", nextRoute);
+        navigate(nextRoute, { replace: true });
       })
       .catch((apiError) => {
         if (cancelled) return;
