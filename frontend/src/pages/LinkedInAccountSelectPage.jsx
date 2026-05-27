@@ -16,7 +16,7 @@ function typeLabel(type) {
   return type === "organization" ? "Organization" : "Profile";
 }
 
-function DestinationCard({ destination, selected, onSelect }) {
+function DestinationCard({ destination, selected, onSelect, onboardingMode = false }) {
   const label = typeLabel(destination.type);
   return (
     <button
@@ -24,11 +24,24 @@ function DestinationCard({ destination, selected, onSelect }) {
       onClick={() => onSelect(destination)}
       className={[
         "group relative flex w-full items-start gap-4 rounded-2xl border p-4 text-left shadow-card transition",
-        "bg-white hover:border-buffer-300 dark:bg-slate-900 dark:hover:border-buffer-500",
-        selected ? "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15" : "border-slate-200/90 dark:border-slate-800",
+        onboardingMode
+          ? "bg-white hover:border-emerald-300"
+          : "bg-white hover:border-buffer-300 dark:bg-slate-900 dark:hover:border-buffer-500",
+        selected
+          ? onboardingMode
+            ? "border-emerald-500 ring-2 ring-emerald-500/20"
+            : "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15"
+          : onboardingMode
+            ? "border-slate-200/90"
+            : "border-slate-200/90 dark:border-slate-800",
       ].join(" ")}
     >
-      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
+      <div
+        className={[
+          "relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl",
+          onboardingMode ? "bg-slate-100" : "bg-slate-100 dark:bg-slate-800",
+        ].join(" ")}
+      >
         {destination.avatar ? (
           <img src={destination.avatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
         ) : null}
@@ -36,15 +49,17 @@ function DestinationCard({ destination, selected, onSelect }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+            <p className={["truncate text-sm font-semibold", onboardingMode ? "text-slate-900" : "text-slate-900 dark:text-white"].join(" ")}>
               {destination.name || (destination.type === "organization" ? "LinkedIn Organization" : "LinkedIn Profile")}
             </p>
-            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            <p className={["mt-0.5 truncate text-xs", onboardingMode ? "text-slate-500" : "text-slate-500 dark:text-slate-400"].join(" ")}>
               {label}
               {destination.permissionStatus ? ` · ${destination.permissionStatus}` : ""}
             </p>
             {destination.email ? (
-              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{destination.email}</p>
+              <p className={["mt-1 truncate text-xs", onboardingMode ? "text-slate-500" : "text-slate-500 dark:text-slate-400"].join(" ")}>
+                {destination.email}
+              </p>
             ) : null}
           </div>
           <div className="shrink-0">
@@ -52,7 +67,13 @@ function DestinationCard({ destination, selected, onSelect }) {
               size={20}
               className={[
                 "transition",
-                selected ? "text-buffer-600 dark:text-buffer-400" : "text-slate-300 group-hover:text-slate-400 dark:text-slate-700 dark:group-hover:text-slate-600",
+                selected
+                  ? onboardingMode
+                    ? "text-emerald-600"
+                    : "text-buffer-600 dark:text-buffer-400"
+                  : onboardingMode
+                    ? "text-slate-300 group-hover:text-slate-400"
+                    : "text-slate-300 group-hover:text-slate-400 dark:text-slate-700 dark:group-hover:text-slate-600",
               ].join(" ")}
               aria-hidden
             />
@@ -177,22 +198,43 @@ export default function LinkedInAccountSelectPage() {
               : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
           ].join(" ")}
         >
-          <div className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800 dark:bg-slate-950/30">
-            <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Choose your LinkedIn destination</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <div
+            className={[
+              "border-b border-slate-200/80 px-6 py-5",
+              isOnboardingFlow ? "bg-slate-50/60" : "bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/30",
+            ].join(" ")}
+          >
+            <h1 className={["text-lg font-semibold", isOnboardingFlow ? "text-slate-900" : "text-slate-900 dark:text-white"].join(" ")}>
+              Choose your LinkedIn destination
+            </h1>
+            <p className={["mt-1 text-sm", isOnboardingFlow ? "text-slate-500" : "text-slate-500 dark:text-slate-400"].join(" ")}>
               Select the profile or organization page you want to publish from in EngageHub.
             </p>
           </div>
 
           <div className="space-y-4 px-6 py-6">
             {orgWarning ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+              <div
+                className={[
+                  "rounded-2xl border p-4 text-sm",
+                  isOnboardingFlow
+                    ? "border-slate-200 bg-slate-50 text-slate-700"
+                    : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300",
+                ].join(" ")}
+              >
                 {orgWarning}
               </div>
             ) : null}
 
             {loading ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+              <div
+                className={[
+                  "flex items-center gap-3 rounded-2xl border p-4 text-sm",
+                  isOnboardingFlow
+                    ? "border-slate-200 bg-slate-50 text-slate-600"
+                    : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300",
+                ].join(" ")}
+              >
                 <Loader2 className="animate-spin" size={18} aria-hidden />
                 Loading LinkedIn destinations…
               </div>
@@ -226,6 +268,7 @@ export default function LinkedInAccountSelectPage() {
                     key={`${d.type}:${d.id}`}
                     destination={d}
                     selected={selected?.type === d.type && selected?.id === d.id}
+                    onboardingMode={isOnboardingFlow}
                     onSelect={(next) => setSelected(next)}
                   />
                 ))}
