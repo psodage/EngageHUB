@@ -192,10 +192,10 @@ export default function LinkedInAccountSelectPage() {
 
         <article
           className={[
-            "buffer-card overflow-hidden rounded-3xl border shadow-card",
+            "overflow-hidden rounded-3xl border shadow-card",
             isOnboardingFlow
-              ? "border-slate-200/90 bg-white/95"
-              : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
+              ? "border-slate-200 bg-white"
+              : "buffer-card border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
           ].join(" ")}
         >
           <div
