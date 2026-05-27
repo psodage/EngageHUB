@@ -201,16 +201,18 @@ export default function OnboardingPlatformsPage() {
   }, [started, setToast, setConnectionStatus, refreshConnectedAccounts]);
 
   const handleToggle = (platform) => {
-    if (started || isPlatformConnectTemporarilyDisabled(platform)) return;
+    const alreadyConnected = Boolean(accountsByPlatform[platform]?.isConnected);
+    if (started || isPlatformConnectTemporarilyDisabled(platform) || alreadyConnected) return;
     setSelected((prev) => ({ ...prev, [platform]: !prev[platform] }));
   };
 
   const startFlow = async () => {
     const selectedPlatforms = Object.entries(selected)
       .filter(([, checked]) => checked)
-      .map(([platform]) => platform);
+      .map(([platform]) => platform)
+      .filter((platform) => !accountsByPlatform[platform]?.isConnected);
     if (!selectedPlatforms.length) {
-      setToast({ message: "Select at least one platform to continue.", error: true });
+      setToast({ message: "Select at least one unconnected platform to continue.", error: true });
       return;
     }
 
@@ -273,6 +275,7 @@ export default function OnboardingPlatformsPage() {
           <div className="grid gap-2.5 sm:grid-cols-2">
             {orderedPlatforms.map((platform) => {
               const disabled = isPlatformConnectTemporarilyDisabled(platform.key);
+              const alreadyConnected = Boolean(accountsByPlatform[platform.key]?.isConnected);
               const cardStatus = getCardStatus(platform.key);
               const isSelected = selected[platform.key];
               const isProcessing = processingPlatform === platform.key;
@@ -282,9 +285,9 @@ export default function OnboardingPlatformsPage() {
                 <PlatformCard
                   key={platform.key}
                   platform={platform}
-                  isSelected={isSelected}
+                  isSelected={alreadyConnected ? false : isSelected}
                   status={cardStatus}
-                  disabled={disabled}
+                  disabled={disabled || alreadyConnected}
                   started={started}
                   isProcessing={isProcessing}
                   onToggle={handleToggle}

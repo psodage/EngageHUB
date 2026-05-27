@@ -8,6 +8,7 @@ import {
   startSocialConnect,
 } from "../services/socialApi";
 import { useApp } from "../context/AppContext";
+import OnboardingShell from "../components/onboarding/OnboardingShell";
 
 function flowReturnPath(flow) {
   const f = (flow || "settings").toLowerCase();
@@ -16,30 +17,36 @@ function flowReturnPath(flow) {
   return "/channels/googleBusiness";
 }
 
-function LocationCard({ location, selected, onToggle }) {
+function LocationCard({ location, selected, onToggle, onboardingMode = false }) {
   return (
     <button
       type="button"
       onClick={() => onToggle(location.locationId)}
       className={[
         "group relative flex w-full items-start gap-4 rounded-2xl border p-4 text-left shadow-card transition",
-        "bg-white hover:border-buffer-300 dark:bg-slate-900 dark:hover:border-buffer-500",
+        onboardingMode
+          ? "bg-white hover:border-emerald-300"
+          : "bg-white hover:border-buffer-300 dark:bg-slate-900 dark:hover:border-buffer-500",
         selected
-          ? "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15"
-          : "border-slate-200/90 dark:border-slate-800",
+          ? onboardingMode
+            ? "border-emerald-500 ring-2 ring-emerald-500/20"
+            : "border-buffer-500 ring-2 ring-buffer-500/20 dark:border-buffer-400 dark:ring-buffer-400/15"
+          : onboardingMode
+            ? "border-slate-200/90"
+            : "border-slate-200/90 dark:border-slate-800",
       ].join(" ")}
     >
       <PlatformBrandIcon platformKey="googleBusiness" size="md" />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+            <p className={["truncate text-sm font-semibold", onboardingMode ? "text-slate-900" : "text-slate-900 dark:text-white"].join(" ")}>
               {location.title || `Location ${location.locationId}`}
             </p>
-            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            <p className={["mt-0.5 truncate text-xs", onboardingMode ? "text-slate-500" : "text-slate-500 dark:text-slate-400"].join(" ")}>
               {location.accountName || "Google Business Account"} · Business
             </p>
-            <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+            <p className={["mt-1 truncate text-xs", onboardingMode ? "text-slate-500" : "text-slate-500 dark:text-slate-400"].join(" ")}>
               {location.address || location.primaryCategory || "Business profile"}
             </p>
           </div>
@@ -48,8 +55,12 @@ function LocationCard({ location, selected, onToggle }) {
             className={[
               "shrink-0 transition",
               selected
-                ? "text-buffer-600 dark:text-buffer-400"
-                : "text-slate-300 group-hover:text-slate-400 dark:text-slate-700 dark:group-hover:text-slate-600",
+                ? onboardingMode
+                  ? "text-emerald-600"
+                  : "text-buffer-600 dark:text-buffer-400"
+                : onboardingMode
+                  ? "text-slate-300 group-hover:text-slate-400"
+                  : "text-slate-300 group-hover:text-slate-400 dark:text-slate-700 dark:group-hover:text-slate-600",
             ].join(" ")}
             aria-hidden
           />
@@ -70,6 +81,7 @@ export default function GoogleBusinessLocationSelectPage() {
   const [error, setError] = useState("");
   const [locations, setLocations] = useState([]);
   const [flow, setFlow] = useState("settings");
+  const isOnboardingFlow = flow === "onboarding";
   const [selectedIds, setSelectedIds] = useState([]);
   const [retryCountdown, setRetryCountdown] = useState(0);
 
@@ -172,13 +184,17 @@ export default function GoogleBusinessLocationSelectPage() {
     }
   };
 
-  return (
-    <div className="dashboard-page">
-      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+  const content = (
+      <div className={isOnboardingFlow ? "mx-auto w-full max-w-4xl" : "mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8"}>
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
-            to="/channels"
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            to={isOnboardingFlow ? "/onboarding/platforms" : "/channels"}
+            className={[
+              "inline-flex items-center gap-2 text-sm font-semibold",
+              isOnboardingFlow
+                ? "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                : "rounded-lg px-2 py-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white",
+            ].join(" ")}
           >
             <ChevronLeft size={18} aria-hidden />
             Cancel
@@ -186,24 +202,48 @@ export default function GoogleBusinessLocationSelectPage() {
           <button
             type="button"
             onClick={handleSwitchAccount}
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-buffer-600 hover:text-buffer-700 dark:text-buffer-300 dark:hover:text-buffer-200"
+            className={[
+              "inline-flex items-center gap-2 text-sm font-semibold",
+              isOnboardingFlow
+                ? "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                : "rounded-lg px-2 py-1.5 text-buffer-600 hover:text-buffer-700 dark:text-buffer-300 dark:hover:text-buffer-200",
+            ].join(" ")}
           >
             Switch Google Account
             <ExternalLink size={16} aria-hidden />
           </button>
         </div>
 
-        <article className="buffer-card overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
-          <div className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800 dark:bg-slate-950/30">
-            <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Select Google Business Profiles</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <article
+          className={[
+            "overflow-hidden rounded-3xl border shadow-card",
+            isOnboardingFlow
+              ? "border-slate-200 bg-white"
+              : "buffer-card border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
+          ].join(" ")}
+        >
+          <div
+            className={[
+              "border-b border-slate-200/80 px-6 py-5",
+              isOnboardingFlow ? "bg-slate-50/60" : "bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/30",
+            ].join(" ")}
+          >
+            <h1 className={["text-lg font-semibold", isOnboardingFlow ? "text-slate-900" : "text-slate-900 dark:text-white"].join(" ")}>
+              Select Google Business Profiles
+            </h1>
+            <p className={["mt-1 text-sm", isOnboardingFlow ? "text-slate-500" : "text-slate-500 dark:text-slate-400"].join(" ")}>
               Choose the business locations you want to manage from EngageHub.
             </p>
           </div>
 
           <div className="space-y-4 px-6 py-6">
             {!loading && !error ? (
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+              <label
+                className={[
+                  "inline-flex items-center gap-2 text-sm font-medium",
+                  isOnboardingFlow ? "text-slate-700" : "text-slate-700 dark:text-slate-200",
+                ].join(" ")}
+              >
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-slate-300 text-buffer-600 focus:ring-buffer-500"
@@ -215,7 +255,14 @@ export default function GoogleBusinessLocationSelectPage() {
             ) : null}
 
             {loading ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+              <div
+                className={[
+                  "flex items-center gap-3 rounded-2xl border p-4 text-sm",
+                  isOnboardingFlow
+                    ? "border-slate-200 bg-slate-50 text-slate-600"
+                    : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300",
+                ].join(" ")}
+              >
                 <Loader2 className="animate-spin" size={18} aria-hidden />
                 {retryCountdown > 0
                   ? `Google API rate limit — retrying in ${retryCountdown}s…`
@@ -257,6 +304,7 @@ export default function GoogleBusinessLocationSelectPage() {
                     key={`${loc.accountId}:${loc.locationId}`}
                     location={loc}
                     selected={selectedIds.includes(loc.locationId)}
+                    onboardingMode={isOnboardingFlow}
                     onToggle={toggleLocation}
                   />
                 ))}
@@ -266,8 +314,13 @@ export default function GoogleBusinessLocationSelectPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => navigate("/channels")}
-                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                onClick={() => navigate(isOnboardingFlow ? "/onboarding/platforms" : "/channels")}
+                className={[
+                  "border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50",
+                  isOnboardingFlow
+                    ? "rounded-full"
+                    : "rounded-xl dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800",
+                ].join(" ")}
               >
                 Cancel
               </button>
@@ -276,10 +329,13 @@ export default function GoogleBusinessLocationSelectPage() {
                 disabled={loading || Boolean(error) || !selectedIds.length || finishing}
                 onClick={handleFinish}
                 className={[
-                  "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition",
+                  "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition",
+                  isOnboardingFlow ? "rounded-full shadow-sm" : "rounded-xl",
                   loading || error || !selectedIds.length || finishing
                     ? "bg-slate-400 dark:bg-slate-700"
-                    : "bg-buffer-600 hover:bg-buffer-700 dark:bg-buffer-500 dark:hover:bg-buffer-600",
+                    : isOnboardingFlow
+                      ? "bg-emerald-600 hover:bg-emerald-500"
+                      : "bg-buffer-600 hover:bg-buffer-700 dark:bg-buffer-500 dark:hover:bg-buffer-600",
                 ].join(" ")}
               >
                 {finishing ? <Loader2 className="animate-spin" size={18} aria-hidden /> : null}
@@ -289,6 +345,7 @@ export default function GoogleBusinessLocationSelectPage() {
           </div>
         </article>
       </div>
-    </div>
   );
+  if (isOnboardingFlow) return <OnboardingShell>{content}</OnboardingShell>;
+  return <div className="dashboard-page">{content}</div>;
 }
