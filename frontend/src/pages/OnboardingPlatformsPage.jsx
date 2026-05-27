@@ -245,6 +245,7 @@ export default function OnboardingPlatformsPage() {
               const isSelected = selected[platform.key];
               const isProcessing = processingPlatform === platform.key;
 
+              const isInstagramOrThreads = platform.key === "instagram" || platform.key === "threads";
               return (
                 <PlatformCard
                   key={platform.key}
@@ -258,6 +259,7 @@ export default function OnboardingPlatformsPage() {
                     cardStatus === "connected" ? accountsByPlatform[platform.key] : undefined
                   }
                   onToggle={handleToggle}
+                  className={isInstagramOrThreads ? "mt-2.5 sm:mt-3.5" : ""}
                 />
               );
             })}

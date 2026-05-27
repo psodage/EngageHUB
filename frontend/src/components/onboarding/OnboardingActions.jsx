@@ -1,12 +1,13 @@
 import { Loader2 } from "lucide-react";
 
 export function PrimaryButton({ children, onClick, disabled, loading, className = "" }) {
+  const bgClass = className.includes("bg-") ? "" : "bg-slate-900 hover:bg-slate-800";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${bgClass} ${className}`}
     >
       {loading ? <Loader2 size={16} className="animate-spin" /> : null}
       {children}
@@ -41,7 +42,7 @@ export default function OnboardingActions({ onContinue, onSkip, finishing, selec
           <SecondaryButton onClick={onSkip} disabled={finishing} loading={finishing}>
             Skip for now
           </SecondaryButton>
-          <PrimaryButton onClick={onContinue} disabled={!selectedCount}>
+          <PrimaryButton onClick={onContinue} disabled={!selectedCount} className="bg-emerald-600 hover:bg-emerald-500">
             Continue
           </PrimaryButton>
         </div>

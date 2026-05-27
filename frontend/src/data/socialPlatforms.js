@@ -26,8 +26,8 @@ export const SOCIAL_PLATFORM_CONFIGS = [
     key: "facebook",
     label: "Facebook",
     icon: PLATFORM_BRAND_ICONS.facebook,
-    hint: "Personal profile",
-    connectSubtitle: "Page or Profile",
+    hint: "Facebook page publishing",
+    connectSubtitle: "Page",
   },
   {
     key: "youtube",
