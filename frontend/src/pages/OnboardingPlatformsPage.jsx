@@ -272,9 +272,6 @@ export default function OnboardingPlatformsPage() {
                   disabled={disabled}
                   started={started}
                   isProcessing={isProcessing}
-                  connectedAccount={
-                    cardStatus === "connected" ? accountsByPlatform[platform.key] : undefined
-                  }
                   onToggle={handleToggle}
                   className={isInstagramOrThreads ? "mt-2.5 sm:mt-3.5" : ""}
                 />

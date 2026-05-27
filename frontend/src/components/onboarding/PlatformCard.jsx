@@ -12,7 +12,7 @@ const STATUS_LABELS = {
 
 function StatusBadge({ status }) {
   const styles = {
-    connected: "bg-brand-50 text-brand-700 border-brand-200",
+    connected: "border-emerald-200 bg-emerald-50 text-emerald-700",
     skipped: "bg-amber-50 text-amber-700 border-amber-200",
     failed: "bg-red-50 text-red-700 border-red-200",
     processing: "bg-slate-100 text-slate-600 border-slate-200",
@@ -35,7 +35,6 @@ export default function PlatformCard({
   disabled = false,
   started = false,
   isProcessing = false,
-  connectedAccount,
   onToggle,
   className = "",
 }) {
@@ -56,7 +55,9 @@ export default function PlatformCard({
         disabled
           ? "border-slate-200 bg-slate-50/10 dark:border-slate-800/40 dark:bg-slate-900/10"
           : isConnected
-            ? "border-brand-200 bg-brand-50/50"
+            ? "border-emerald-200 bg-emerald-50/60"
+            : status === "skipped"
+              ? "border-amber-200 bg-amber-50/70"
             : isSelected && !started
               ? "border-brand-400/60 bg-brand-50/40 ring-1 ring-brand-500/20"
               : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
@@ -73,11 +74,6 @@ export default function PlatformCard({
             <StatusBadge status={isConnected ? "connected" : status} />
           </span>
         ) : null}
-        {isConnected && connectedAccount ? (
-          <span className="mt-1.5 block truncate text-[11px] text-slate-600">
-            {connectedAccount.accountName || connectedAccount.username || "Connected"}
-          </span>
-        ) : null}
       </span>
       {!started && isInteractive && !isConnected ? (
         <span
@@ -88,8 +84,8 @@ export default function PlatformCard({
           {isSelected ? <Check size={12} strokeWidth={3} /> : null}
         </span>
       ) : null}
-      {isConnected && !started ? (
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-500 text-white">
+      {isConnected ? (
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white">
           <Check size={12} strokeWidth={3} />
         </span>
       ) : null}
