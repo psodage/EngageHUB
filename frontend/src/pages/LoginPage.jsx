@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import AuthFormShell from "../components/auth/AuthFormShell";
@@ -8,6 +8,7 @@ import {
   AuthDivider,
   AuthField,
   AuthHeading,
+  AuthInlineAlert,
   AuthSubmitButton,
   GoogleSignInButton,
 } from "../components/auth/AuthFormPrimitives";
@@ -19,38 +20,112 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touched, setTouched] = useState({ email: false, password: false });
+  const [formAlert, setFormAlert] = useState(null);
+  const redirectTimerRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const authError = location.state?.authError;
     if (!authError) return;
-    setToast({ message: authError, error: true });
+    setFormAlert({ type: "error", message: authError });
     navigate("/login", { replace: true, state: null });
-  }, [location.state, navigate, setToast]);
+  }, [location.state, navigate]);
+
+  useEffect(() => {
+    if (!formAlert?.message) return undefined;
+    const id = setTimeout(() => setFormAlert(null), 4200);
+    return () => clearTimeout(id);
+  }, [formAlert]);
+
+  const validate = (nextEmail, nextPassword) => {
+    const errors = {};
+    const normalizedEmail = nextEmail.trim();
+    if (!normalizedEmail) {
+      errors.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      errors.email = "Invalid email address.";
+    }
+    if (!nextPassword) {
+      errors.password = "Password is required.";
+    } else if (nextPassword.length < 8) {
+      errors.password = "Password must be at least 8 characters.";
+    }
+    return errors;
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim() || password.length < 6) {
-      setToast({ message: AUTH_MESSAGES.loginValidation, error: true });
+    setFormAlert(null);
+    const errors = validate(email, password);
+    setFieldErrors(errors);
+    setTouched({ email: true, password: true });
+    if (Object.keys(errors).length) {
+      setFormAlert({ type: "error", message: AUTH_MESSAGES.loginValidation });
       return;
     }
 
     setSubmitting(true);
     try {
-      await login({ email: email.trim(), password });
-      navigate("/dashboard", { replace: true });
+      const signedInUser = await login({ email: email.trim(), password });
+      setFormAlert({ type: "success", message: "Login successful." });
+      setToast({ message: "Login successful." });
+      const nextRoute = signedInUser?.onboardingCompleted ? "/dashboard" : "/onboarding/platforms";
+      redirectTimerRef.current = setTimeout(() => navigate(nextRoute, { replace: true }), 650);
+      return;
     } catch (apiError) {
-      setToast({
-        message: apiError?.message || AUTH_MESSAGES.loginError,
-        error: true,
+      setFormAlert({
+        type: "error",
+        message:
+          apiError?.message?.toLowerCase?.().includes("invalid") ||
+          apiError?.message?.toLowerCase?.().includes("password")
+            ? "Failed to log in. Please check your credentials and try again."
+            : AUTH_MESSAGES.loginError,
       });
     } finally {
       setSubmitting(false);
     }
   };
 
+  const onEmailChange = (e) => {
+    const nextEmail = e.target.value;
+    setEmail(nextEmail);
+    if (fieldErrors.email) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.email;
+        return next;
+      });
+    }
+  };
+
+  const onPasswordChange = (e) => {
+    const nextPassword = e.target.value;
+    setPassword(nextPassword);
+    if (fieldErrors.password) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.password;
+        return next;
+      });
+    }
+  };
+
   const onGoogleClick = () => {
+    setFormAlert(null);
     startGoogleAuth("login");
   };
+
+  const emailValid =
+    touched.email && Boolean(email.trim()) && !fieldErrors.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const passwordValid = touched.password && password.length >= 8 && !fieldErrors.password;
 
   return (
     <AuthSplitLayout>
@@ -58,32 +133,30 @@ export default function LoginPage() {
         topLink={{ muted: "New here?", linkText: "Create an account", linkTo: "/signup" }}
         footer={
           <>
-            By signing in you agree to our{" "}
-            <Link to="/terms" className="underline underline-offset-2 hover:text-slate-600">
-              Terms
-            </Link>{" "}
-            &amp;{" "}
-            <Link to="/privacy" className="underline underline-offset-2 hover:text-slate-600">
-              Privacy Policy
-            </Link>
+            By signing in you agree to our Terms &amp; Privacy Policy
           </>
         }
       >
         <AuthHeading />
+        <div className="mt-3">
+          <AuthInlineAlert alert={formAlert} />
+        </div>
 
         <div className="mt-4 space-y-3">
           <GoogleSignInButton onClick={onGoogleClick} />
           <AuthDivider label="Or continue with email" />
 
-          <form className="space-y-2.5" onSubmit={onSubmit}>
+          <form className="space-y-2.5" onSubmit={onSubmit} noValidate>
             <AuthField
               id="login-email"
               label="Work email"
               type="email"
               placeholder="you@company.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={onEmailChange}
               autoComplete="email"
+              error={fieldErrors.email}
+              valid={emailValid}
             />
             <AuthField
               id="login-password"
@@ -91,10 +164,12 @@ export default function LoginPage() {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={onPasswordChange}
               autoComplete="current-password"
+              error={fieldErrors.password}
+              valid={passwordValid}
             />
-            <AuthSubmitButton disabled={submitting}>{submitting ? "Signing in…" : "Sign in"}</AuthSubmitButton>
+            <AuthSubmitButton disabled={submitting}>{submitting ? "Signing in..." : "Sign in"}</AuthSubmitButton>
           </form>
         </div>
       </AuthFormShell>

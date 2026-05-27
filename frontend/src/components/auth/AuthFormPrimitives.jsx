@@ -1,4 +1,6 @@
 import { useAuthNavigation } from "./AuthNavigationContext";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 export function AuthTopLink({ muted, linkText, linkTo }) {
   const { navigateAuth, isReloading } = useAuthNavigation();
@@ -22,7 +24,19 @@ export function AuthTopLink({ muted, linkText, linkTo }) {
   );
 }
 
-export function AuthField({ id, label, type = "text", placeholder, value, onChange, autoComplete }) {
+export function AuthField({
+  id,
+  label,
+  type = "text",
+  placeholder,
+  value,
+  onChange,
+  autoComplete,
+  error,
+  valid = false,
+}) {
+  const hasError = Boolean(error);
+
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="text-xs font-medium text-slate-600">
@@ -35,9 +49,64 @@ export function AuthField({ id, label, type = "text", placeholder, value, onChan
         value={value}
         onChange={onChange}
         autoComplete={autoComplete}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/5"
+        aria-invalid={hasError}
+        aria-describedby={hasError ? `${id}-error` : undefined}
+        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
+          hasError
+            ? "border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-500/15"
+            : valid
+              ? "border-emerald-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15"
+              : "border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/5"
+        }`}
       />
+      <AnimatePresence initial={false}>
+        {hasError ? (
+          <motion.p
+            id={`${id}-error`}
+            key={`${id}-error`}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -3 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="text-xs font-medium text-red-500"
+          >
+            {error}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
     </div>
+  );
+}
+
+export function AuthInlineAlert({ alert }) {
+  const isSuccess = alert?.type === "success";
+  const Icon = isSuccess ? CheckCircle2 : AlertTriangle;
+
+  return (
+    <AnimatePresence initial={false}>
+      {alert?.message ? (
+        <motion.div
+          key={`${alert.type}-${alert.message}`}
+          initial={{ opacity: 0, y: -8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.98 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-xs font-medium shadow-[0_2px_8px_-2px_rgba(15,23,42,0.05)] ${
+            isSuccess
+              ? "border-emerald-100 bg-emerald-50/50 text-emerald-800"
+              : "border-red-100 bg-red-50/50 text-red-800"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <Icon
+            size={14}
+            className={`mt-0.5 shrink-0 ${isSuccess ? "text-emerald-600" : "text-red-500"}`}
+          />
+          <span className="leading-relaxed">{alert.message}</span>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 

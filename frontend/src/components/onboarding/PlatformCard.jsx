@@ -52,17 +52,19 @@ export default function PlatformCard({
       transition={{ duration: 0.25 }}
       whileHover={isInteractive ? { y: -2 } : undefined}
       className={`group relative w-full rounded-xl border p-3.5 text-left transition-colors duration-200 ${
-        isConnected
-          ? "border-brand-200 bg-brand-50/50"
-          : isSelected && !started
-            ? "border-brand-400/60 bg-brand-50/40 ring-1 ring-brand-500/20"
-            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
-      } ${disabled ? "cursor-not-allowed opacity-45" : started ? "cursor-default" : "cursor-pointer"} flex items-start gap-3`}
+        disabled
+          ? "border-slate-200 bg-slate-50/10 dark:border-slate-800/40 dark:bg-slate-900/10"
+          : isConnected
+            ? "border-brand-200 bg-brand-50/50"
+            : isSelected && !started
+              ? "border-brand-400/60 bg-brand-50/40 ring-1 ring-brand-500/20"
+              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
+      } ${disabled ? "cursor-not-allowed opacity-90" : started ? "cursor-default" : "cursor-pointer"} flex items-start gap-3`}
     >
-      <SocialPlatformIcon platformKey={platform.key} size="sm" />
+      <SocialPlatformIcon platformKey={platform.key} size="sm" className={disabled ? "grayscale opacity-85" : ""} />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-slate-900">{platform.label}</span>
-        <span className="mt-0.5 block line-clamp-2 text-[11px] leading-snug text-slate-500">
+        <span className={`block text-sm font-semibold ${disabled ? "text-slate-800" : "text-slate-900"}`}>{platform.label}</span>
+        <span className={`mt-0.5 block line-clamp-2 text-[11px] leading-snug ${disabled ? "text-slate-500" : "text-slate-500"}`}>
           {disabled ? "Coming soon" : description}
         </span>
         {(started || isConnected) && status !== "not-selected" ? (

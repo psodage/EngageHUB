@@ -39,6 +39,16 @@ export default function OnboardingPlatformsPage() {
     [connectedAccounts]
   );
 
+  const orderedPlatforms = useMemo(() => {
+    const available = SOCIAL_PLATFORM_CONFIGS.filter(
+      (p) => !isPlatformConnectTemporarilyDisabled(p.key)
+    );
+    const comingSoon = SOCIAL_PLATFORM_CONFIGS.filter(
+      (p) => isPlatformConnectTemporarilyDisabled(p.key)
+    );
+    return [...available, ...comingSoon];
+  }, []);
+
   const currentIndex = useMemo(
     () => queue.findIndex((platform) => !["connected", "skipped"].includes(statusMap[platform])),
     [queue, statusMap]
@@ -229,7 +239,7 @@ export default function OnboardingPlatformsPage() {
 
         <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-0.5">
           <div className="grid gap-2.5 sm:grid-cols-2">
-            {SOCIAL_PLATFORM_CONFIGS.map((platform) => {
+            {orderedPlatforms.map((platform) => {
               const disabled = isPlatformConnectTemporarilyDisabled(platform.key);
               const cardStatus = getCardStatus(platform.key);
               const isSelected = selected[platform.key];

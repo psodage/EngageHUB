@@ -26,21 +26,25 @@ import GoogleBusinessLocationSelectPage from "./pages/GoogleBusinessLocationSele
 import Toast from "./components/Toast";
 import AuthAlert from "./components/auth/AuthAlert";
 
-function ProtectedRoute({ children }) {
-  const { isAuthed } = useApp();
-  return isAuthed ? children : <Navigate to="/login" replace />;
+function ProtectedRoute({ children, requireOnboardingComplete = false }) {
+  const { isAuthed, isOnboardingCompleted } = useApp();
+  if (!isAuthed) return <Navigate to="/login" replace />;
+  if (requireOnboardingComplete && !isOnboardingCompleted) {
+    return <Navigate to="/onboarding/platforms" replace />;
+  }
+  return children;
 }
 
 function LoginRoute() {
-  const { isAuthed } = useApp();
+  const { isAuthed, isOnboardingCompleted } = useApp();
   if (!isAuthed) return <LoginPage />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={isOnboardingCompleted ? "/dashboard" : "/onboarding/platforms"} replace />;
 }
 
 function SignupRoute() {
-  const { isAuthed } = useApp();
+  const { isAuthed, isOnboardingCompleted } = useApp();
   if (!isAuthed) return <SignupPage />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={isOnboardingCompleted ? "/dashboard" : "/onboarding/platforms"} replace />;
 }
 
 function OnboardingRoute() {
@@ -50,9 +54,9 @@ function OnboardingRoute() {
 }
 
 function NotFoundRoute() {
-  const { isAuthed } = useApp();
+  const { isAuthed, isOnboardingCompleted } = useApp();
   if (!isAuthed) return <Navigate to="/login" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={isOnboardingCompleted ? "/dashboard" : "/onboarding/platforms"} replace />;
 }
 
 function RedirectLegacyConnectedPlatform() {
@@ -84,7 +88,7 @@ function RootRouter() {
         <Route
           path="/"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireOnboardingComplete>
               <DashboardLayout />
             </ProtectedRoute>
           }

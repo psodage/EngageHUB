@@ -4,7 +4,7 @@ import { useApp } from "../context/AppContext";
 import { AUTH_MESSAGES } from "../components/auth/authFeedbackConstants";
 
 export default function AuthGoogleCallbackPage() {
-  const { completeGoogleLogin } = useApp();
+  const { completeGoogleLogin, setToast } = useApp();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,9 +32,10 @@ export default function AuthGoogleCallbackPage() {
     let cancelled = false;
 
     completeGoogleLogin(code)
-      .then(() => {
+      .then((signedInUser) => {
         if (cancelled) return;
-        navigate("/dashboard", { replace: true });
+        setToast({ message: "Login successful." });
+        navigate(signedInUser?.onboardingCompleted ? "/dashboard" : "/onboarding/platforms", { replace: true });
       })
       .catch((apiError) => {
         if (cancelled) return;
