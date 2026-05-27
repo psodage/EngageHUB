@@ -61,6 +61,12 @@ export default function OnboardingPlatformsPage() {
   const progressCurrent = started ? processedCount : selectedCount;
   const progressPercent = progressTotal ? Math.round((progressCurrent / progressTotal) * 100) : 0;
 
+  const handleLogout = () => {
+    sessionStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    logout();
+    navigate("/login", { replace: true });
+  };
+
   const persistFlow = (nextQueue, nextStatusMap) => {
     sessionStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ queue: nextQueue, statusMap: nextStatusMap }));
   };
@@ -247,11 +253,20 @@ export default function OnboardingPlatformsPage() {
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <OnboardingHeader />
-          <ProgressTracker
-            processedCount={progressCurrent}
-            totalCount={progressTotal}
-            percent={progressPercent}
-          />
+          <div className="flex items-start gap-2 self-start">
+            <ProgressTracker
+              processedCount={progressCurrent}
+              totalCount={progressTotal}
+              percent={progressPercent}
+            />
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-0.5">
