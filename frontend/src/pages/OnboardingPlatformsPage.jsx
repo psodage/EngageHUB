@@ -22,7 +22,7 @@ function getInitialSelected() {
 
 export default function OnboardingPlatformsPage() {
   const navigate = useNavigate();
-  const { setToast, completeOnboarding, setConnectionStatus, connectedAccounts, refreshConnectedAccounts } = useApp();
+  const { setToast, completeOnboarding, setConnectionStatus, connectedAccounts, refreshConnectedAccounts, logout } = useApp();
   const [selected, setSelected] = useState(getInitialSelected);
   const [queue, setQueue] = useState([]);
   const [statusMap, setStatusMap] = useState({});
@@ -121,12 +121,28 @@ export default function OnboardingPlatformsPage() {
   };
 
   useEffect(() => {
+    const navEntry =
+      typeof performance !== "undefined" && typeof performance.getEntriesByType === "function"
+        ? performance.getEntriesByType("navigation")[0]
+        : null;
+    const isReload =
+      navEntry?.type === "reload" ||
+      (typeof performance !== "undefined" &&
+        performance.navigation &&
+        performance.navigation.type === 1);
+    if (isReload) {
+      sessionStorage.removeItem(ONBOARDING_STORAGE_KEY);
+      logout();
+      navigate("/login", { replace: true });
+      return;
+    }
+
     const { queue: persistedQueue, statusMap: persistedStatusMap } = loadPersistedFlow();
     if (!persistedQueue.length) return;
     setQueue(persistedQueue);
     setStatusMap(persistedStatusMap);
     setStarted(true);
-  }, []);
+  }, [logout, navigate]);
 
   useEffect(() => {
     if (!started) return;

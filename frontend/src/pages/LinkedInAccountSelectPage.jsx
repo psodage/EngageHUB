@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, ChevronLeft, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
 import { getLinkedInAccountsSession, selectLinkedInAccount, startSocialConnect } from "../services/socialApi";
 import { useApp } from "../context/AppContext";
+import OnboardingShell from "../components/onboarding/OnboardingShell";
 
 function flowReturnPath(flow) {
   const f = (flow || "settings").toLowerCase();
@@ -75,6 +76,7 @@ export default function LinkedInAccountSelectPage() {
   const [flow, setFlow] = useState("settings");
   const [orgWarning, setOrgWarning] = useState("");
   const [selected, setSelected] = useState(null);
+  const isOnboardingFlow = flow === "onboarding";
 
   const loadSession = async () => {
     if (!sessionId) {
@@ -137,13 +139,17 @@ export default function LinkedInAccountSelectPage() {
     }
   };
 
-  return (
-    <div className="dashboard-page">
-      <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+  const content = (
+    <div className={isOnboardingFlow ? "mx-auto w-full max-w-3xl" : "mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8"}>
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
-            to="/channels"
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            to={isOnboardingFlow ? "/onboarding/platforms" : "/channels"}
+            className={[
+              "inline-flex items-center gap-2 text-sm font-semibold",
+              isOnboardingFlow
+                ? "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                : "rounded-lg px-2 py-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white",
+            ].join(" ")}
           >
             <ChevronLeft size={18} aria-hidden />
             Back
@@ -151,18 +157,30 @@ export default function LinkedInAccountSelectPage() {
           <button
             type="button"
             onClick={handleSwitchAccount}
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-buffer-600 hover:text-buffer-700 dark:text-buffer-300 dark:hover:text-buffer-200"
+            className={[
+              "inline-flex items-center gap-2 text-sm font-semibold",
+              isOnboardingFlow
+                ? "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                : "rounded-lg px-2 py-1.5 text-buffer-600 hover:text-buffer-700 dark:text-buffer-300 dark:hover:text-buffer-200",
+            ].join(" ")}
           >
             Switch Account
             <ExternalLink size={16} aria-hidden />
           </button>
         </div>
 
-        <article className="buffer-card overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
+        <article
+          className={[
+            "buffer-card overflow-hidden rounded-3xl border shadow-card",
+            isOnboardingFlow
+              ? "border-slate-200/90 bg-white/95"
+              : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
+          ].join(" ")}
+        >
           <div className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800 dark:bg-slate-950/30">
-            <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Confirm your LinkedIn Account</h1>
+            <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Choose your LinkedIn destination</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Choose where you want to publish from EngageHub.
+              Select the profile or organization page you want to publish from in EngageHub.
             </p>
           </div>
 
@@ -220,10 +238,13 @@ export default function LinkedInAccountSelectPage() {
                 disabled={loading || Boolean(error) || !selected || finishing}
                 onClick={handleFinish}
                 className={[
-                  "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition",
+                  "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition",
+                  isOnboardingFlow ? "rounded-full shadow-sm" : "rounded-xl",
                   loading || error || !selected || finishing
                     ? "bg-slate-400 dark:bg-slate-700"
-                    : "bg-buffer-600 hover:bg-buffer-700 dark:bg-buffer-500 dark:hover:bg-buffer-600",
+                    : isOnboardingFlow
+                      ? "bg-emerald-600 hover:bg-emerald-500"
+                      : "bg-buffer-600 hover:bg-buffer-700 dark:bg-buffer-500 dark:hover:bg-buffer-600",
                 ].join(" ")}
               >
                 {finishing ? <Loader2 className="animate-spin" size={18} aria-hidden /> : null}
@@ -232,8 +253,9 @@ export default function LinkedInAccountSelectPage() {
             </div>
           </div>
         </article>
-      </div>
-    </div>
   );
+
+  if (isOnboardingFlow) return <OnboardingShell>{content}</OnboardingShell>;
+  return <div className="dashboard-page">{content}</div>;
 }
 
