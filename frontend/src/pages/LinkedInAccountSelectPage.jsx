@@ -253,6 +253,7 @@ export default function LinkedInAccountSelectPage() {
             </div>
           </div>
         </article>
+      </div>
   );
 
   if (isOnboardingFlow) return <OnboardingShell>{content}</OnboardingShell>;
