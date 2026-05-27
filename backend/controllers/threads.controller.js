@@ -134,8 +134,10 @@ export async function threadsOauthCallback(req, res) {
   };
 
   let flowForRedirect = "settings";
+  let decodedStateForFallback = null;
   try {
     const decodedState = validateOAuthState(state, "threads");
+    decodedStateForFallback = decodedState;
     const flow = normalizeOAuthFlow(decodedState?.flow);
     flowForRedirect = flow;
 
@@ -191,6 +193,30 @@ export async function threadsOauthCallback(req, res) {
 
     return res.redirect(makeRedirectUrl(flow, "connected"));
   } catch (callbackError) {
+    const callbackReason = mapCallbackReason(callbackError);
+    if (callbackReason === "threads_invalid_auth_code" && decodedStateForFallback?.userId) {
+      try {
+        const existingAccount = await getStoredAccountForProvider(
+          new ObjectId(decodedStateForFallback.userId),
+          "threads"
+        );
+        if (existingAccount?.isConnected) {
+          console.info("[oauth:threads:callback:already-connected]", {
+            platform: "threads",
+            flow: flowForRedirect,
+            userId: decodedStateForFallback.userId,
+          });
+          return res.redirect(makeRedirectUrl(flowForRedirect, "connected"));
+        }
+      } catch (fallbackError) {
+        console.warn("[oauth:threads:callback:fallback-check-failed]", {
+          platform: "threads",
+          flow: flowForRedirect,
+          message: fallbackError?.message,
+        });
+      }
+    }
+
     console.error("[oauth:threads:callback:error]", {
       platform: "threads",
       message: callbackError?.message,
@@ -199,7 +225,7 @@ export async function threadsOauthCallback(req, res) {
     });
     const detail =
       callbackError?.message && typeof callbackError.message === "string" ? callbackError.message : "";
-    return res.redirect(makeRedirectUrl(flowForRedirect, "error", mapCallbackReason(callbackError), detail));
+    return res.redirect(makeRedirectUrl(flowForRedirect, "error", callbackReason, detail));
   }
 }
 
