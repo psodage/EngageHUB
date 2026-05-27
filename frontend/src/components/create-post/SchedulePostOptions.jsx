@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Globe } from "lucide-react";
 import { SOCIAL_PLATFORM_CONFIGS } from "../../data/socialPlatforms";
 import {
@@ -54,6 +54,12 @@ function formatScheduleSummary(isoLocal, timezone, channelCount) {
 function ScheduleCalendar({ selectedDate, onSelectDate, minDate }) {
   const initial = selectedDate || minDate || new Date();
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(initial));
+
+  useEffect(() => {
+    if (selectedDate) {
+      setViewMonth(startOfMonth(selectedDate));
+    }
+  }, [selectedDate]);
 
   const year = viewMonth.getFullYear();
   const month = viewMonth.getMonth();

@@ -31,24 +31,13 @@ export function defaultScheduleDateTime() {
   return toLocalDateTimeValue(nextSchedulableSlot());
 }
 
-/** Combine calendar day + time; if in the past, use the next valid slot on that day (or the next slot overall). */
+/** Combine calendar day + time. */
 export function toLocalDateTimeFromParts(dateObj, timeStr) {
-  const [hh, mm] = (timeStr || "09:00").split(":").map(Number);
+  const parts = (timeStr || "09:00").split(":");
+  const hh = parts[0] !== undefined && parts[0] !== "" ? Number(parts[0]) : 9;
+  const mm = parts[1] !== undefined && parts[1] !== "" ? Number(parts[1]) : 0;
+  
   let next = new Date(dateObj);
-  next.setHours(hh || 9, mm || 0, 0, 0);
-
-  const min = nextSchedulableSlot();
-  if (next.getTime() < min.getTime()) {
-    const endOfSelected = new Date(dateObj);
-    endOfSelected.setHours(23, 59, 59, 999);
-    if (endOfSelected.getTime() < min.getTime()) {
-      next = min;
-    } else {
-      next = new Date(dateObj);
-      next.setHours(min.getHours(), min.getMinutes(), 0, 0);
-      if (next.getTime() < min.getTime()) next = min;
-    }
-  }
-
+  next.setHours(isNaN(hh) ? 9 : hh, isNaN(mm) ? 0 : mm, 0, 0);
   return toLocalDateTimeValue(next);
 }
