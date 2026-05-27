@@ -91,10 +91,10 @@ export function AuthInlineAlert({ alert }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.98 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
-          className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-xs font-medium shadow-[0_2px_8px_-2px_rgba(15,23,42,0.05)] ${
+          className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-xs font-medium ${
             isSuccess
-              ? "border-emerald-100 bg-emerald-50/50 text-emerald-800"
-              : "border-red-100 bg-red-50/50 text-red-800"
+              ? "border-emerald-100 bg-gradient-to-r from-emerald-50/70 via-emerald-50/40 to-transparent text-emerald-800 shadow-[0_4px_12px_rgba(16,185,129,0.05)] dark:border-emerald-500/20 dark:from-emerald-950/20 dark:via-emerald-950/10 dark:to-transparent dark:text-emerald-300"
+              : "border-red-100 bg-gradient-to-r from-red-50/70 via-red-50/40 to-transparent text-red-800 shadow-[0_4px_12px_rgba(239,68,68,0.05)] dark:border-red-500/20 dark:from-red-950/20 dark:via-red-950/10 dark:to-transparent dark:text-red-300"
           }`}
           role="status"
           aria-live="polite"

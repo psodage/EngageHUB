@@ -33,10 +33,10 @@ export default function Toast() {
 
   return (
     <div
-      className={`fixed left-1/2 top-4 z-[70] w-[min(680px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm sm:top-6 sm:px-5 ${
+      className={`fixed left-1/2 top-4 z-[70] w-[min(680px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-2xl border px-4 pb-4 pt-3.5 shadow-2xl backdrop-blur-md sm:top-6 sm:px-5 ${
         isError
-          ? "border-red-200/80 bg-white/95 text-slate-900 dark:border-red-500/40 dark:bg-slate-900/95 dark:text-slate-100"
-          : "border-emerald-200/80 bg-white/95 text-slate-900 dark:border-emerald-500/40 dark:bg-slate-900/95 dark:text-slate-100"
+          ? "border-red-100 bg-white/90 text-slate-900 shadow-[0_20px_50px_rgba(239,68,68,0.1)] dark:border-red-500/20 dark:bg-slate-950/90 dark:text-slate-100"
+          : "border-emerald-100 bg-white/90 text-slate-900 shadow-[0_20px_50px_rgba(16,185,129,0.1)] dark:border-emerald-500/20 dark:bg-slate-950/90 dark:text-slate-100"
       }`}
       role="alert"
       aria-live="assertive"
@@ -45,17 +45,17 @@ export default function Toast() {
         <span
           className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
             isError
-              ? "bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-300"
-              : "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+              ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300"
+              : "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300"
           }`}
         >
           <Icon size={16} />
         </span>
-        <p className="flex-1 text-sm font-medium leading-relaxed">{toast.message}</p>
+        <p className="flex-1 pr-2 text-sm font-semibold leading-relaxed text-slate-800 dark:text-slate-200">{toast.message}</p>
       </div>
-      <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/75 dark:bg-slate-700/75">
+      <div className="absolute bottom-0 left-0 right-0 h-[3px] w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
         <div
-          className={`h-full rounded-full transition-[width] duration-100 ease-linear ${
+          className={`h-full transition-[width] duration-100 ease-linear ${
             isError ? "bg-red-500 dark:bg-red-400" : "bg-emerald-500 dark:bg-emerald-400"
           }`}
           style={{ width: `${progress}%` }}

@@ -134,7 +134,8 @@ export default function OnboardingPlatformsPage() {
     stripOAuthRedirectFragment();
 
     const params = new URLSearchParams(window.location.search);
-    const platform = params.get("social_platform");
+    const returnedPlatform = (params.get("social_platform") || "").trim().toLowerCase();
+    const platform = returnedPlatform === "thread" ? "threads" : returnedPlatform;
     const socialStatus = params.get("social_status");
     const reason = params.get("reason");
     const oauthDetail = params.get("oauth_detail");
