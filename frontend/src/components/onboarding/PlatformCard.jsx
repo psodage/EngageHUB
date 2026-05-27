@@ -52,20 +52,26 @@ export default function PlatformCard({
       transition={{ duration: 0.25 }}
       whileHover={isInteractive ? { y: -2 } : undefined}
       className={`group relative w-full rounded-2xl border p-4 text-left transition-colors duration-200 ${
-        disabled
-          ? "border-slate-200 bg-slate-50/10 dark:border-slate-800/40 dark:bg-slate-900/10"
-          : isConnected
-            ? "border-emerald-200 bg-emerald-50/60"
+        isConnected
+          ? "border-emerald-200 bg-emerald-50/60"
+          : disabled
+            ? "border-slate-200 bg-slate-50/10 dark:border-slate-800/40 dark:bg-slate-900/10"
             : status === "skipped"
               ? "border-amber-200 bg-amber-50/70"
-            : isSelected && !started
-              ? "border-brand-400/60 bg-brand-50/40 ring-1 ring-brand-500/20"
-              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
-      } ${disabled ? "cursor-not-allowed opacity-90" : started ? "cursor-default" : "cursor-pointer"} flex items-start gap-3.5 ${className}`}
+              : isSelected && !started
+                ? "border-brand-400/60 bg-brand-50/40 ring-1 ring-brand-500/20"
+                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
+      } ${disabled && !isConnected ? "cursor-not-allowed opacity-90" : started ? "cursor-default" : "cursor-pointer"} flex items-start gap-3.5 ${className}`}
     >
-      <SocialPlatformIcon platformKey={platform.key} size="md" className={disabled ? "grayscale opacity-85" : ""} />
+      <SocialPlatformIcon
+        platformKey={platform.key}
+        size="md"
+        className={disabled && !isConnected ? "grayscale opacity-85" : ""}
+      />
       <span className="min-w-0 flex-1">
-        <span className={`block text-[15px] font-semibold ${disabled ? "text-slate-800" : "text-slate-900"}`}>{platform.label}</span>
+        <span className={`block text-[15px] font-semibold ${disabled && !isConnected ? "text-slate-800" : "text-slate-900"}`}>
+          {platform.label}
+        </span>
         <span className={`mt-0.5 block line-clamp-2 text-xs leading-snug ${disabled ? "text-slate-500" : "text-slate-500"}`}>
           {disabled ? "Coming soon" : description}
         </span>
