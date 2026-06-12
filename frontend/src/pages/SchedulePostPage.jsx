@@ -168,7 +168,7 @@ export default function SchedulePostPage() {
   return (
     <div
       className={`flex min-h-0 w-full flex-1 flex-col ${
-        isComposeStep ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-contain"
+        isComposeStep ? "overflow-y-auto lg:overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-contain"
       }`}
     >
       {content}
