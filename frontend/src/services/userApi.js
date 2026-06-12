@@ -50,6 +50,27 @@ export async function registerUser({ name, email, password }) {
   return payload;
 }
 
+export async function completeDraftRegistration({
+  authDraftToken,
+  selectedUserType,
+  businessProfile,
+  influencerProfile,
+  studentProfile,
+}) {
+  const payload = await request("/api/auth/register/complete", {
+    method: "POST",
+    body: JSON.stringify({
+      authDraftToken,
+      selectedUserType,
+      userType: selectedUserType,
+      businessProfile,
+      influencerProfile,
+      studentProfile,
+    }),
+  });
+  return payload;
+}
+
 export async function loginUser({ email, password }) {
   const payload = await request("/api/auth/login", {
     method: "POST",

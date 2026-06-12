@@ -21,6 +21,12 @@ export const STORAGE_KEYS = {
   profileName: "engagehub-profile-name",
   onboardingCompleted: "engagehub-onboarding-completed",
   socialConnections: "engagehub-social-connections",
+  draftSignupSession: "engagehub-draft-signup-session",
+  userType: "engagehub-user-type",
+  selectedUserType: "engagehub-selected-user-type",
+  profileSetupCompleted: "engagehub-profile-setup-completed",
+  profileCompleted: "engagehub-profile-completed",
+  accountsLinked: "engagehub-accounts-linked",
 };
 
 /** Buffer-style primary navigation */

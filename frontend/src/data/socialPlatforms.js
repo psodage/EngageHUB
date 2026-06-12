@@ -100,7 +100,7 @@ export function isHiddenConnectPlatform(platformKey) {
 }
 
 /** New connections and reconnect OAuth are hidden/disabled in the UI until re-enabled. */
-export const TEMPORARILY_DISABLED_CONNECT_PLATFORM_KEYS = new Set(["reddit", "github", "youtube", "pinterest"]);
+export const TEMPORARILY_DISABLED_CONNECT_PLATFORM_KEYS = new Set(["reddit", "pinterest"]);
 
 export function isPlatformConnectTemporarilyDisabled(platformKey) {
   return TEMPORARILY_DISABLED_CONNECT_PLATFORM_KEYS.has(platformKey);

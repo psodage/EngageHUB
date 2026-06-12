@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import AuthFormShell from "../components/auth/AuthFormShell";
-import { AUTH_MESSAGES } from "../components/auth/authFeedbackConstants";
+import { AUTH_MESSAGES, AUTH_FEEDBACK_REDIRECT_MS } from "../components/auth/authFeedbackConstants";
 import {
   AuthDivider,
   AuthField,
@@ -14,7 +14,7 @@ import {
 } from "../components/auth/AuthFormPrimitives";
 
 function SignupForm() {
-  const { signup, startGoogleAuth, setToast } = useApp();
+  const { signup, startGoogleAuth, showAuthFeedback } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -27,7 +27,7 @@ function SignupForm() {
 
   useEffect(() => {
     if (!formAlert?.message) return undefined;
-    const id = setTimeout(() => setFormAlert(null), formAlert.type === "success" ? 5000 : 4200);
+    const id = setTimeout(() => setFormAlert(null), formAlert.type === "success" ? AUTH_FEEDBACK_REDIRECT_MS : 4200);
     return () => clearTimeout(id);
   }, [formAlert]);
 
@@ -76,16 +76,16 @@ function SignupForm() {
     setSubmitting(true);
     try {
       await signup({ name: trimmedName, email: trimmedEmail, password });
-      setFormAlert({ type: "success", message: "Account created successfully. Verification email sent." });
-      setToast({ message: "Account created successfully. Verification email sent." });
-      redirectTimerRef.current = setTimeout(() => navigate("/login", { replace: true }), 1600);
+      setFormAlert({ type: "success", message: AUTH_MESSAGES.onboardingContinue });
+      showAuthFeedback({ message: AUTH_MESSAGES.onboardingContinue, redirecting: true });
+      redirectTimerRef.current = setTimeout(() => navigate("/onboarding/user-type", { replace: true }), AUTH_FEEDBACK_REDIRECT_MS);
     } catch (apiError) {
       const rawMessage = apiError?.message || "";
       setFormAlert({
         type: "error",
         message: rawMessage.toLowerCase().includes("exist")
           ? "Account already exists."
-          : rawMessage || AUTH_MESSAGES.signupError,
+          : AUTH_MESSAGES.signupError,
       });
     } finally {
       setSubmitting(false);

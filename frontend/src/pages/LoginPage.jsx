@@ -74,11 +74,22 @@ export default function LoginPage() {
 
     setSubmitting(true);
     try {
-      const signedInUser = await login({ email: email.trim(), password });
+      const result = await login({ email: email.trim(), password });
+      if (result?.kind === "draft") {
+        setFormAlert({ type: "success", message: AUTH_MESSAGES.onboardingContinue || "Continuing onboarding..." });
+        setToast({ message: "Continuing onboarding..." });
+        redirectTimerRef.current = setTimeout(() => navigate("/onboarding/user-type", { replace: true }), 650);
+        return;
+      }
       setFormAlert({ type: "success", message: "Login successful." });
       setToast({ message: "Login successful." });
+      const signedInUser = result?.user;
       const nextRoute = signedInUser?.onboardingCompleted ? "/dashboard" : "/onboarding/platforms";
-      redirectTimerRef.current = setTimeout(() => navigate(nextRoute, { replace: true }), 650);
+      console.log("[login:onSubmit] Login successful. signedInUser:", signedInUser, "nextRoute:", nextRoute);
+      redirectTimerRef.current = setTimeout(() => {
+        console.log("[login:onSubmit:timeout] Navigating to:", nextRoute);
+        navigate(nextRoute, { replace: true });
+      }, 650);
       return;
     } catch (apiError) {
       setFormAlert({

@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { AUTH_MESSAGES } from "../components/auth/authFeedbackConstants";
+import { AUTH_MESSAGES, AUTH_FEEDBACK_REDIRECT_MS } from "../components/auth/authFeedbackConstants";
+import { getOnboardingRoute } from "../utils/onboarding";
 
 export default function AuthGoogleCallbackPage() {
-  const { completeGoogleLogin, setToast } = useApp();
+  const { completeGoogleLogin, showAuthFeedback } = useApp();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,13 +33,20 @@ export default function AuthGoogleCallbackPage() {
     let cancelled = false;
 
     completeGoogleLogin(code)
-      .then((signedInUser) => {
+      .then((result) => {
         if (cancelled) return;
-        console.log("[auth:google:callback] signedInUser:", signedInUser);
-        setToast({ message: "Login successful." });
-        const nextRoute = signedInUser?.onboardingCompleted ? "/dashboard" : "/onboarding/platforms";
-        console.log("[auth:google:callback] navigating to:", nextRoute);
-        navigate(nextRoute, { replace: true });
+        if (result?.kind === "draft") {
+          showAuthFeedback({ message: AUTH_MESSAGES.onboardingContinue, redirecting: true });
+          setTimeout(() => {
+            if (!cancelled) navigate("/onboarding/user-type", { replace: true });
+          }, AUTH_FEEDBACK_REDIRECT_MS);
+          return;
+        }
+        showAuthFeedback({ message: AUTH_MESSAGES.loginSuccess, redirecting: true });
+        const nextRoute = getOnboardingRoute(result?.user);
+        setTimeout(() => {
+          if (!cancelled) navigate(nextRoute, { replace: true });
+        }, AUTH_FEEDBACK_REDIRECT_MS);
       })
       .catch((apiError) => {
         if (cancelled) return;
@@ -51,7 +59,7 @@ export default function AuthGoogleCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [completeGoogleLogin, navigate]);
+  }, [completeGoogleLogin, navigate, showAuthFeedback]);
 
   return null;
 }

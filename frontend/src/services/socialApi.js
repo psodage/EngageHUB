@@ -11,7 +11,20 @@ const socialClient = axios.create({
 });
 
 socialClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem(STORAGE_KEYS.authToken);
+  let token = localStorage.getItem(STORAGE_KEYS.authToken);
+  if (!token) {
+    try {
+      const rawDraft = sessionStorage.getItem(STORAGE_KEYS.draftSignupSession);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft);
+        if (parsed?.authDraftToken) {
+          token = parsed.authDraftToken;
+        }
+      }
+    } catch {
+      // Ignore parsing/access errors
+    }
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

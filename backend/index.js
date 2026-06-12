@@ -133,11 +133,17 @@ function createAuthResponse(user) {
     user: {
       email: user.email,
       name: user.name,
+      userType: user.userType || "",
+      profileSetup: user.profileSetup || { completed: false },
+      businessProfile: user.businessProfile || {},
+      influencerProfile: user.influencerProfile || {},
+      studentProfile: user.studentProfile || {},
       onboardingCompleted: Boolean(user.onboardingCompleted),
       onboardingSkippedPlatforms: Array.isArray(user.onboardingSkippedPlatforms) ? user.onboardingSkippedPlatforms : [],
     },
   };
 }
+
 
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -222,6 +228,77 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+app.post("/api/auth/register/complete", async (req, res) => {
+  try {
+    const {
+      authDraftToken,
+      selectedUserType,
+      businessProfile,
+      influencerProfile,
+      studentProfile,
+    } = req.body;
+
+    if (!authDraftToken) {
+      return res.status(400).json({ error: "Draft token is required." });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(authDraftToken, jwtSecret);
+    } catch (err) {
+      return res.status(400).json({ error: "Invalid or expired draft signup session." });
+    }
+
+    const userId = parseUserId(decoded.userId);
+    if (!userId) {
+      return res.status(400).json({ error: "Invalid sign-in session." });
+    }
+
+    const user = await usersCollection.findOne({ _id: userId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    if (
+      selectedUserType !== "business" &&
+      selectedUserType !== "influencer" &&
+      selectedUserType !== "student"
+    ) {
+      return res.status(400).json({ error: "Invalid user type selected." });
+    }
+
+    const updates = {
+      userType: selectedUserType,
+      profileSetup: { completed: true },
+      updatedAt: new Date(),
+    };
+
+    if (selectedUserType === "business") {
+      updates.businessProfile = businessProfile || {};
+    } else if (selectedUserType === "influencer") {
+      updates.influencerProfile = influencerProfile || {};
+    } else if (selectedUserType === "student") {
+      updates.studentProfile = studentProfile || {};
+    }
+
+    const result = await usersCollection.findOneAndUpdate(
+      { _id: userId },
+      { $set: updates },
+      { returnDocument: "after" }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    return res.json(createAuthResponse(result));
+  } catch (error) {
+    console.error("[auth:register:complete:error]", error);
+    return res.status(500).json({ error: "Failed to complete setup." });
+  }
+});
+
+
 registerGoogleAuthRoutes(app, { usersCollection, createAuthResponse, parseUserId });
 
 app.get("/api/auth/me", requireAuth, async (req, res) => {
@@ -238,6 +315,11 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       user: {
         email: user.email,
         name: user.name,
+        userType: user.userType || "",
+        profileSetup: user.profileSetup || { completed: false },
+        businessProfile: user.businessProfile || {},
+        influencerProfile: user.influencerProfile || {},
+        studentProfile: user.studentProfile || {},
         onboardingCompleted: Boolean(user.onboardingCompleted),
         onboardingSkippedPlatforms: Array.isArray(user.onboardingSkippedPlatforms) ? user.onboardingSkippedPlatforms : [],
       },
