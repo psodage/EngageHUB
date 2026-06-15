@@ -1,0 +1,384 @@
+/* ——————————————————————————————————————————————
+   SharedCalendar – Vanilla CSS
+   Uses CSS custom-properties defined by the app theme.
+   —————————————————————————————————————————————— */
+
+/* ── Container ────────────────────────────────── */
+.calendar-container {
+  width: 100%;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: var(--text-primary);
+
+  /* Theme variables - Light Mode defaults */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #f8fafc;
+  --bg-app: #f1f5f9;
+  --color-accent: #9333ea;
+  --color-accent-light: #f3e8ff;
+  --color-accent-dark: #7e22ce;
+  --radius-md: 12px;
+}
+
+/* Dark Mode overrides */
+.dark .calendar-container {
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --bg-surface: #1e293b;
+  --bg-surface-raised: #0f172a;
+  --bg-app: #0f172a;
+  --color-accent: #c084fc;
+  --color-accent-light: rgba(192, 132, 252, 0.15);
+  --color-accent-dark: #e9d5ff;
+}
+
+/* ── Toolbar (nav + legend row) ───────────────── */
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* ── Navigation ───────────────────────────────── */
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.nav-btn:hover {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.calendar-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  min-width: 180px;
+  text-align: center;
+}
+
+/* ── Legend ────────────────────────────────────── */
+.calendar-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot.scheduled {
+  background: var(--color-accent);
+}
+
+.legend-dot.draft {
+  background: var(--text-muted);
+}
+
+.legend-dot.published {
+  background: #22c55e;
+}
+
+.legend-dot.failed {
+  background: #ef4444;
+}
+
+/* ── Grid ─────────────────────────────────────── */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+/* ── Day-of-week headers ──────────────────────── */
+.calendar-day-header {
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  background: var(--bg-surface-raised);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* ── Cells ────────────────────────────────────── */
+.calendar-cell {
+  min-height: 120px;
+  padding: 8px;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  transition: background 0.2s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-cell:nth-child(7n) {
+  border-right: none;
+}
+
+.calendar-cell:hover:not(.empty) {
+  background: var(--color-accent-light);
+}
+
+.calendar-cell.empty {
+  opacity: 0.4;
+  background: var(--bg-app);
+  pointer-events: none;
+}
+
+.calendar-cell.today {
+  background: var(--color-accent-light);
+}
+
+/* ── Day number ───────────────────────────────── */
+.day-number {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  line-height: 1;
+}
+
+.today-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-dark);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Day posts wrapper ────────────────────────── */
+.day-posts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* ── Post card ────────────────────────────────── */
+.calendar-post {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-surface-raised);
+  border-left: 3px solid transparent;
+  cursor: grab;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  font-size: 0.72rem;
+  position: relative;
+}
+
+.calendar-post:active {
+  cursor: grabbing;
+  transform: scale(0.97);
+}
+
+.calendar-post:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Status borders */
+.calendar-post.status-scheduled {
+  border-left-color: var(--color-accent);
+}
+
+.calendar-post.status-draft {
+  border-left-color: var(--text-muted);
+}
+
+.calendar-post.status-published {
+  border-left-color: #22c55e;
+}
+
+.calendar-post.status-failed {
+  border-left-color: #ef4444;
+}
+
+/* ── Platform tags ────────────────────────────── */
+.calendar-post-platforms {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.calendar-platform-tag {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+/* ── Post text ────────────────────────────────── */
+.calendar-post-text {
+  color: var(--text-secondary);
+  line-height: 1.4;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Post actions row ─────────────────────────── */
+.calendar-post-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.calendar-post-time {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.calendar-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+  padding: 0;
+}
+
+.calendar-delete:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* ── Loading indicator ────────────────────────── */
+.calendar-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 16px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.calendar-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: calendar-spin 0.6s linear infinite;
+}
+
+@keyframes calendar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Drag-over visual feedback ────────────────── */
+.calendar-cell.drag-over {
+  background: var(--color-accent-light);
+  outline: 2px dashed var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* ── Responsive adjustments ───────────────────── */
+@media (max-width: 768px) {
+  .calendar-cell {
+    min-height: 80px;
+    padding: 4px;
+  }
+
+  .calendar-title {
+    font-size: 1rem;
+    min-width: 140px;
+  }
+
+  .calendar-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .calendar-post {
+    font-size: 0.65rem;
+    padding: 4px 6px;
+  }
+
+  .calendar-platform-tag {
+    font-size: 0.55rem;
+  }
+}

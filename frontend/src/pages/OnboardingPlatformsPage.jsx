@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SOCIAL_PLATFORM_CONFIGS, isPlatformConnectTemporarilyDisabled } from "../data/socialPlatforms";
+import { SOCIAL_PLATFORM_CONFIGS, isPlatformConnectTemporarilyDisabled, getPlatformsForUserType } from "../data/socialPlatforms";
 import { getSocialOAuthErrorMessage, startSocialConnect } from "../services/socialApi";
 import { useApp } from "../context/AppContext";
 import { stripOAuthRedirectFragment } from "../utils/oauthReturnUrl";
@@ -13,17 +13,15 @@ import OnboardingFlowPanel from "../components/onboarding/OnboardingFlowPanel";
 
 const ONBOARDING_STORAGE_KEY = "engagehub-onboarding-flow";
 
-function getInitialSelected() {
-  return SOCIAL_PLATFORM_CONFIGS.reduce((acc, platform) => {
-    acc[platform.key] = false;
-    return acc;
-  }, {});
-}
-
 export default function OnboardingPlatformsPage() {
   const navigate = useNavigate();
-  const { setToast, completeOnboarding, setConnectionStatus, connectedAccounts, refreshConnectedAccounts, logout } = useApp();
-  const [selected, setSelected] = useState(getInitialSelected);
+  const { setToast, completeOnboarding, setConnectionStatus, connectedAccounts, refreshConnectedAccounts, logout, user } = useApp();
+  const [selected, setSelected] = useState(() => {
+    return getPlatformsForUserType(user?.userType).reduce((acc, platform) => {
+      acc[platform.key] = false;
+      return acc;
+    }, {});
+  });
   const [queue, setQueue] = useState([]);
   const [statusMap, setStatusMap] = useState({});
   const [started, setStarted] = useState(false);
@@ -40,14 +38,15 @@ export default function OnboardingPlatformsPage() {
   );
 
   const orderedPlatforms = useMemo(() => {
-    const available = SOCIAL_PLATFORM_CONFIGS.filter(
+    const userPlatforms = getPlatformsForUserType(user?.userType);
+    const available = userPlatforms.filter(
       (p) => !isPlatformConnectTemporarilyDisabled(p.key)
     );
-    const comingSoon = SOCIAL_PLATFORM_CONFIGS.filter(
+    const comingSoon = userPlatforms.filter(
       (p) => isPlatformConnectTemporarilyDisabled(p.key)
     );
     return [...available, ...comingSoon];
-  }, []);
+  }, [user?.userType]);
 
   const currentIndex = useMemo(
     () => queue.findIndex((platform) => !["connected", "skipped"].includes(statusMap[platform])),
@@ -57,7 +56,7 @@ export default function OnboardingPlatformsPage() {
   const processedCount = queue.filter((platform) => ["connected", "skipped"].includes(statusMap[platform])).length;
   const selectedCount = Object.values(selected).filter(Boolean).length;
 
-  const progressTotal = started ? queue.length : SOCIAL_PLATFORM_CONFIGS.length;
+  const progressTotal = started ? queue.length : getPlatformsForUserType(user?.userType).length;
   const progressCurrent = started ? processedCount : selectedCount;
   const progressPercent = progressTotal ? Math.round((progressCurrent / progressTotal) * 100) : 0;
 

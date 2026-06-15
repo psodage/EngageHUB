@@ -40,6 +40,7 @@ function getInitialUser() {
     studentProfile: {},
     linkedAccounts: [],
     accountsLinked: localStorage.getItem(STORAGE_KEYS.accountsLinked) === "1",
+    profileImage: localStorage.getItem(STORAGE_KEYS.profileImage) ?? "",
   };
 }
 
@@ -159,6 +160,7 @@ export function AppProvider({ children }) {
     const onboardingCompleted = Boolean(normalizedUser.onboardingCompleted);
     localStorage.setItem(STORAGE_KEYS.onboardingCompleted, onboardingCompleted ? "1" : "0");
     localStorage.setItem(STORAGE_KEYS.accountsLinked, normalizedUser.linkedAccounts?.length ? "1" : "0");
+    localStorage.setItem(STORAGE_KEYS.profileImage, normalizedUser.profileImage || "");
     setUser(normalizedUser);
     setIsAuthed(true);
     setDraftSignupSession(null);
@@ -230,6 +232,7 @@ export function AppProvider({ children }) {
     localStorage.removeItem(STORAGE_KEYS.userType);
     localStorage.removeItem(STORAGE_KEYS.profileSetupCompleted);
     localStorage.removeItem(STORAGE_KEYS.onboardingCompleted);
+    localStorage.removeItem(STORAGE_KEYS.profileImage);
     const draft = storeDraftSignupSession(payload);
     localStorage.setItem(STORAGE_KEYS.email, draft.email);
     localStorage.setItem(STORAGE_KEYS.profileName, draft.name || "");
@@ -245,6 +248,7 @@ export function AppProvider({ children }) {
       userType: draft.selectedUserType || "",
       onboardingCompleted: false,
       profileSetup: { completed: false },
+      profileImage: "",
     }));
     setIsAuthed(false);
     return draft;
@@ -296,6 +300,7 @@ export function AppProvider({ children }) {
     localStorage.removeItem(STORAGE_KEYS.profileCompleted);
     localStorage.removeItem(STORAGE_KEYS.accountsLinked);
     localStorage.removeItem(STORAGE_KEYS.onboardingCompleted);
+    localStorage.removeItem(STORAGE_KEYS.profileImage);
     sessionStorage.removeItem(STORAGE_KEYS.draftSignupSession);
     setDraftSignupSession(null);
     setConnectedAccounts([]);
@@ -391,6 +396,18 @@ export function AppProvider({ children }) {
         studentProfile: payload.studentProfile || user.studentProfile,
         linkedAccounts: Array.isArray(payload.linkedAccounts) ? payload.linkedAccounts : user.linkedAccounts,
       };
+
+      let profileImage = "";
+      if (nextUser.userType === "business") {
+        profileImage = nextUser.businessProfile?.logo || "";
+      } else if (nextUser.userType === "influencer") {
+        profileImage = nextUser.influencerProfile?.profileImage || "";
+      } else if (nextUser.userType === "student") {
+        profileImage = nextUser.studentProfile?.profileImage || "";
+      }
+      nextUser.profileImage = profileImage;
+      localStorage.setItem(STORAGE_KEYS.profileImage, profileImage || "");
+
       localStorage.setItem(STORAGE_KEYS.userType, nextUser.userType || "");
       localStorage.setItem(STORAGE_KEYS.selectedUserType, nextUser.userType || "");
       localStorage.setItem(STORAGE_KEYS.profileSetupCompleted, nextUser.profileSetup?.completed ? "1" : "0");

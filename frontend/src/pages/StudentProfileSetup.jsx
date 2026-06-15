@@ -57,7 +57,6 @@ export default function StudentProfileSetup() {
 
   const validateStep2 = () => {
     const next = {};
-    if (!String(form.profileImage || "").trim()) next.profileImage = "Profile picture is required.";
     
     const portfolio = String(form.portfolioUrl || "").trim();
     if (portfolio && !/^https?:\/\//.test(portfolio)) {
@@ -235,7 +234,7 @@ export default function StudentProfileSetup() {
             <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <div>
-                  <label className="mb-3 block text-sm font-medium">Profile Picture</label>
+                  <label className="mb-3 block text-sm font-medium">Profile Picture (Optional)</label>
                   <div className="flex items-center gap-5">
                     <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                       {form.profileImage ? (

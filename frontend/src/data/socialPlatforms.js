@@ -73,6 +73,17 @@ export const SOCIAL_PLATFORM_CONFIGS = [
   },
 ];
 
+export const PLATFORMS_BY_USER_TYPE = {
+  business: ["instagram", "facebook", "linkedin", "x", "youtube", "googleBusiness"],
+  influencer: ["instagram", "threads", "x", "youtube", "facebook", "pinterest"],
+  student: ["instagram", "linkedin", "threads", "github"],
+};
+
+export function getPlatformsForUserType(userType) {
+  const keys = PLATFORMS_BY_USER_TYPE[userType] || PLATFORMS_BY_USER_TYPE.business;
+  return SOCIAL_PLATFORM_CONFIGS.filter((p) => keys.includes(p.key));
+}
+
 /** Display order in the Connect a New Channel modal (3-column grid). */
 export const CONNECT_CHANNEL_MODAL_PLATFORM_ORDER = [
   "instagram",

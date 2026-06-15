@@ -7,7 +7,7 @@ import OnboardingShell from "../components/onboarding/OnboardingShell";
 
 function flowReturnPath(flow) {
   const f = (flow || "settings").toLowerCase();
-  if (f === "onboarding") return "/onboarding/platforms";
+  if (f === "onboarding") return "/onboarding/link-accounts";
   if (f === "settings") return "/settings/channels";
   return "/channels/linkedin";
 }
@@ -164,7 +164,7 @@ export default function LinkedInAccountSelectPage() {
     <div className={isOnboardingFlow ? "mx-auto w-full max-w-3xl" : "mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8"}>
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
-            to={isOnboardingFlow ? "/onboarding/platforms" : "/channels"}
+            to={isOnboardingFlow ? "/onboarding/link-accounts" : "/channels"}
             className={[
               "inline-flex items-center gap-2 text-sm font-semibold",
               isOnboardingFlow

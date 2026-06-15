@@ -27,6 +27,7 @@ export const STORAGE_KEYS = {
   profileSetupCompleted: "engagehub-profile-setup-completed",
   profileCompleted: "engagehub-profile-completed",
   accountsLinked: "engagehub-accounts-linked",
+  profileImage: "engagehub-profile-image",
 };
 
 /** Buffer-style primary navigation */

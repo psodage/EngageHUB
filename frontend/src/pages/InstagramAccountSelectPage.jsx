@@ -6,7 +6,7 @@ import { useApp } from "../context/AppContext";
 
 function flowReturnPath(flow) {
   const f = (flow || "settings").toLowerCase();
-  if (f === "onboarding") return "/onboarding/platforms";
+  if (f === "onboarding") return "/onboarding/link-accounts";
   if (f === "settings") return "/settings/channels";
   return "/channels/instagram";
 }
@@ -134,7 +134,7 @@ export default function InstagramAccountSelectPage() {
       <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
-            to="/channels"
+            to={isOnboardingFlow ? "/onboarding/link-accounts" : "/channels"}
             className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
           >
             <ChevronLeft size={18} aria-hidden />

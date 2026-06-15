@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getSocialAccounts } from "../services/socialApi";
-import { SOCIAL_PLATFORM_CONFIGS } from "../data/socialPlatforms";
+import { SOCIAL_PLATFORM_CONFIGS, PLATFORMS_BY_USER_TYPE } from "../data/socialPlatforms";
 import { createEmptyChannelDraft } from "../data/platformComposerConfig";
+import { useApp } from "../context/AppContext";
 import ChannelPickerStep from "../components/create-post/ChannelPickerStep";
 import CreatePostWorkspace from "../components/create-post/CreatePostWorkspace";
 import {
@@ -19,6 +20,8 @@ export default function CreatePostPage() {
   const [step, setStep] = useState("pick");
   const [selectedChannelKeys, setSelectedChannelKeys] = useState([]);
   const [drafts, setDrafts] = useState({});
+  const { user } = useApp();
+  const userType = user?.userType || "business";
 
   const scopedPlatformKey = useMemo(() => {
     const raw = searchParams.get("platform")?.trim() || "";
@@ -37,19 +40,24 @@ export default function CreatePostPage() {
       .catch(() => setConnectedAccounts([]));
   }, []);
 
+  const filteredConnectedAccounts = useMemo(() => {
+    const allowedKeys = PLATFORMS_BY_USER_TYPE[userType] || [];
+    return connectedAccounts.filter((a) => allowedKeys.includes(a.platform));
+  }, [connectedAccounts, userType]);
+
   const connectedByPlatform = useMemo(
-    () => connectedAccounts.reduce((acc, item) => ({ ...acc, [item.platform]: item }), {}),
-    [connectedAccounts]
+    () => filteredConnectedAccounts.reduce((acc, item) => ({ ...acc, [item.platform]: item }), {}),
+    [filteredConnectedAccounts]
   );
 
   const channelOptions = useMemo(
-    () => mapAccountsToCreatePostChannelOptions(connectedAccounts),
-    [connectedAccounts]
+    () => mapAccountsToCreatePostChannelOptions(filteredConnectedAccounts),
+    [filteredConnectedAccounts]
   );
 
   const connectedByChannel = useMemo(
-    () => buildConnectedByChannelKey(connectedAccounts),
-    [connectedAccounts]
+    () => buildConnectedByChannelKey(filteredConnectedAccounts),
+    [filteredConnectedAccounts]
   );
 
   useEffect(() => {

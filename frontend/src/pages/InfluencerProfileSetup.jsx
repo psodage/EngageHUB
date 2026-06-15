@@ -45,7 +45,6 @@ export default function InfluencerProfileSetup() {
 
   const validateStep2 = () => {
     const next = {};
-    if (!String(form.profileImage || "").trim()) next.profileImage = "Profile picture is required.";
     if (!String(form.coverImage || "").trim()) next.coverImage = "Cover image is required.";
     if (!String(form.primaryPlatforms || "").trim()) next.primaryPlatforms = "Primary platforms are required.";
     if (!String(form.followerCount || "").trim()) next.followerCount = "Follower count is required.";
@@ -231,7 +230,7 @@ export default function InfluencerProfileSetup() {
             <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <div>
-                  <label className="mb-3 block text-sm font-medium">Profile Picture</label>
+                  <label className="mb-3 block text-sm font-medium">Profile Picture (Optional)</label>
                   <div className="flex items-center gap-5">
                     <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                       {form.profileImage ? (

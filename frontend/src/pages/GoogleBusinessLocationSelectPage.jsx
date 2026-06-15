@@ -12,7 +12,7 @@ import OnboardingShell from "../components/onboarding/OnboardingShell";
 
 function flowReturnPath(flow) {
   const f = (flow || "settings").toLowerCase();
-  if (f === "onboarding") return "/onboarding/platforms";
+  if (f === "onboarding") return "/onboarding/link-accounts";
   if (f === "settings") return "/settings/channels";
   return "/channels/googleBusiness";
 }
@@ -188,7 +188,7 @@ export default function GoogleBusinessLocationSelectPage() {
       <div className={isOnboardingFlow ? "mx-auto w-full max-w-4xl" : "mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8"}>
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
-            to={isOnboardingFlow ? "/onboarding/platforms" : "/channels"}
+            to={isOnboardingFlow ? "/onboarding/link-accounts" : "/channels"}
             className={[
               "inline-flex items-center gap-2 text-sm font-semibold",
               isOnboardingFlow
@@ -314,7 +314,7 @@ export default function GoogleBusinessLocationSelectPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => navigate(isOnboardingFlow ? "/onboarding/platforms" : "/channels")}
+                onClick={() => navigate(isOnboardingFlow ? "/onboarding/link-accounts" : "/channels")}
                 className={[
                   "border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50",
                   isOnboardingFlow

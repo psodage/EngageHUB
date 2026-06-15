@@ -22,12 +22,18 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function BusinessProfileSetup() {
   const navigate = useNavigate();
   const { user, draftSignupSession, completeDraftSignup, setToast } = useApp();
+  const registeredEmail = draftSignupSession?.email || user?.email || "";
+
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [errors, setErrors] = useState({});
-  const [form, setForm] = useState({ ...INITIAL_FORM, ...(user.businessProfile || {}) });
+  const [form, setForm] = useState(() => ({
+    ...INITIAL_FORM,
+    businessEmail: registeredEmail,
+    ...(user.businessProfile || {}),
+  }));
 
   const validateStep1 = () => {
     const next = {};
@@ -35,17 +41,19 @@ export default function BusinessProfileSetup() {
     if (!String(form.industry || "").trim()) next.industry = "Industry is required.";
     if (!String(form.description || "").trim()) next.description = "Business description is required.";
     if (!/^https?:\/\//.test(String(form.websiteUrl || "").trim())) next.websiteUrl = "Use a valid URL starting with http:// or https://";
-    if (!EMAIL_REGEX.test(String(form.businessEmail || "").trim())) next.businessEmail = "Use a valid business email.";
+    
+    const emailToValidate = form.businessEmail || registeredEmail;
+    if (!EMAIL_REGEX.test(String(emailToValidate || "").trim())) {
+      next.businessEmail = "Use a valid business email.";
+    }
+
     if (!String(form.contactNumber || "").trim()) next.contactNumber = "Contact number is required.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
   const validateStep2 = () => {
-    const next = {};
-    if (!String(form.logo || "").trim()) next.logo = "Business logo is required.";
-    setErrors((prev) => ({ ...prev, ...next }));
-    return Object.keys(next).length === 0;
+    return true;
   };
 
   const uploadAsset = async (file, key, setUploading) => {
@@ -72,7 +80,10 @@ export default function BusinessProfileSetup() {
       if (!draftToken) throw new Error("Missing signup session.");
       const result = await completeDraftSignup({
         selectedUserType: "business",
-        businessProfile: form,
+        businessProfile: {
+          ...form,
+          businessEmail: registeredEmail,
+        },
       });
       if (!result.ok) {
         throw result.error || new Error("Unable to save business profile.");
@@ -152,15 +163,13 @@ export default function BusinessProfileSetup() {
                     id="businessEmail"
                     type="email"
                     value={form.businessEmail}
-                    onChange={(e) => setForm({ ...form, businessEmail: e.target.value })}
-                    className={`w-full rounded-xl border bg-white px-4 py-2.5 transition focus:ring-2 focus:ring-brand-500/20 ${
-                      errors.businessEmail ? "border-red-500" : "border-slate-200"
-                    }`}
+                    disabled
+                    className="w-full rounded-xl border bg-slate-50 px-4 py-2.5 transition text-slate-500 border-slate-200 cursor-not-allowed"
                     placeholder="hello@acme.com"
                   />
-                  {errors.businessEmail && (
-                    <p className="mt-1 text-xs text-red-500">{errors.businessEmail}</p>
-                  )}
+                  <p className="mt-1 text-xs text-slate-400 font-normal">
+                    This is your registered account email address.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="contactNumber" className="mb-1.5 block text-sm font-medium">
@@ -234,7 +243,7 @@ export default function BusinessProfileSetup() {
             <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <div>
-                  <label className="mb-3 block text-sm font-medium">Business Logo</label>
+                  <label className="mb-3 block text-sm font-medium">Business Logo (Optional)</label>
                   <div className="flex items-center gap-5">
                     <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                       {form.logo ? (

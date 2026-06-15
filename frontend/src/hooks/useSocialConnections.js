@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { useApp } from "../context/AppContext";
 import {
   PLATFORM_CAPABILITY_MATRIX,
   SOCIAL_PLATFORM_CONFIGS,
   isHiddenConnectPlatform,
   isPlatformConnectTemporarilyDisabled,
+  getPlatformsForUserType,
 } from "../data/socialPlatforms";
 import {
   disconnectSocial,
@@ -32,6 +34,8 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
   const location = useLocation();
   const oauthFlow = resolveOAuthFlow(location.pathname);
   const advancingQueueRef = useRef(false);
+  const { user } = useApp();
+  const userType = user?.userType || "business";
 
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -54,19 +58,20 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
   );
 
   const { availablePlatforms, temporarilyDisabledPlatforms } = useMemo(() => {
+    const userPlatforms = getPlatformsForUserType(userType);
     const available = [];
     const disabled = [];
-    for (const platform of SOCIAL_PLATFORM_CONFIGS) {
+    for (const platform of userPlatforms) {
       if (isPlatformConnectTemporarilyDisabled(platform.key)) disabled.push(platform);
       else available.push(platform);
     }
     return { availablePlatforms: available, temporarilyDisabledPlatforms: disabled };
-  }, []);
+  }, [userType]);
 
   const summary = useMemo(() => {
     const connected = visibleAccounts.filter((item) => item.isConnected).length;
     const reconnectRequired = visibleAccounts.filter((item) => item.isConnected && item.isTokenExpired).length;
-    const pendingPlatforms = SOCIAL_PLATFORM_CONFIGS.filter(
+    const pendingPlatforms = getPlatformsForUserType(userType).filter(
       (platform) =>
         !isPlatformConnectTemporarilyDisabled(platform.key) && !accountsByPlatform[platform.key]?.isConnected
     ).length;
@@ -75,7 +80,7 @@ export function useSocialConnections({ setToast, refreshConnectedAccounts, onOAu
       reconnectRequired,
       pendingPlatforms,
     };
-  }, [visibleAccounts, accountsByPlatform]);
+  }, [visibleAccounts, accountsByPlatform, userType]);
 
   const loadAccounts = useCallback(async () => {
     setLoadingAccounts(true);
